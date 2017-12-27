@@ -23,7 +23,10 @@ from copy import deepcopy
 #redirect system output to a file:
 #sys.stdout = open('consol_output.txt','w')
 
-# all states + states that are subject to process noise (directly drawn from e.g. a gaussian distribution)
+###############################################################################
+###                               Specifications
+###############################################################################
+
 states = ["PO","MX","MY","Y","W","PO_fed"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","PO_fed"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)]}
@@ -32,12 +35,13 @@ u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
 
 # measured variables
-#y = [ "PO", "Y", "W", "MY", "MX","MW"] 
-y = ["Y","PO","MW","m_tot","W","MX","MY"]
-#y_vars = {"PO":[()], "Y":[()], "W":[()], "MY":[()], "MX":[(0,),(1,)], "MW":[()]}
+y = {"PO", "Y", "W", "MY", "MX", "MW","m_tot"}
 y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
+
 nfe = 24
 n_s = 5 # 2*dimensions + 1
+
+pc = ["Tad","heat_removal"]
 
 e = MheGen(d_mod=SemiBatchPolymerization,
            n_s = n_s,
@@ -55,7 +59,14 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            diag_QR=True,
            nfe_t=nfe,
            del_ics=False,
-           sens=None)
+           sens=None,
+           path_constraints=pc)
+
+
+###############################################################################
+###                                     NMPC
+###############################################################################
+
 e.recipe_optimization()
 e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
 e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
@@ -151,7 +162,11 @@ for i in range(1,k):
     print(e.simulation_trajectory[i,'solstat'], e.simulation_trajectory[i,'obj_fun'])
 e.plant_simulation(e.store_results(e.olnmpc))
 
-#### plot results comparisons
+
+###############################################################################
+####                        plot results comparisons   
+###############################################################################
+
 t_traj_nmpc = np.array([e.nmpc_trajectory[i,'tf'] for i in range(1,k)])
 t_traj_sim = np.array([e.nmpc_trajectory[i,'tf'] for i in range(1,k+1)])
 plt.figure(1)

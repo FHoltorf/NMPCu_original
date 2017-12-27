@@ -238,7 +238,7 @@ class NmpcGen(DynGen):
         ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
-        ip.options["tol"] = 1e-5
+        ip.options["tol"] = 1e-8
         ip.options["max_iter"] = 3000
         #ip.options["bound_push"] = 1e-3
         #ip.options["mu_init"] = 1e-6
@@ -271,7 +271,7 @@ class NmpcGen(DynGen):
             for pc_name in self.path_constraints:
                 pc_var = getattr(self.plant_simulation_model, pc_name)
                 for index in pc_var.index_set():
-                    self.pc_trajectory[(pc_name,(self.iterations,index[1:]))] = pc_var[index].value
+                    self.pc_trajectory[(pc_name,(self.iterations,index[1:-1]))] = pc_var[index].value
             
             for cp in range(self.ncp_t+1):
                 self.pc_trajectory[('tf',(self.iterations,cp))] = self.plant_simulation_model.tau_i_t[cp]*self.plant_simulation_model.tf[1,1].value
@@ -358,7 +358,7 @@ class NmpcGen(DynGen):
         ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
-        ip.options["tol"] = 1e-5
+        ip.options["tol"] = 1e-8
         ip.options["max_iter"] = 3000
         #ip.options["mu_init"] = 1e-1
         #ip.options["ma57_automatic_scaling"] = "yes"
@@ -493,7 +493,8 @@ class NmpcGen(DynGen):
         for i in self.olnmpc.eps.index_set():
             self.olnmpc.eps[i] = 0.0
         self.olnmpc.eps.fix()    
-        self.olnmpc.create_bounds()        
+        self.olnmpc.create_bounds() 
+        self.olnmpc.clear_aux_bounds()
         
     def store_results(self,m):
         # store the results of an entire optimization problem into one dictionary
@@ -683,7 +684,7 @@ class NmpcGen(DynGen):
         ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
-        ip.options["tol"] = 1e-9
+        ip.options["tol"] = 1e-8
 
         results = ip.solve(self.noisy_model, tee=True)
         
@@ -724,7 +725,7 @@ class NmpcGen(DynGen):
         ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
-        ip.options["tol"] = 1e-5
+        ip.options["tol"] = 1e-8
         ip.options["max_iter"] = 3000
         with open("ipopt.opt", "w") as f:
             f.write("print_info_string yes")
@@ -744,6 +745,7 @@ class NmpcGen(DynGen):
         if not(str(results.solver.status) == 'ok' and str(results.solver.termination_condition) == 'optimal'):
             #self.save = self.olnmpc.troubleshooting()
             self.olnmpc.del_pc_bounds() # 
+            self.olnmpc.clear_aux_bounds()
             results = ip.solve(self.olnmpc,tee=True)             
             """
             #self.olnmpc.initialize_element_by_element()

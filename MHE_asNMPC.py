@@ -37,10 +37,9 @@ u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
 
 # measured variables
-y = [ "PO", "Y", "W", "MY", "MX","MW","heat_removal"] 
-#y = ["heat_removal","m_tot","PO","MW"]
-y_vars = {"PO":[()], "Y":[()], "W":[()], "MY":[()], "MX":[(0,),(1,)], "MW":[()],"heat_removal":[()]}
-#y_vars = {"heat_removal":[()],"m_tot":[()],"PO":[()], "MW":[()]}
+y = {"PO", "Y", "W", "MY", "MX", "MW","m_tot"}
+y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
+
 nfe = 24
 
 pc = ['Tad','heat_removal']
@@ -158,7 +157,11 @@ for i in range(1,k):
 
 e.plant_simulation(e.store_results(e.olnmpc))
 
-#### plot results comparisons   
+
+###############################################################################
+####                        plot results comparisons   
+###############################################################################
+
 t_traj_nmpc = np.array([e.nmpc_trajectory[i,'tf'] for i in range(1,k)])
 t_traj_sim = np.array([e.nmpc_trajectory[i,'tf'] for i in range(1,k+1)])
 plt.figure(1)

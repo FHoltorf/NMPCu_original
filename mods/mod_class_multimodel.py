@@ -638,7 +638,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 return Constraint.Skip
             else:
                 #return 0.0 <= self.max_heat_removal + self.F[i]*self.monomer_cooling[i,j,s] - self.heat_removal [i,j,s] + self.eps
-                return 0.0 == (self.max_heat_removal + self.F[i]*self.monomer_cooling[i,j,s]*self.monomer_cooling_scale - self.heat_removal [i,j,s] - self.s_heat_removal_a[i,j,s]) #+ self.eps
+                return 0.0 == (self.max_heat_removal - self.heat_removal [i,j,s] - self.s_heat_removal_a[i,j,s]) #+ self.eps
             
         self.pc_heat_removal_a = Constraint(self.fe_t, self.cp, self.s, rule=_pc_heat_removal_a)
         #process_constraint_heat_removal_a(k,q)$(ak(k))..
@@ -648,7 +648,7 @@ class SemiBatchPolymerization(ConcreteModel):
             if j == 0:
                 return Constraint.Skip
             else:
-                return 0.0 == ((((self.kr[i,j,'i',s]-self.kr[i,j,'p',s])*(self.G[i,j,s]*self.G_scale + self.U[i,j,s]*self.U_scale) + (self.kr[i,j,'p',s] + self.kr[i,j,'t',s])*self.n_KOH + self.kr[i,j,'a',s]*self.W[i,j,s])*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale) + self.dW_dt[i,j,s] - self.heat_removal[i,j,s]*self.tf*self.fe_dist[i])
+                return 0.0 == ((((self.kr[i,j,'i',s]-self.kr[i,j,'p',s])*(self.G[i,j,s]*self.G_scale + self.U[i,j,s]*self.U_scale) + (self.kr[i,j,'p',s] + self.kr[i,j,'t',s])*self.n_KOH + self.kr[i,j,'a',s]*self.W[i,j,s])*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale) + self.dW_dt[i,j,s] - (self.heat_removal[i,j,s] + self.F[i]*self.monomer_cooling[i,j,s]*self.monomer_cooling_scale)*self.tf*self.fe_dist[i])
         
         self.pc_heat_removal_b = Constraint(self.fe_t, self.cp, self.s, rule=_pc_heat_removal_b)      
         #process_constraint_heat_removal_b(k,q)$(ak(k))..
@@ -1113,13 +1113,17 @@ class SemiBatchPolymerization(ConcreteModel):
             return (self.u1[1] - self.u1_nom)**2/(self.u1[1].ub-self.u1[1].lb)**2 + (self.u2[1] - self.u2_nom)**2/(self.u2[1].ub-self.u2[1].lb)**2
         self.obj_u = Objective(rule=_obj_u,sense=minimize)
 
-    def aux(self):
+    def set_default_confidence(self):
         self.p_A["i",1] = 1.0
-        self.p_A["i",2] = 1.01
-        self.p_A["i",3] = 1.02
-        self.p_A["i",4] = 1.03
-        self.p_A["i",5] = 1.04
-        
+        self.p_A["i",2] = 1.1
+        self.p_A["i",3] = 0.9
+        self.p_A["i",4] = 1.0
+        self.p_A["i",5] = 1.0
+        self.p_A["p",1] = 1.0
+        self.p_A["p",2] = 1.0
+        self.p_A["p",3] = 1.0
+        self.p_A["p",4] = 0.9
+        self.p_A["p",5] = 1.1
     
 
 #Solver = SolverFactory('ipopt')

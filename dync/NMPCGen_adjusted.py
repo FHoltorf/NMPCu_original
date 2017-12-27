@@ -345,7 +345,10 @@ class NmpcGen(DynGen):
             for pc_name in self.path_constraints:
                 pc_var = getattr(self.plant_simulation_model, pc_name)
                 for index in pc_var.index_set():
-                    self.pc_trajectory[(pc_name,(self.iterations,index[1:]))] = pc_var[index].value
+                    if self.multimodel:
+                        self.pc_trajectory[(pc_name,(self.iterations,index[1:-1]))] = pc_var[index].value
+                    else:
+                        self.pc_trajectory[(pc_name,(self.iterations,index[1:]))] = pc_var[index].value
             
             for cp in range(self.ncp_t+1):
                 self.pc_trajectory[('tf',(self.iterations,cp))] = self.plant_simulation_model.tau_i_t[cp]*self.plant_simulation_model.tf.value
@@ -581,8 +584,10 @@ class NmpcGen(DynGen):
         if self.multimodel:
             if self.iterations > 1:
                 self.olnmpc = self.d_mod(self.nfe_t, self.ncp_t, n_s = self.n_s)
+                self.olnmpc.set_default_confidence()
             else:
-                self.olnmpc = self.d_mod(self.nfe_t, self.ncp_t, n_s = 1)
+                self.olnmpc = self.d_mod(self.nfe_t, self.ncp_t, n_s = 5)
+                self.olnmpc.set_default_confidence() 
         else:    
             self.olnmpc = self.d_mod(self.nfe_t, self.ncp_t)
         
@@ -921,7 +926,7 @@ class NmpcGen(DynGen):
         ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
-        ip.options["tol"] = 1e-9
+        ip.options["tol"] = 1e-8
 
         results = ip.solve(self.noisy_model, tee=True)
         

@@ -24,6 +24,10 @@ from main.noise_characteristics import *
 # redirect system output to a file:
 #sys.stdout = open('consol_output','w')
 
+###############################################################################
+###                               Specifications
+###############################################################################
+
 states = ["PO","MX","MY","Y","W","PO_fed"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","PO_fed"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)]}
@@ -32,30 +36,32 @@ u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
 
 # measured variables
-#y = [ "PO", "Y", "W", "MY", "MX","MW"] 
-#y = ["Y","PO","MW","m_tot","W","MX","MY"]
-y_vars = {"PO":[()], "Y":[()], "W":[()], "MY":[()], "MX":[(0,),(1,)], "MW":[()]}
+#y = ["PO","heat_removal","m_tot","MW"] 
+#y_vars = {"PO":[()],"heat_removal":[()],"m_tot":[()],"MW":[()]}
+y = {"PO", "Y", "W", "MY", "MX", "MW","m_tot"}
 y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
 
-y = ["PO","heat_removal","m_tot","MW"] 
-y_vars = {"PO":[()],"heat_removal":[()],"m_tot":[()],"MW":[()]}
 
 pc = ['Tad','heat_removal']
 
 # scenario_tree
 st = {}
-s_max = 3
+s_max = 5
 nr = 1
 nfe = 24
 for i in range(1,nfe+1):
     if i < nr + 1:
         for s in range(1,s_max**i+1):
             if s%s_max == 1:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,[1.0])
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{'p':1.0,'i':1.0})
             elif s%s_max == 2:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,[1.05])
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{'p':1.1,'i':1.0})
+            elif s%s_max == 3:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{'p':0.9,'i':1.0})
+            elif s%s_max == 4:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{'p':1.0,'i':1.1})
             else:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,[0.95])
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{'p':1.0,'i':0.9})
     else:
         for s in range(1,s_max**nr+1):
             st[(i,s)] = (i-1,s,True,st[(i-1,s)][3])
@@ -81,8 +87,13 @@ e = MheGen(d_mod=SemiBatchPolymerization_multistage,
            sens=None,
            diag_QR=True,
            del_ics=False,
-           update_scenario_tree = False,
+           update_scenario_tree = True,
            path_constraints=pc)
+
+
+###############################################################################
+###                                     NMPC
+###############################################################################
 e.recipe_optimization()
 e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
 e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
@@ -165,9 +176,9 @@ for i in range(1,k):
 e.plant_simulation(e.store_results(e.olnmpc))
 
 
-#### plot results comparisons
-        
-
+###############################################################################
+####                        plot results comparisons   
+###############################################################################
 
 t_traj_nmpc = np.array([e.nmpc_trajectory[i,'tf'] for i in range(1,k)])
 t_traj_sim = np.array([e.nmpc_trajectory[i,'tf'] for i in range(1,k+1)])
@@ -249,7 +260,7 @@ plt.figure(l)
 ###         Plotting 1st Order Approximation of Confidence Region 
 ###############################################################################
 dimension = 2 # dimension n of the n x n matrix = #DoF
-rhs_confidence = 0.1**2*chi2.isf(0.95,dimension) # 5% measurment noise, 95% confidence level, dimension degrees of freedom
+rhs_confidence = chi2.isf(0.95,dimension) # 0.1**2*5% measurment noise, 95% confidence level, dimension degrees of freedom
 rows = {}
 for r in range(1,k):
     A_dict = e.mhe_confidence_ellipsoids[r]
@@ -268,7 +279,7 @@ for r in range(1,k):
     for i in range(len(x)):
         [x[i],y[i]] = np.dot([x[i],y[i]], V) + center
     plt.plot(x,y, label = str(r))
-    #plt.axis([-800,800,-800,800])
+    #plt.axis([-12800,12800,-12800,12800])
     
     # plot half axis
     for p in range(dimension):

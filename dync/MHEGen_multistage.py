@@ -421,7 +421,7 @@ class MheGen(NmpcGen):
         ip.options["halt_on_ampl_error"] = "no"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
-        ip.options["tol"] = 1e-5
+        ip.options["tol"] = 1e-8
         ip.options["max_iter"] = 3000
         with open("ipopt.opt", "w") as f:
             f.write("print_info_string yes")
@@ -477,10 +477,15 @@ class MheGen(NmpcGen):
                     olnmpc_param[key].value = estimated_param[key].value        
                     fs_param[key].value = estimated_param[key].value 
                     
+                    
+                ###############################################################
+                ### DISCLAIMER:
+                ### currently tailored to single stage which is reasonable since multiple stages do not make sense
+                ###############################################################
                 if self.update_scenario_tree and self.iterations>1:
                     # compute worst case parameter realization constrained to confidence ellipsoid
                     dimension = int(np.sqrt(len(self.mhe_confidence_ellipsoids[1])))
-                    confidence = 0.1**2*chi2.isf(0.95,dimension)
+                    confidence = chi2.isf(0.95,dimension)
                     A_dict = self.mhe_confidence_ellipsoids[self.iterations-1]
         
                     # assemble dimension x dimension array
@@ -491,31 +496,63 @@ class MheGen(NmpcGen):
                     U, s, V = np.linalg.svd(A) # singular value decomposition of shape matrix 
                     radii = 1/np.sqrt(s) # radii --
                 
-                    # idea: take both extrema of the maximum half axis and load directly into model
-                    # positive side effect scenario_tree will all choices of the parameters
-                    for p in self.p_noisy:
-                        p_scen = getattr(self.olnmpc,'p_'+p)
-                        p_nom = getattr(self.olnmpc,p)
-                        p_mhe = getattr(self.lsmhe,p)
-                        for key in self.p_noisy[p]:
-                            index = self.PI_indices[p_mhe.name,key]
-                            ex1 = (radii[0]*U[index][0] + p_nom[key].value)/p_nom[key].value 
-                            ex2 = (p_nom[key].value - radii[0]*U[index][0])/p_nom[key].value
-                            for i in self.olnmpc.fe_t:
-                                p_scen[(key,i,2)].value = ex1 
-                                p_scen[(key,i,3)].value = ex2
-                # idea: go through the axis of the ellipsoid (U) and include the intersections of this axis with confidence ellipsoid on both ends 
-                #l = 0
-                #for m in range(dimension):
-                #    l += 2
-                #    for p in self.p_noisy:
-                #        p_scen = getattr(self.olnmpc,'p_'+p)
-                #        p_nom = getattr(self.olnmpc,p)
-                #        p_mhe = getattr(self.lsmhe,p)
-                #        for key in self.p_noisy[p]:
-                #            index = self.PI_indices[p_mhe.name,key]
-                #            p_scen[(key,l)].value = (radii[m]*U[index][m] + p_nom[key].value)/p_nom[key].value 
-                #            p_scen[(key,l+1)].value = (p_nom[key].value - radii[m]*U[index][m])/p_nom[key].value
+                    # idea: go through the axis of the ellipsoid (U) and include the intersections of this axis with confidence ellipsoid on both ends as scenarios (sigmapoints)
+                    # only accept these scenarios if sigmapoints are inside hypercube spanned by euclidean unit vectors around nominal value  
+                    l = 0
+                    flag=False
+                    for m in range(dimension):
+                        l += 2
+                        for p in self.p_noisy:
+                            p_scen = getattr(self.olnmpc,'p_'+p)
+                            p_nom = getattr(self.olnmpc,p)
+                            p_mhe = getattr(self.lsmhe,p)
+                            for key in self.p_noisy[p]:
+                                index = self.PI_indices[p_mhe.name,key]
+                                dev = max((radii[m]*U[index][m] + p_nom[key].value)/p_nom[key].value,(p_nom[key].value - radii[m]*U[index][m])/p_nom[key].value)
+                                if dev < 1.1: 
+                                    for t in self.olnmpc.fe_t:
+                                        p_scen[(key,t,l)].value = (radii[m]*U[index][m] + p_nom[key].value)/p_nom[key].value
+                                        p_scen[(key,t,l+1)].value = (p_nom[key].value - radii[m]*U[index][m])/p_nom[key].value
+                                else:
+                                    flag = True
+                                    break
+                            if flag:
+                                break
+                        if flag:
+                            break
+                        
+                    # if flag=True sigmapoints not inside basic hypercube --> use corners of hypercube instead
+                    if flag:
+                        # set all values ot 1 
+                        for p in self.p_noisy:
+                            p_scen = getattr(self.olnmpc, 'p_'+p)
+                            for key in p_scen.index_set():
+                                p_scen[key] = 1.0
+                                
+                        # keep using base case scenarios
+                        l = 2
+                        for p in self.p_noisy:
+                            p_scen = getattr(self.olnmpc,'p_'+p)
+                            for key in self.p_noisy[p]:
+                                for t in self.olnmpc.fe_t:
+                                    p_scen[(key,t,l)].value = 1.1
+                                    p_scen[(key,t,l+1)].value = 0.9
+                                l += 2
+                                    
+                                    
+                                    
+                    # ALTERNATIVE: ONLY USE THE LONGEST HALF AXIS
+                    #for p in self.p_noisy:
+                    #    p_scen = getattr(self.olnmpc,'p_'+p)
+                    #    p_nom = getattr(self.olnmpc,p)
+                    #    p_mhe = getattr(self.lsmhe,p)
+                    #    for key in self.p_noisy[p]:
+                    #        index = self.PI_indices[p_mhe.name,key]
+                    #        ex1 = (radii[0]*U[index][0] + p_nom[key].value)/p_nom[key].value 
+                    #        ex2 = (p_nom[key].value - radii[0]*U[index][0])/p_nom[key].value
+                    #        for i in self.olnmpc.fe_t:
+                    #            p_scen[(key,i,2)].value = ex1 
+                    #            p_scen[(key,i,3)].value = ex2
 
     def compute_offset_measurements(self):
         mhe_y = getattr(self.lsmhe, "yk0_mhe")
@@ -680,14 +717,8 @@ class MheGen(NmpcGen):
                 # try:
                 for _t in range(1,self.nfe_mhe+1):
                     if self.diag_Q_R:                
-                        #aux_key = (_t,self.ncp_t)+vni[1]
-                        #rtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.reference_state_trajectory[vni[0],aux_key] + 0.0001)
                         try:
-                            #if _t < self.nfe_mhe:
-                                #rtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.plant_trajectory[_t,vni] + 0.01)**2
                             rtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.measurement[_t][vni] + 0.01)**2
-                            #else:
-                            #    rtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.curr_pstate[vni] + 0.01)**2
                         except ZeroDivisionError:
                             rtarget[_t,v_i] = 1 
                     else:
@@ -744,15 +775,8 @@ class MheGen(NmpcGen):
                     # t > 1 is systematic:
                 for _t in range(1,self.nfe_mhe):
                     if self.diag_Q_R:
-                        #aux_key = (_t,self.ncp_t)+vni[1]
-                        #qtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.reference_state_trajectory[vni[0],aux_key] + 0.01)
                         try:
-                            #if _t < self.nfe_mhe:
-                                #qtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.plant_trajectory[_t,vni] + .00001)**2 
-                                #qtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.measurement[_t][vni] + .00001)**2
                             qtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.nmpc_trajectory[_t,vni] + .01)**2 # 0.00001
-                            #else:
-                            #        qtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.curr_pstate[vni] + .00001)**2
                         except ZeroDivisionError:
                             qtarget[_t, v_i] = 1
                     else:

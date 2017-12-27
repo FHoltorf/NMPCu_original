@@ -652,7 +652,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 return Constraint.Skip
             else:
                 #return 0.0 <= self.max_heat_removal + self.F[i]*self.monomer_cooling[i,j] - self.heat_removal [i,j] + self.eps
-                return 0.0 == (self.max_heat_removal + self.F[i]*self.monomer_cooling[i,j]*self.monomer_cooling_scale - self.heat_removal [i,j] - self.s_heat_removal_a[i,j]) #+ self.eps
+                return 0.0 == (self.max_heat_removal - self.heat_removal [i,j] - self.s_heat_removal_a[i,j]) #+ self.eps
             
         self.pc_heat_removal_a = Constraint(self.fe_t, self.cp, rule=_pc_heat_removal_a)
         #process_constraint_heat_removal_a(k,q)$(ak(k))..
@@ -662,7 +662,7 @@ class SemiBatchPolymerization(ConcreteModel):
             if j == 0:
                 return Constraint.Skip
             else:
-                return 0.0 == ((((self.kr[i,j,'i']-self.kr[i,j,'p'])*(self.G[i,j]*self.G_scale + self.U[i,j]*self.U_scale) + (self.kr[i,j,'p'] + self.kr[i,j,'t'])*self.n_KOH + self.kr[i,j,'a']*self.W[i,j])*self.PO[i,j]*self.PO_scale*self.Vi[i,j]*self.Vi_scale) + self.dW_dt[i,j] - self.heat_removal[i,j]*self.tf*self.fe_dist[i])
+                return 0.0 == ((((self.kr[i,j,'i']-self.kr[i,j,'p'])*(self.G[i,j]*self.G_scale + self.U[i,j]*self.U_scale) + (self.kr[i,j,'p'] + self.kr[i,j,'t'])*self.n_KOH + self.kr[i,j,'a']*self.W[i,j])*self.PO[i,j]*self.PO_scale*self.Vi[i,j]*self.Vi_scale) + self.dW_dt[i,j] - (self.heat_removal[i,j] + self.F[i]*self.monomer_cooling[i,j]*self.monomer_cooling_scale)*self.tf*self.fe_dist[i])
         
         self.pc_heat_removal_b = Constraint(self.fe_t, self.cp, rule=_pc_heat_removal_b)      
         #process_constraint_heat_removal_b(k,q)$(ak(k))..

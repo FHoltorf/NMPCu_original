@@ -439,7 +439,7 @@ class MheGen(NmpcGen):
         ip.options["halt_on_ampl_error"] = "no"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
-        ip.options["tol"] = 1e-5
+        ip.options["tol"] = 1e-8
         ip.options["max_iter"] = 3000
         with open("ipopt.opt", "w") as f:
             f.write("print_info_string yes")
@@ -471,7 +471,7 @@ class MheGen(NmpcGen):
         return output   
 
     def cycle_ics_mhe(self, nmpc_as = False, mhe_as = False):
-        if nmpc_as and mhe_as: # both nmpc and mhe use advanced step schme
+        if nmpc_as and mhe_as: # both nmpc and mhe use advanced step scheme
             ivs = self.initial_values
         elif nmpc_as: # only nmpc uses advanced step scheme
             ivs = self.curr_pstate
@@ -509,8 +509,10 @@ class MheGen(NmpcGen):
                 U, s, V = np.linalg.svd(A) # singular value decomposition of shape matrix 
                 radii = 1/np.sqrt(s) # radii --
             
-                # idea: go through the axis of the ellipsoid (U) and include the intersections of this axis with confidence ellipsoid on both ends 
+                # idea: go through the axis of the ellipsoid (U) and include the intersections of this axis with confidence ellipsoid on both ends as scenarios (sigmapoints)
+                # only accept these scenarios if sigmapoints are inside hypercube spanned by euclidean unit vectors around nominal value  
                 l = 0
+                flag=False
                 for m in range(dimension):
                     l += 2
                     for p in self.p_noisy:
@@ -519,15 +521,34 @@ class MheGen(NmpcGen):
                         p_mhe = getattr(self.lsmhe,p)
                         for key in self.p_noisy[p]:
                             index = self.PI_indices[p_mhe.name,key]
-                            ub = max((radii[m]*U[index][m] + p_nom[key].value)/p_nom[key].value,(p_nom[key].value - radii[m]*U[index][m])/p_nom[key].value)
-                            lb = min((radii[m]*U[index][m] + p_nom[key].value)/p_nom[key].value,(p_nom[key].value - radii[m]*U[index][m])/p_nom[key].value)
-                            if ub < 1.1 and lb > 0.9: 
-                                p_scen[(key,l)].value = ub 
-                                p_scen[(key,l+1)].value = lb
+                            dev = max((radii[m]*U[index][m] + p_nom[key].value)/p_nom[key].value,(p_nom[key].value - radii[m]*U[index][m])/p_nom[key].value)
+                            if dev < 1.1: 
+                                p_scen[(key,l)].value = (radii[m]*U[index][m] + p_nom[key].value)/p_nom[key].value
+                                p_scen[(key,l+1)].value = (p_nom[key].value - radii[m]*U[index][m])/p_nom[key].value
                             else:
-                                p_scen[(key,l)].value = 1.1
-                                p_scen[(key,l+1)].value = 0.9
+                                flag = True
+                                break
+                        if flag:
+                            break
+                    if flag:
+                        break
+                    
+                # if flag=True sigmapoints not inside basic hypercube --> use corners of hypercube instead
+                if flag:
+                    # set all values ot 1 
+                    for p in self.p_noisy:
+                        p_scen = getattr(self.olnmpc, 'p_'+p)
+                        for key in p_scen.index_set():
+                            p_scen[key] = 1.0
                             
+                    # keep using base case scenarios
+                    l = 2
+                    for p in self.p_noisy:
+                        p_scen = getattr(self.olnmpc,'p_'+p)
+                        for key in self.p_noisy[p]:
+                            p_scen[(key,l)].value = 1.1
+                            p_scen[(key,l+1)].value = 0.9
+                            l += 2
                 
                                 
     def compute_offset_measurements(self):
@@ -694,7 +715,7 @@ class MheGen(NmpcGen):
                 for _t in range(1,self.nfe_mhe+1):
                     if self.diag_Q_R:                
                         try:
-                            rtarget[_t, v_i] = 1 #/ (cov_dict[vni, vnj]*self.measurement[_t][vni] + 0.01)**2
+                            rtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.measurement[_t][vni] + 0.01)**2
                         except ZeroDivisionError:
                             rtarget[_t,v_i] = 1 
                     else:
@@ -722,9 +743,9 @@ class MheGen(NmpcGen):
                 xic = getattr(self.lsmhe, vni[0] + "_ic")
                 try:
                     if vni[1] == ():
-                        qtarget[0, v_i] = 1 #/ (cov_dict[vni, vnj]*xic.value + 0.01)**2 # .00001
+                        qtarget[0, v_i] = 1 / (cov_dict[vni, vnj]*xic.value + 0.01)**2 # .00001
                     else:
-                        qtarget[0, v_i] = 1 #/ (cov_dict[vni, vnj]*xic[vni[1]].value + 0.01)**2 # .0001
+                        qtarget[0, v_i] = 1 / (cov_dict[vni, vnj]*xic[vni[1]].value + 0.01)**2 # .0001
                     
                     if set_bounds:
                         if cov_dict[vni, vnj] != 0:
@@ -750,7 +771,7 @@ class MheGen(NmpcGen):
                 for _t in range(1,self.nfe_mhe):
                     if self.diag_Q_R:
                         try:
-                            qtarget[_t, v_i] = 1 #/ (cov_dict[vni, vnj]*self.nmpc_trajectory[_t,vni] + .01)**2 
+                            qtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.nmpc_trajectory[_t,vni] + .01)**2 
                         except ZeroDivisionError:
                             qtarget[_t, v_i] = 1
                     else:

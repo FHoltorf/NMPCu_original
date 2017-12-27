@@ -39,7 +39,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.nr = kwargs.pop('robust_horizon', 1) # robust horizon
         dummy_tree = {}
         for i in range(1,self.nfe+1):
-            dummy_tree[i,1] = (i-1,1,1,[1.0])
+            dummy_tree[i,1] = (i-1,1,1,{'p':1.0,'i':1.0})
         self.scenario_tree = kwargs.pop('scenario_tree',dummy_tree) # default should be a symmetric scenario tree
         
         # scaling factors
@@ -89,8 +89,8 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         
         for k in self.scenario_tree:
             try:
-                self.p_A['p',k] = self.scenario_tree[k][3][0]
-                self.p_A['i',k] = self.scenario_tree[k][3][0]
+                self.p_A['p',k] = self.scenario_tree[k][3]['p']
+                self.p_A['i',k] = self.scenario_tree[k][3]['i']
             except:
                 continue
         # parameters for l1-relaxation of endpoint-constraints
@@ -765,7 +765,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                     return Constraint.Skip
                 else:
                     #return 0.0 <= self.max_heat_removal + self.F[i,s]*self.monomer_cooling[i,j,s] - self.heat_removal [i,j,s] + self.eps
-                    return 0.0 == (self.max_heat_removal + self.F[i,s]*self.monomer_cooling[i,j,s]*self.monomer_cooling_scale - self.heat_removal [i,j,s] - self.s_heat_removal_a[i,j,s]) #+ self.eps
+                    return 0.0 == (self.max_heat_removal - self.heat_removal [i,j,s] - self.s_heat_removal_a[i,j,s]) #+ self.eps
             else:
                 return Constraint.Skip
             
@@ -778,7 +778,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 if j == 0:
                     return Constraint.Skip
                 else:
-                    return 0.0 == ((((self.kr[i,j,'i',s]-self.kr[i,j,'p',s])*(self.G[i,j,s]*self.G_scale + self.U[i,j,s]*self.U_scale) + (self.kr[i,j,'p',s] + self.kr[i,j,'t',s])*self.n_KOH + self.kr[i,j,'a',s]*self.W[i,j,s])*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale) + self.dW_dt[i,j,s] - self.heat_removal[i,j,s]*self.tf[i,s]*self.fe_dist[i])
+                    return 0.0 == ((((self.kr[i,j,'i',s]-self.kr[i,j,'p',s])*(self.G[i,j,s]*self.G_scale + self.U[i,j,s]*self.U_scale) + (self.kr[i,j,'p',s] + self.kr[i,j,'t',s])*self.n_KOH + self.kr[i,j,'a',s]*self.W[i,j,s])*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale) + self.dW_dt[i,j,s] - (self.heat_removal[i,j,s] + self.F[i,s]*self.monomer_cooling[i,j,s]*self.monomer_cooling_scale)*self.tf[i,s]*self.fe_dist[i])
             else:
                 return Constraint.Skip
             
