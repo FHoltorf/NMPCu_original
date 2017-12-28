@@ -157,51 +157,6 @@ def run():
         print('forward_simulation: ',end='')
         print(e.simulation_trajectory[i,'solstat'], e.simulation_trajectory[i,'obj_fun'])
     
-    
-    e.plant_simulation(e.store_results(e.olnmpc))
-    
-    #### plot results comparisons   
-    t_traj_nmpc = np.array([e.nmpc_trajectory[i,'tf'] for i in range(1,k)])
-    t_traj_sim = np.array([e.nmpc_trajectory[i,'tf'] for i in range(1,k+1)])
-    plt.figure(1)
-    tf = e.get_tf()
-    t = []
-    t.append(tf)
-    for i in range(1,nfe):
-        aux = t[i-1] + tf
-        t.append(aux)
-    #
-    l = 0
-    
-    #moments
-    moment = ['MX']
-    for m in moment:
-        for j in range(0,2):
-            state_traj_ref = np.array([e.reference_state_trajectory[(m,(i,3,j))] for i in range(1,nfe+1)]) 
-            state_traj_nmpc = np.array([e.nmpc_trajectory[i,(m,(j,))] for i in range(1,k)])
-            state_traj_sim = np.array([e.plant_trajectory[i,(m,(j,))] for i in range(1,k+1)])
-            plt.figure(l)
-            plt.plot(t,state_traj_ref, label = "reference")
-            plt.plot(t_traj_nmpc,state_traj_nmpc, label = "mhe/nmpc")
-            plt.plot(t_traj_sim,state_traj_sim, label = "plant")
-            plt.ylabel(m+str(j))
-            plt.legend()
-            l += 1
-    
-    plots = [('Y',()),('PO',()),('PO_fed',()),('W',()),('MY',())]
-    for p in plots: 
-        state_traj_ref = np.array([e.reference_state_trajectory[(p[0],(i,3))] for i in range(1,nfe+1)]) 
-        state_traj_nmpc = np.array([e.nmpc_trajectory[i,p] for i in range(1,k)])
-        state_traj_sim = np.array([e.plant_trajectory[i,p] for i in range(1,k+1)])    
-        plt.figure(l)
-        plt.plot(t,state_traj_ref, label = "reference")
-        plt.plot(t_traj_nmpc,state_traj_nmpc, label = "mhe/nmpc")
-        plt.plot(t_traj_sim,state_traj_sim, label = "plant")
-        plt.legend()
-        plt.ylabel(p[0])
-        l += 1
-
-    
     e.plant_simulation(e.store_results(e.olnmpc))
     tf = e.nmpc_trajectory[k, 'tf']
     if k == 24 and e.plant_trajectory[24,'solstat'] == ['ok','optimal']:

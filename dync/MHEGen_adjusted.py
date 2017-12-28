@@ -19,6 +19,7 @@ from itertools import product
 import sys, os, time
 from copy import deepcopy
 from scipy.stats import chi2
+from pyomo import *
 
 __author__ = "David M Thierry @dthierry"
 """Not yet. Our people, they don't understand."""
@@ -506,6 +507,7 @@ class MheGen(NmpcGen):
                 for m in range(dimension):
                         rows[m] = np.array([A_dict[(m,i)] for i in range(dimension)])
                 A = 1/confidence*np.array([np.array(rows[i]) for i in range(dimension)]) # shape matrix of confidence ellipsoid
+                A = np.linalg.inv(A)
                 U, s, V = np.linalg.svd(A) # singular value decomposition of shape matrix 
                 radii = 1/np.sqrt(s) # radii --
             
@@ -941,7 +943,16 @@ class MheGen(NmpcGen):
         self.k_aug.options["compute_inv"] = ""
         #self.k_aug.options["no_scale"] = ""
         #self.k_aug.options["no_barrier"] = ""
-        self.k_aug.solve(self.lsmhe, tee=True)
+        
+        # FIX THAT ASAP
+        try:
+            try:
+                self.k_aug.solve(self.lsmhe, tee=True)
+            except ApplicationError:
+                self.nmpc_trajectory[self.iterations,'solstat_mhe'] = ['Inversion of Reduced Hessian failed','Inversion of Reduced Hessian failed']
+        except NameError:
+            self.nmpc_trajectory[self.iterations,'solstat_mhe'] = ['Inversion of Reduced Hessian failed','Inversion of Reduced Hessian failed']
+            
         self.lsmhe.f_timestamp.display(ostream=sys.stderr)
 
         self._PI.clear()

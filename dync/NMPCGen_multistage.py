@@ -1122,7 +1122,7 @@ class NmpcGen(DynGen):
         for u in self.u:
             control = getattr(self.olnmpc, u)
             if control[1,1].value > control[1,1].ub:
-                if control[1].ub == None: # number > None == True 
+                if control[1,1].ub == None: # number > None == True 
                     pass
                 else:
                     control[1,1] = control[1,1].ub

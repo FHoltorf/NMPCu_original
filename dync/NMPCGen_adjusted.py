@@ -123,6 +123,7 @@ class NmpcGen(DynGen):
     def open_loop_simulation(self, sample_size = 10, disturbances = {}, **kwargs):
         #disturbance_src = kwargs.pop('disturbance_src', 'process_noise')
         initial_disturbance = kwargs.pop('initial_disturbance', {(x,j):0.0 for x in self.states for j in self.state_vars})
+        parameter_disturbance = kwargs.pop('parameter_disturbance', {})
         
         # deactivate constraints
         self.recipe_optimization_model.deactivate_epc()
@@ -140,12 +141,19 @@ class NmpcGen(DynGen):
                 else:
                     nominal_initial_point[(x,j)] = xic[j].value
                     
+        if self.noisy_params:
+            for p in parameter_disturbance:
+                disturbed_parameter = getattr(self.recipe_optimization_model, p[0])
+                self.nominal_parameter_values[p] = disturbed_parameter[p[1]].value
+                    
         endpoint_constraints = {}
+        pc_trajectory = {}
         # set and fix controls + add noise
         for k in range(sample_size):
             print('#'*20)
             print(' '*5 + 'iter: ' + str(k))
             print('#'*20)
+            pc_trajectory[k] = {}
             for u in self.u:
                 control = getattr(self.recipe_optimization_model, u)
                 control.fix()
@@ -160,7 +168,11 @@ class NmpcGen(DynGen):
                         xic.value = nominal_initial_point[(x,j)] * (1 + np.random.normal(loc=0.0, scale=initial_disturbance[(x,j)]))
                     else:
                         xic[j].value = nominal_initial_point[(x,j)] * (1 + np.random.normal(loc=0.0, scale=initial_disturbance[(x,j)]))
-               
+            if self.noisy_params:
+                for p in parameter_disturbance:
+                    disturbed_parameter = getattr(self.recipe_optimization_model, p[0])
+                    disturbed_parameter[p[1]].value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0]))    
+   
             self.recipe_optimization_model.tf.fix()
             self.recipe_optimization_model.equalize_u(direction="u_to_r")
             # run the simulation
@@ -179,12 +191,18 @@ class NmpcGen(DynGen):
         
             if converged:
                 endpoint_constraints[k] = self.recipe_optimization_model.check_feasibility(display=True)
+                for pc_name in self.path_constraints:
+                    pc_var = getattr(self.recipe_optimization_model, pc_name)
+                    for fe in self.recipe_optimization_model.fe_t:
+                        for cp in self.recipe_optimization_model.cp:
+                            pc_trajectory[k][(pc_name,(fe,(cp,)))] = pc_var[fe,cp].value
+                            pc_trajectory[k][('tf',(fe,cp))] = self.recipe_optimization_model.tau_i_t[cp]*self.recipe_optimization_model.tf.value
             else:
                 self.recipe_optimization_model.troubleshooting()
                 sys.exit()
                 endpoint_constraints[k] = 'error'
         
-        return endpoint_constraints
+        return endpoint_constraints, pc_trajectory
     
     def plant_simulation(self,result,disturbances = {},first_call = False, **kwargs):
         """ noisy_states = Dictionary of structure: {(statename,(add. indices except for time)): relative standard deviation}  """
