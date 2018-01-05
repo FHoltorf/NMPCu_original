@@ -1,15 +1,14 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Created on Tue Dec 26 22:36:35 2017
+Created on Thu Jan  4 15:22:15 2018
 
 @author: flemmingholtorf
 """
 from __future__ import print_function
 from pyomo.environ import *
-# from nmpc_mhe.dync.MHEGen import MheGen
 from main.dync.MHEGen_adjusted import MheGen
-from main.mods.mod_class_multimodel import *
+from main.mods.mod_class_robust_optimal_control import *
 import sys
 import itertools, sys
 import numpy as np
@@ -23,22 +22,23 @@ def run():
     states = ["PO","MX","MY","Y","W","PO_fed"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
     x_noisy = ["PO","MX","MY","Y","W","PO_fed"] # all the states are noisy  
     x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)]}
-    p_noisy = {"A":['p','i']}
+    p_noisy = {"A":['p','i'],"Hrxn":['p']}
     u = ["u1", "u2"]
     u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
+    
+    cons = ['PO_ptg','unsat','mw','temp_b','heat_removal_a']
+    dummies = ['dummy_constraint1','dummy_constraint2','dummy_constraint3']
     
     # measured variables
     y = {"PO", "Y", "W", "MY", "MX", "MW","m_tot"}
     y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
     
     nfe = 24
-    n_s = 5 # 2*dimensions + 1
     
     pc = ["Tad","heat_removal"]
     
     e = MheGen(d_mod=SemiBatchPolymerization,
-               n_s = n_s,
-               multimodel=True,
+               linapprox=True,
                y=y,
                x_noisy=x_noisy,
                y_vars=y_vars,
@@ -54,6 +54,11 @@ def run():
                del_ics=False,
                sens=None,
                path_constraints=pc)
+    
+    ###############################################################################
+    ###                                     NMPC
+    ###############################################################################
+    
     e.recipe_optimization()
     e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
     e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
@@ -92,7 +97,7 @@ def run():
         e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
         
         e.load_reference_trajectories(i) # loads the reference trajectory in olnmpc problem (for regularization)
-        e.solve_olnmpc() # solves the olnmpc problem
+        e.solve_olrnmpc(cons=cons,dummy_cons=dummies,eps=1e-1) # solves the olnmpc problem
         #e.olnmpc.write_nl()
         
         # preparation for nmpc
@@ -105,7 +110,6 @@ def run():
         # solve mhe problem
         e.solve_mhe(fix_noise=True) # solves the mhe problem
         previous_mhe = e.store_results(e.lsmhe)
-        #e.compute_confidence_ellipsoid()
         
         
         # update state estimate 
@@ -147,6 +151,7 @@ def run():
         print(e.plant_trajectory[i,'solstat'])
         print('forward_simulation: ',end='')
         print(e.simulation_trajectory[i,'solstat'], e.simulation_trajectory[i,'obj_fun'])
+    e.plant_simulation(e.store_results(e.olnmpc))
 
     
     e.plant_simulation(e.store_results(e.olnmpc))

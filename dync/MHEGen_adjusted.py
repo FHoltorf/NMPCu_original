@@ -54,7 +54,7 @@ class MheGen(NmpcGen):
         self.p_noisy = kwargs.pop('p_noisy', {})
         self.sens = kwargs.pop('sens', None) # specify 'sIpopt' if sensitivity based update of lsmhe problem 
         
-        if self.multimodel:
+        if self.multimodel or self.linapprox:
             for key in self.x_vars:
                 aux = []
                 for element in self.x_vars[key]:    
@@ -343,7 +343,7 @@ class MheGen(NmpcGen):
         measured_state = {}
         for key in var_dict:
                 x = key[0]
-                if self.multimodel:
+                if self.multimodel or self.linapprox:
                     j = key[1] + (1,)
                 else:
                     j = key[1]

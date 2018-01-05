@@ -101,6 +101,7 @@ class DynGen(object):
  
         self.multimodel = kwargs.pop('multimodel', False)
         self.multistage = kwargs.pop('multistage', False)
+        self.linapprox = kwargs.pop('linapprox', False)
         self.n_r = kwargs.pop('n_r', 1)
         self.n_s = kwargs.pop('n_s', 1)
         self.st = kwargs.pop('st', {})

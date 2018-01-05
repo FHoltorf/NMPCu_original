@@ -18,6 +18,16 @@ import time
 
 __author__ = 'FHoltorf'
 
+end = ['PO_ptg','unsat','mw','temp_b','heat_removal_a']
+dummies = ['dummy_constraint1','dummy_constraint2','dummy_constraint3']
+n_p = len(dummies)
+iters = 0
+iterlim = 100
+converged = False
+eps = 0.0
+alpha = 0.2
+
+
 Solver = SolverFactory('ipopt')
 Solver.options["halt_on_ampl_error"] = "yes"
 Solver.options["max_iter"] = 5000
@@ -31,21 +41,12 @@ k_aug.options["compute_dsdp"] = ""
 #k_aug.options["no_barrier"] = ""
 #k_aug.options["no_scale"] = ""
 
-end = ['PO_ptg','unsat','mw','temp_b','heat_removal_a']
-dummies = ['dummy_constraint1','dummy_constraint2']
-n_p = 2 
-   
 m = SemiBatchPolymerization(24,3) # nominal_model n_s=1
 m.initialize_element_by_element()
-iters = 0
-iterlim = 100
-converged = False
-eps = 1e-1
-alpha = 0.3
 
 # initialize
 CPU_time = {}
-CPU_time['reference'] = time.clock()
+
 backoff = {}
 for i in end:
     backoff_var = getattr(m,'xi_'+i)
@@ -55,12 +56,12 @@ for i in end:
             backoff_var[index].value = 0.0
         except KeyError:
             continue
-
+ref = time.clock()
 while (iters < iterlim and not(converged)):
     # solve optimization problem
     m.create_bounds()
     m.clear_aux_bounds()
-    m.tf.setub(None)
+    m.tf.setub(40)
     m.u1.unfix()
     m.u2.unfix()
     m.tf.unfix()
@@ -133,51 +134,122 @@ while (iters < iterlim and not(converged)):
             except KeyError:
                 continue
     iters += 1
-CPU_time['backoff'] = time.clock() - sum(CPU_time[k] for k in CPU_time)
+CPU_time['backoff'] = time.clock() - ref
 ##############################
     
 print('#'*19 + '\n' + ' '*5 + ' converged ' + ' '*5 + '\n' + '#'*19)
 
 nominal = SemiBatchPolymerization(24,3)
 nominal.initialize_element_by_element()
+ref = time.clock()
 nominal.create_bounds()
 nominal.clear_aux_bounds()
 Solver.solve(nominal, tee=True)
 
-CPU_time['nominal'] = time.clock() - sum(CPU_time[k] for k in CPU_time)
+CPU_time['nominal'] = time.clock() - ref
      
-multimodel = SemiBatchPolymerization(24,3,n_s=9)
+multimodel = SemiBatchPolymerization(24,3,n_s=27)
 multimodel.initialize_element_by_element()
 
-multimodel.p3[1] = 1.0
-multimodel.p3[2] = 1.0 + alpha
-multimodel.p3[3] = 1.0 - alpha
-multimodel.p3[4] = 1.0
-multimodel.p3[5] = 1.0 + alpha
-multimodel.p3[6] = 1.0 - alpha
-multimodel.p3[7] = 1.0
-multimodel.p3[8] = 1.0 + alpha
-multimodel.p3[9] = 1.0 - alpha
+multimodel.p_A_par['p',1] = 1.0
+multimodel.p_A_par['p',2] = 1.0 + alpha
+multimodel.p_A_par['p',3] = 1.0 - alpha
+multimodel.p_A_par['p',4] = 1.0
+multimodel.p_A_par['p',5] = 1.0 + alpha
+multimodel.p_A_par['p',6] = 1.0 - alpha
+multimodel.p_A_par['p',7] = 1.0
+multimodel.p_A_par['p',8] = 1.0 + alpha
+multimodel.p_A_par['p',9] = 1.0 - alpha
+multimodel.p_A_par['p',10] = 1.0
+multimodel.p_A_par['p',11] = 1.0 + alpha
+multimodel.p_A_par['p',12] = 1.0 - alpha
+multimodel.p_A_par['p',13] = 1.0
+multimodel.p_A_par['p',14] = 1.0 + alpha
+multimodel.p_A_par['p',15] = 1.0 - alpha
+multimodel.p_A_par['p',16] = 1.0
+multimodel.p_A_par['p',17] = 1.0 + alpha
+multimodel.p_A_par['p',18] = 1.0 - alpha
+multimodel.p_A_par['p',19] = 1.0
+multimodel.p_A_par['p',20] = 1.0 + alpha
+multimodel.p_A_par['p',21] = 1.0 - alpha
+multimodel.p_A_par['p',22] = 1.0
+multimodel.p_A_par['p',23] = 1.0 + alpha
+multimodel.p_A_par['p',24] = 1.0 - alpha
+multimodel.p_A_par['p',25] = 1.0
+multimodel.p_A_par['p',26] = 1.0 + alpha
+multimodel.p_A_par['p',27] = 1.0 - alpha
 
-multimodel.p4[1] = 1.0
-multimodel.p4[2] = 1.0 
-multimodel.p4[3] = 1.0 
-multimodel.p4[4] = 1.0 + alpha
-multimodel.p4[5] = 1.0 + alpha
-multimodel.p4[6] = 1.0 + alpha
-multimodel.p4[7] = 1.0 - alpha
-multimodel.p4[8] = 1.0 - alpha
-multimodel.p4[9] = 1.0 - alpha
+multimodel.p_A_par['i',1] = 1.0 
+multimodel.p_A_par['i',2] = 1.0 
+multimodel.p_A_par['i',3] = 1.0 
+multimodel.p_A_par['i',4] = 1.0 - alpha
+multimodel.p_A_par['i',5] = 1.0 - alpha
+multimodel.p_A_par['i',6] = 1.0 - alpha
+multimodel.p_A_par['i',7] = 1.0 + alpha
+multimodel.p_A_par['i',8] = 1.0 + alpha
+multimodel.p_A_par['i',9] = 1.0 + alpha
+multimodel.p_A_par['i',10] = 1.0 
+multimodel.p_A_par['i',11] = 1.0 
+multimodel.p_A_par['i',12] = 1.0 
+multimodel.p_A_par['i',13] = 1.0 - alpha
+multimodel.p_A_par['i',14] = 1.0 - alpha
+multimodel.p_A_par['i',15] = 1.0 - alpha
+multimodel.p_A_par['i',16] = 1.0 + alpha
+multimodel.p_A_par['i',17] = 1.0 + alpha
+multimodel.p_A_par['i',18] = 1.0 + alpha
+multimodel.p_A_par['i',19] = 1.0
+multimodel.p_A_par['i',20] = 1.0 
+multimodel.p_A_par['i',21] = 1.0 
+multimodel.p_A_par['i',22] = 1.0 - alpha
+multimodel.p_A_par['i',23] = 1.0 - alpha
+multimodel.p_A_par['i',24] = 1.0 - alpha
+multimodel.p_A_par['i',25] = 1.0 + alpha
+multimodel.p_A_par['i',26] = 1.0 + alpha
+multimodel.p_A_par['i',27] = 1.0 + alpha
 
+multimodel.p_Hrxn_par['p',1] = 1.0
+multimodel.p_Hrxn_par['p',2] = 1.0 
+multimodel.p_Hrxn_par['p',3] = 1.0
+multimodel.p_Hrxn_par['p',4] = 1.0
+multimodel.p_Hrxn_par['p',5] = 1.0
+multimodel.p_Hrxn_par['p',6] = 1.0 
+multimodel.p_Hrxn_par['p',7] = 1.0
+multimodel.p_Hrxn_par['p',8] = 1.0 
+multimodel.p_Hrxn_par['p',9] = 1.0
+multimodel.p_Hrxn_par['p',10] = 1.0 + alpha
+multimodel.p_Hrxn_par['p',11] = 1.0 + alpha
+multimodel.p_Hrxn_par['p',12] = 1.0 + alpha
+multimodel.p_Hrxn_par['p',13] = 1.0 + alpha
+multimodel.p_Hrxn_par['p',14] = 1.0 + alpha
+multimodel.p_Hrxn_par['p',15] = 1.0 + alpha
+multimodel.p_Hrxn_par['p',16] = 1.0 + alpha
+multimodel.p_Hrxn_par['p',17] = 1.0 + alpha
+multimodel.p_Hrxn_par['p',18] = 1.0 + alpha
+multimodel.p_Hrxn_par['p',19] = 1.0 - alpha
+multimodel.p_Hrxn_par['p',20] = 1.0 - alpha
+multimodel.p_Hrxn_par['p',21] = 1.0 - alpha
+multimodel.p_Hrxn_par['p',22] = 1.0 - alpha
+multimodel.p_Hrxn_par['p',23] = 1.0 - alpha
+multimodel.p_Hrxn_par['p',24] = 1.0 - alpha
+multimodel.p_Hrxn_par['p',25] = 1.0 - alpha
+multimodel.p_Hrxn_par['p',26] = 1.0 - alpha
+multimodel.p_Hrxn_par['p',27] = 1.0 - alpha
 
+ref = time.clock()
 multimodel.create_bounds()
 multimodel.clear_aux_bounds()
 multimodel.tf.setub(None)
 Solver.solve(multimodel, tee=True)
-CPU_time['multimodel'] = time.clock() - sum(CPU_time[k] for k in CPU_time) 
+CPU_time['multimodel'] = time.clock() - ref
+
+
+# plot trajectories
 multimodel.plot_profiles([multimodel.MY,multimodel.Y,multimodel.PO,multimodel.T,multimodel.F,multimodel.heat_removal, multimodel.Tad], label = 'multimodel')        
 nominal.plot_profiles([nominal.MY,nominal.Y,nominal.PO,nominal.T,nominal.F,nominal.heat_removal,nominal.Tad],label ='nominal')
 m.plot_profiles([m.MY,m.Y,m.PO,m.T,m.F,m.heat_removal,m.Tad],label='backoff')
+
+# print timings
+print(CPU_time)
 
 
 
