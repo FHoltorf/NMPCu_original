@@ -766,6 +766,10 @@ class SemiBatchPolymerization(ConcreteModel):
         aux = np.array([8.64e4,3.964e5,1.35042e4,1.509e6]) # [m^3/mol/s]
         aux = 60*1000*aux # conversion to [m^3/kmol/min]
         #self.del_component(self.A)
+        self.A['i'].setlb(self.A['i'].value*0.5)
+        self.A['i'].setub(self.A['i'].value*2.0)
+        self.A['p'].setlb(self.A['p'].value*0.5)
+        self.A['p'].setub(self.A['p'].value*2.0)
         self.A['i'].unfix()
         self.A['p'].unfix()
         #self.del_component(self.Ea)

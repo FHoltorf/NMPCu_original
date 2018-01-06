@@ -117,7 +117,7 @@ for i in range(1,nfe):
     # solve mhe problem
     e.solve_mhe(fix_noise=True) # solves the mhe problem
     previous_mhe = e.store_results(e.lsmhe)
-    e.compute_confidence_ellipsoid()
+    #e.compute_confidence_ellipsoid()
     
     
     # update state estimate 

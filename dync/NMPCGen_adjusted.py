@@ -1110,10 +1110,12 @@ class NmpcGen(DynGen):
                 slack = getattr(self.olnmpc, 's_'+i)
                 for index in slack.index_set():
                     slack[index].setlb(0)
-            nlp_results = ip.solve(self.olnmpc, tee=False)
+            nlp_results = ip.solve(self.olnmpc, tee=True)
 
             if [str(nlp_results.solver.status),str(nlp_results.solver.termination_condition)] != ['ok','optimal']:
+                self.olnmpc.A.pprint()
                 self.olnmpc.write_nl()
+                self.olnmpc.troubleshooting()
                 sys.exit()
             
             # solve square system
@@ -1121,7 +1123,7 @@ class NmpcGen(DynGen):
             # check whether optimal control problem feasible
             flag = False
             for index in self.olnmpc.eps.index_set():
-                if self.olnmpc.eps[index].value > 1e-4:
+                if self.olnmpc.eps[index].value > 1e-6:
                     flag = True
             if flag:
                 break
@@ -1134,7 +1136,9 @@ class NmpcGen(DynGen):
             results = ip.solve(self.olnmpc, tee=False)
             
             if [str(results.solver.status),str(results.solver.termination_condition)] != ['ok','optimal']:
+                self.olnmpc.A.pprint()
                 self.olnmpc.write_nl()
+                self.olnmpc.troubleshooting()
                 sys.exit()
                 
             # compute sensitivities
@@ -1196,7 +1200,7 @@ class NmpcGen(DynGen):
             
         self.olnmpc.create_bounds()
         self.olnmpc.clear_aux_bounds()
-        self.olnmpc.tf.setub(None)
+        self.olnmpc.tf.setub(50)
         self.olnmpc.u1.unfix()
         self.olnmpc.u2.unfix()
         self.olnmpc.tf.unfix()
