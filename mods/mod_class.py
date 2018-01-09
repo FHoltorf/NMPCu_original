@@ -1092,7 +1092,7 @@ class SemiBatchPolymerization(ConcreteModel):
         j = self.ncp  # assmuning radau nodes
         epsilon['epc_PO_ptg'] = self.unreacted_PO.value - self.PO[i,j].value*self.PO_scale*self.mw_PO.value/(self.m_tot[i,j].value*self.m_tot_scale)*1e6# 
         epsilon['epc_mw'] = self.MX[i,j,1].value*self.MX1_scale/(self.MX[i,j,0].value*self.MX0_scale)*self.mw_PO.value*self.num_OH.value + self.mw_PG.value - self.molecular_weight.value 
-        epsilon['epc_unsat'] = self.unsat_value.value*self.m_tot[i,j].value*self.m_tot_scale - 1000.0*(self.MY[i,j].value*self.MY0_scale + self.Y[i,j].value*self.Y_scale)
+        epsilon['epc_unsat'] = self.unsat_value.value - 1000.0*(self.MY[i,j].value*self.MY0_scale + self.Y[i,j].value*self.Y_scale)/(self.m_tot[i,j].value*self.m_tot_scale)
         #epsilon['eps'] = self.eps.value
         
         if display:

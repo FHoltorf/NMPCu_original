@@ -4,20 +4,26 @@
 Created on Thu Nov  9 14:39:42 2017
 
 @author: flemmingholtorf
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+Care if Hrxn uncertain --> meaningfulness of heat_removal values has to considered
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 """
 
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
-#from main.MC_sampling.run_MHE_asNMPC import *
+from main.MC_sampling.run_MHE_asNMPC import *
+#from main.MC_sampling.run_MHE_asNMPC_online_estimation import *
 #from main.MC_sampling.run_MHE_asNMPC_multistage import *
 #from main.MC_sampling.run_MHE_asNMPC_multimodel import *
-from main.MC_sampling.run_MHE_asNMPC_backoff import *
+#from main.MC_sampling.run_MHE_asNMPC_backoff import *
 
 # inputs
 sample_size = 100
 # specifiy directory where to save the resulting files
-path = 'results/backoff/' 
+path = 'results/standard/' 
 # colors
 color = ['green','red','blue']
 tf = {}

@@ -357,9 +357,9 @@ class MheGen(NmpcGen):
                 vni = self.yk_key[(x,j)]
                 self.lsmhe.yk0_mhe[self.nfe_mhe,vni] = self.measurement[self.nfe_mhe][(x,j)]
                 
-    def cycle_mhe(self,initialguess,m_cov,q_cov,u_cov):
+    def cycle_mhe(self,initialguess,m_cov,q_cov,u_cov,fix_params=False):
         # load initialguess from previous iteration lsmhe and olnmpc for the missing element
-        if self.noisy_params: 
+        if self.noisy_params and not(fix_params): 
             self.lsmhe.par_to_var()
         
         for _var in self.lsmhe.component_objects(Var):
@@ -784,12 +784,12 @@ class MheGen(NmpcGen):
                         if cov_dict[vni, vnj] != 0.0:
                             confidence = 3*cov_dict[vni,vnj]*self.nmpc_trajectory[_t,vni]
                         else:
-                            confidence = 0.5*self.nmpc_trajectory[_t,vni]
+                            confidence = abs(0.5*self.nmpc_trajectory[_t,vni])
 
                         w[_t,v_i].setlb(-confidence)
                         w[_t,v_i].setub(confidence)
                         
-                        if w[_t,v_i].lb == w[_t,v_i].ub:
+                        if abs(w[_t,v_i].lb - w[_t,v_i].ub) < 1e-5:
                             w[_t,v_i].fix()
             
 

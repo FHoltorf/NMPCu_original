@@ -53,7 +53,7 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            p_noisy=p_noisy,
            u=u,
            noisy_inputs = False,
-           noisy_params = False,
+           noisy_params = True,
            u_bounds=u_bounds,
            diag_QR=True,
            nfe_t=nfe,
@@ -89,12 +89,12 @@ for i in range(1,nfe):
     if i == 1:
         e.plant_simulation(e.store_results(e.recipe_optimization_model),disturbances=v_disturbances,first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
         e.set_prediction(e.store_results(e.recipe_optimization_model))
-        e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,fix_params=True) #adjusts the mhe problem according to new available measurements
+        e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov) #adjusts the mhe problem according to new available measurements
         e.cycle_nmpc(e.store_results(e.recipe_optimization_model),nfe_new)
     else:
         e.plant_simulation(e.store_results(e.olnmpc),disturbances=v_disturbances,disturbance_src="parameter_noise",parameter_disturbance=v_param)
         e.set_prediction(e.store_results(e.forward_simulation_model))
-        e.cycle_mhe(previous_mhe,mcov,qcov,ucov,fix_params=True) 
+        e.cycle_mhe(previous_mhe,mcov,qcov,ucov) 
         e.cycle_nmpc(e.store_results(e.olnmpc),nfe_new)   
     
     # solve the advanced step problems
@@ -112,9 +112,9 @@ for i in range(1,nfe):
     e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
     
     # solve mhe problem
-    e.solve_mhe() # solves the mhe problem
+    e.solve_mhe(fix_noise=True) # solves the mhe problem
     previous_mhe = e.store_results(e.lsmhe)
-    #e.compute_confidence_ellipsoid()
+    e.compute_confidence_ellipsoid()
     
     # update state estimate 
     e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True
@@ -273,3 +273,27 @@ plt.figure(l)
 ###############################################################################
 ###         Plotting 1st Order Approximation of Confidence Region 
 ###############################################################################
+
+# confidence intervall
+confidence = chi2.isf(0.95,2) #fragen: 0.05**2
+dimension = 2 # dimension n of the n x n matrix
+rows = {}
+for r in range(1,k):
+    A_dict = e.mhe_confidence_ellipsoids[r]
+    center = [0,0]
+    for m in range(dimension):
+        rows[m] = np.array([A_dict[(m,i)] for i in range(dimension)])
+    A = 1/confidence*np.array([np.array(rows[i]) for i in range(dimension)])
+    center = np.array([0]*dimension)
+    U, s, rotation = linalg.svd(A) # singular value decomposition 
+    radii = 1/np.sqrt(s) # radii
+    
+    # transform in polar coordinates for simple plot
+    theta = np.linspace(0.0, 2.0 * np.pi, 100) # 
+    x = radii[0] * np.sin(theta) #
+    y = radii[1] * np.cos(theta) #
+    for i in range(len(x)):
+        [x[i],y[i]] = np.dot([x[i],y[i]], rotation) + center
+    plt.plot(x,y, label = str(r))
+plt.xlabel(r'$\Delta A_i$')
+plt.ylabel(r'$\Delta A_p$')
