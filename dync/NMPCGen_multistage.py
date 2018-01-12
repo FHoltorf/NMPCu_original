@@ -14,6 +14,7 @@ from main.dync.DynGen_adjusted import DynGen
 import numpy as np
 import sys, os, time
 from six import iterkeys
+from copy import deepcopy
 __author__ = "David M Thierry @dthierry"
 
 """Not quite."""
@@ -52,9 +53,12 @@ class NmpcGen(DynGen):
         self.path_constraints = kwargs.pop('path_constraints',[])
         
         # multistage
+        dummy_tree = {}
+        for i in range(1,self.nfe_t+1):
+            dummy_tree[i,1] = (i-1,1,1,{'p':1.0,'i':1.0})
+        self.scenario_tree = kwargs.pop('scenario_tree', dummy_tree)
         self.multistage = kwargs.pop('multistage', True)
-        self.scenario_tree = kwargs.pop('scenario_tree', {})
-        self.s_max = kwargs.pop('s_max', 1) # number of scenarios 
+        self.s_max = kwargs.pop('s_max', 1) # number of scenarios
         self.nr = kwargs.pop('robust_horizon', 1) # robust horizon
         
         # objective type
@@ -344,7 +348,7 @@ class NmpcGen(DynGen):
         for u in self.u:
             control = getattr(self.forward_simulation_model,u)
             control[1,1].value = self.current_control_info[u] # xxx
-            control[1,1].fixed = True # xxx
+            control[1,1].fix() # xxx
             
             control_nom = getattr(self.forward_simulation_model,u+'_nom')
             control_nom.value = control[1,1].value # xxx
@@ -1076,7 +1080,6 @@ class NmpcGen(DynGen):
             uv = getattr(m, u)
             uv[1,1].set_suffix_value(m.dof_v, 1)
 
-
     def sens_dot_nmpc(self):
         self.journalizer("I", self._c_it, "sens_dot_nmpc", "Set-up")
 
@@ -1105,9 +1108,25 @@ class NmpcGen(DynGen):
 
         self.journalizer("I", self._c_it, "sens_dot_nmpc", self.olnmpc.name)
 
+        # SAVE OLD
+        before_dict = {}
+        for u in self.u:
+            control = getattr(self.olnmpc,u)
+            before_dict[u] = control[1,1].value
+            
         results = self.dot_driver.solve(self.olnmpc, tee=True, symbolic_solver_labels=True)
         self.olnmpc.solutions.load_from(results)
         self.olnmpc.f_timestamp.display(ostream=sys.stderr)
+
+        # SAVE NEW
+        after_dict = {}
+        difference_dict = {}
+        
+        for u in self.u:
+            control = getattr(self.olnmpc,u)
+            after_dict[u] = control[1,1].value
+            difference_dict[u] = after_dict[u] - before_dict[u]
+
 
         ftiming = open("timings_dot_driver.txt", "r")
         s = ftiming.readline()
@@ -1115,7 +1134,7 @@ class NmpcGen(DynGen):
         k = s.split()
         self._dot_timing = k[0]
         
-        #flho: augmented
+        # augmented by flho
            
         # save updated controls to current_control_info
         # apply clamping strategy if controls violate physical bounds
@@ -1136,10 +1155,15 @@ class NmpcGen(DynGen):
             print(self.curr_state_offset)
             #sys.exit()
             
+        applied = {}
         for u in self.u:
             control = getattr(self.olnmpc, u)
-            self.curr_u[u] = control[1,1].value        
+            self.curr_u[u] = control[1,1].value    
+            applied[u] = control[1,1].value
             
+        return before_dict, after_dict, difference_dict, applied
+        
+    
     def sens_k_aug_nmpc(self):
         self.journalizer("I", self._c_it, "sens_k_aug_nmpc", "k_aug sensitivity")
         self.olnmpc.ipopt_zL_in.update(self.olnmpc.ipopt_zL_out)
@@ -1157,7 +1181,7 @@ class NmpcGen(DynGen):
         #self.k_aug_sens.options["no_inertia"] = ""
         #self.k_aug_sens.options["no_barrier"] = ""
         #self.k_aug_sens.options['target_log10mu'] = -5.7
-        self.k_aug_sens.options['no_scale'] = ""
+        #self.k_aug_sens.options['no_scale'] = ""
         results = self.k_aug_sens.solve(self.olnmpc, tee=True, symbolic_solver_labels=True)
         self.olnmpc.solutions.load_from(results)
         self.olnmpc.f_timestamp.display(ostream=sys.stderr)
@@ -1517,7 +1541,8 @@ class NmpcGen(DynGen):
         
         # flho: modified
         self.nmpc_trajectory[self.iterations,'state_offset'] = self.curr_state_offset
-        
+        dummy1, dummy2, dummy3 = deepcopy(self.curr_state_offset), deepcopy(self.curr_pstate), deepcopy(self.curr_estate)
+        return dummy1, dummy2, dummy3
     def print_r_nmpc(self):
         self.journalizer("I", self._c_it, "print_r_nmpc", "Results at" + os.getcwd())
         self.journalizer("I", self._c_it, "print_r_nmpc", "Results suffix " + self.res_file_suf)

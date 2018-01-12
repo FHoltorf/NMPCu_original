@@ -16,7 +16,7 @@ from six import itervalues, iterkeys, iteritems
 import sys
 from scipy.stats import chi2
 
-for N in range(5,10):
+for N in range(5,22):
     m = ConcreteModel()
     m.k = Set(initialize=[i for i in range(N)])
     
@@ -110,7 +110,7 @@ for N in range(5,10):
     A = np.array([np.array(rows[i]) for i in range(dimension)])
     center = np.array([0]*dimension)
     U, s, V = np.linalg.svd(A) # singular value decomposition 
-    radii = sqrt(confidence)*np.sqrt(s) # radii
+    radii = sqrt(confidence)/np.sqrt(s) # radii
     
     # transform in polar coordinates for simple plot
     theta = np.linspace(0.0, 2.0 * np.pi, 100) # 

@@ -84,7 +84,7 @@ e = MheGen(d_mod=SemiBatchPolymerization_multistage,
            noisy_inputs = False,
            noisy_params = True,
            adapt_params = True,
-           update_scenario_tree = True,
+           update_scenario_tree = False,
            confidence_threshold = 0.2,
            robustness_threshold = 0.05,
            obj_type='economic',
@@ -106,20 +106,30 @@ e.create_enmpc() # with tracking-type regularization
 
 e.create_mhe()
 
-k = 1  
+k = 1 
+
+
+before = {}
+after = {}
+diff = {}
+applied = {}
+state_offset = {} 
+curr_estate = {}
+curr_pstate = {}
+ 
 for i in range(1,nfe):
     print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
     e.create_mhe()
     nfe_new = nfe - i
     if i == 1:
         e.plant_simulation(e.store_results(e.recipe_optimization_model),disturbances=v_disturbances,first_call=True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
-        e.set_prediction(e.store_results(e.recipe_optimization_model))
+        e.set_prediction(e.store_results(e.recipe_optimization_model)) # only required for asMHE
         e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov, first_call=True) #adjusts the mhe problem according to new available measurements
         e.cycle_nmpc(e.store_results(e.recipe_optimization_model),nfe_new)
     else:
         e.plant_simulation(e.store_results(e.olnmpc),disturbances=v_disturbances,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
         e.set_prediction(e.store_results(e.forward_simulation_model))
-        e.cycle_mhe(previous_mhe,mcov,qcov,ucov) 
+        e.cycle_mhe(previous_mhe,mcov,qcov,ucov) # only required for asMHE
         e.cycle_nmpc(e.store_results(e.olnmpc),nfe_new)   
 
     # solve the advanced step problems
@@ -140,13 +150,18 @@ for i in range(1,nfe):
     # update state estimate 
     e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True
     # compute fast update for nmpc
-    e.compute_offset_state(src_kind="estimated")
-    e.sens_dot_nmpc()   
+    state_offset[i], curr_pstate[i], curr_estate[i] = e.compute_offset_state(src_kind="estimated")
+    before[i], after[i], diff[i], applied[i] = e.sens_dot_nmpc()   
 
+
+#    if i == 1:
+#        break
     # forward simulation for next iteration
     e.forward_simulation()
+    
     e.cycle_iterations()
     k += 1
+   
 
     #troubleshooting
     if  e.nmpc_trajectory[i,'solstat'] != ['ok','optimal'] or \
@@ -158,7 +173,7 @@ for i in range(1,nfe):
                     + 'nmpc :' + e.nmpc_trajectory[i,'solstat'][1] + '\n' \
                     + 'simulation :' + e.simulation_trajectory[i,'solstat'][1])
         break
-    
+
 # simulate the last step too
 
 #e.forward_simulation_model.troubleshooting()
@@ -240,6 +255,33 @@ for b in plots:
     aux_sim = []
     for i in range(1,k+1):
         for z in range(2):
+            aux_ref.append(e.reference_control_trajectory[b,(i,1)]) # reference computed off-line/recipe optimization
+            aux_nmpc.append(e.nmpc_trajectory[i,b]) # nmpc --> predicted one step ahead
+            aux_sim.append(e.plant_trajectory[i,b]) # after advanced step --> one step ahead
+    control_traj_ref = np.array(aux_ref)
+    control_traj_nmpc = np.array(aux_nmpc)
+    control_traj_sim = np.array(aux_sim)
+    plt.figure(l)
+    plt.plot(t,control_traj_ref, label = "reference")
+    plt.plot(t_traj_nmpc,control_traj_nmpc, label = "predicted")
+    plt.plot(t_traj_sim,control_traj_sim, label = "SBU")
+    plt.legend()
+    plt.ylabel(b)
+    l += 1
+    
+e.plant_simulation_model.check_feasibility(display=True)
+
+
+
+t = np.array(aux2)
+t_traj_nmpc = np.array(aux1)
+t_traj_sim = t_traj_nmpc 
+for b in plots:
+    aux_ref = []
+    aux_nmpc = []
+    aux_sim = []
+    for i in range(1,k+1):
+        for z in range(2):
             aux_ref.append(e.reference_control_trajectory[b,(i,1)])
             aux_nmpc.append(e.nmpc_trajectory[i,b])
             aux_sim.append(e.plant_trajectory[i,b])
@@ -256,7 +298,37 @@ for b in plots:
     
 e.plant_simulation_model.check_feasibility(display=True)
 
+state_offset_norm = []
+diff_norm = []
 
+for u in ['u1','u2']:    
+    x = []
+    for i in range(1,k):
+        x.append(diff[i][u])
+    l += 1
+    plt.figure(l)
+    plt.plot(x)
+
+for p in [('Y',(1,)),('PO',(1,)),('PO_fed',(1,)),('W',(1,))]:
+    x = []
+    y = [] 
+    z = []
+    for i in range(1,k):
+        #x.append(curr_pstate[i][p])
+        #y.append(curr_estate[i][p])
+        #z.append(curr_pstate[i][p] - state_offset[i][p])
+        z.append(state_offset[i][p])
+    l += 1
+    plt.figure(l)
+    #plt.plot(x, label = 'predicted')
+    #plt.plot(y, label = 'estimated')
+    plt.plot(z, label = 'estimated check')
+    plt.ylabel(p[0])
+    plt.legend()
+    
+
+# compute the confidence ellipsoids
+# delta_theta^T*Vi*delta_theta = sigma^2*chi2(n_dof,confidence_level)
 l += 1
 plt.figure(l)
 
@@ -264,16 +336,14 @@ plt.figure(l)
 ###         Plotting 1st Order Approximation of Confidence Region 
 ###############################################################################
 dimension = 2 # dimension n of the n x n matrix = #DoF
-rhs_confidence = chi2.isf(1-0.95,dimension) # 0.1**2*5% measurment noise, 95% confidence level, dimension degrees of freedo
+rhs_confidence = chi2.isf(1.0-0.95,dimension) # 0.1**2*5% measurment noise, 95% confidence level, dimension degrees of freedo
 rows = {}
-#scaling = np.array([365861.822,0.0],[0.0,14927.801])
-scaling = np.diag([365861.822,14927.801])
 for r in range(5,k):
     A_dict = e.mhe_confidence_ellipsoids[r]
     center = [0,0]
     for m in range(dimension):
         rows[m] = np.array([A_dict[(m,i)] for i in range(dimension)])
-    A = 1/rhs_confidence*np.dot(scaling.transpose(),np.dot(np.array([np.array(rows[i]) for i in range(dimension)]),scaling))
+    A = 1/rhs_confidence*np.array([np.array(rows[i]) for i in range(dimension)])
     center = np.array([0]*dimension)
     U, s, V = linalg.svd(A) # singular value decomposition 
     radii = 1/np.sqrt(s) # length of half axes, V rotation
@@ -285,7 +355,6 @@ for r in range(5,k):
     for i in range(len(x)):
         [x[i],y[i]] = np.dot([x[i],y[i]], V) + center
     plt.plot(x,y, label = str(r))
-    plt.axis('equal')
 
     
     # plot half axis

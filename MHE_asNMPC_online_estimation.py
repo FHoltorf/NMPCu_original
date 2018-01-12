@@ -126,12 +126,15 @@ for i in range(1,nfe):
     state_offset[i], curr_pstate[i], curr_estate[i] = e.compute_offset_state(src_kind="estimated")
     
     before[i], after[i], diff[i], applied[i] = e.sens_dot_nmpc()   
+
     
     # forward simulation for next iteration
     e.forward_simulation()
     e.cycle_iterations()
     k += 1
-
+    
+#    if i == 2:
+#        break
     if  e.nmpc_trajectory[i,'solstat'] != ['ok','optimal'] or \
         e.nmpc_trajectory[i,'solstat_mhe'] != ['ok','optimal'] or \
         e.plant_trajectory[i,'solstat'] != ['ok','optimal'] or \
@@ -256,13 +259,14 @@ for p in [('Y',()),('PO',()),('PO_fed',()),('W',())]:
     y = [] 
     z = []
     for i in range(1,k):
-        x.append(curr_pstate[i][p])
-        y.append(curr_estate[i][p])
-        z.append(curr_pstate[i][p] - state_offset[i][p])
+        #x.append(curr_pstate[i][p])
+        #y.append(curr_estate[i][p])
+        #z.append(curr_pstate[i][p] - state_offset[i][p])
+        z.append(state_offset[i][p])
     l += 1
     plt.figure(l)
-    plt.plot(x, label = 'predicted')
-    plt.plot(y, label = 'estimated')
+    #plt.plot(x, label = 'predicted')
+    #plt.plot(y, label = 'estimated')
     plt.plot(z, label = 'estimated check')
     plt.ylabel(p[0])
     plt.legend()
