@@ -136,7 +136,7 @@ for i in range(1,nfe):
     e.solve_mhe(fix_noise=True) # solves the mhe problem
     previous_mhe = e.store_results(e.lsmhe)
     e.compute_confidence_ellipsoid()
-    break
+
     # update state estimate 
     e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True
     # compute fast update for nmpc
@@ -266,12 +266,14 @@ plt.figure(l)
 dimension = 2 # dimension n of the n x n matrix = #DoF
 rhs_confidence = chi2.isf(1-0.95,dimension) # 0.1**2*5% measurment noise, 95% confidence level, dimension degrees of freedo
 rows = {}
+#scaling = np.array([365861.822,0.0],[0.0,14927.801])
+scaling = np.diag([365861.822,14927.801])
 for r in range(5,k):
     A_dict = e.mhe_confidence_ellipsoids[r]
     center = [0,0]
     for m in range(dimension):
         rows[m] = np.array([A_dict[(m,i)] for i in range(dimension)])
-    A = 1/rhs_confidence*np.array([np.array(rows[i]) for i in range(dimension)])
+    A = 1/rhs_confidence*np.dot(scaling.transpose(),np.dot(np.array([np.array(rows[i]) for i in range(dimension)]),scaling))
     center = np.array([0]*dimension)
     U, s, V = linalg.svd(A) # singular value decomposition 
     radii = 1/np.sqrt(s) # length of half axes, V rotation
@@ -283,13 +285,13 @@ for r in range(5,k):
     for i in range(len(x)):
         [x[i],y[i]] = np.dot([x[i],y[i]], V) + center
     plt.plot(x,y, label = str(r))
-    #plt.axis('equal')
+    plt.axis('equal')
 
     
     # plot half axis
-    for p in range(dimension):
-        x = radii[p]*U[p][0]
-        y = radii[p]*U[p][1]
-        plt.plot([0,x],[0,y],color='red')
+for p in range(dimension):
+    x = radii[p]*U[p][0]
+    y = radii[p]*U[p][1]
+    plt.plot([0,x],[0,y],color='red')
 plt.xlabel(r'$\Delta A_i$')
 plt.ylabel(r'$\Delta A_p$')
