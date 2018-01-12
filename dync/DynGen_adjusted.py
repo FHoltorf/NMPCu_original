@@ -105,6 +105,7 @@ class DynGen(object):
         self.linapprox = kwargs.pop('linapprox', False)
         self.robustness_threshold = kwargs.pop('robustness_threshold',0.05)
         self.confidence_threshold = kwargs.pop('confidence_threshold',0.2)
+        self.estimate_acceptance = kwargs.pop('estimate_acceptance',1.0e8)
         self.n_r = kwargs.pop('n_r', 1)
         self.n_s = kwargs.pop('n_s', 1)
         self.st = kwargs.pop('st', {})

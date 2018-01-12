@@ -51,7 +51,7 @@ def run():
                adapt_params = True,#update blindly
                update_uncertainty_set = True,
                alpha = ({('A','p'):0.2,('A','i'):0.2},'adapted'),
-               confidence_threshold = 1.0,
+               confidence_threshold = 0.2,
                #robustness_threshold = 0.05,
                u_bounds=u_bounds,
                diag_QR=True,
@@ -115,7 +115,7 @@ def run():
         # solve mhe problem
         e.solve_mhe(fix_noise=True) # solves the mhe problem
         previous_mhe = e.store_results(e.lsmhe)
-        
+        e.compute_confidence_ellipsoid()
         
         # update state estimate 
         e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True

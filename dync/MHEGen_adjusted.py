@@ -520,7 +520,7 @@ class MheGen(NmpcGen):
                             dev = -1e8
                             for m in range(dimension):
                                  dev = max(dev,(abs(radii[m]*U[index][m]) + p_mhe[key].value)/p_mhe[key].value)
-                            if dev < 1 + self.confidence_threshold:
+                            if dev < 1 + self.estimate_acceptance:
                                 p_nom[key].value = p_mhe[key].value
                                 p_fs[key].value = p_mhe[key].value
                             else:
