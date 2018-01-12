@@ -10,7 +10,8 @@ import pickle
 import matplotlib.pyplot as plt
 import sys
 
-folders = ['online_estimation','multistage','backoff','standard']
+#folders = ['online_estimation','multistage','backoff','standard']
+folders = ['backoff']
 for folder in folders: 
     print(folder)
     path = 'results/'+folder+'/' 
@@ -45,7 +46,7 @@ for folder in folders:
     else:
         for i in range(iters):
             try:
-                endpoint_constraints[i]['epc_unsat'] = 0.032 - endpoint_constraints[i]['epc_unsat']/31890.0 
+                endpoint_constraints[i]['epc_unsat'] = 0.032 - endpoint_constraints[i]['epc_unsat']
             except TypeError:
                 continue
         
