@@ -28,12 +28,11 @@ from copy import deepcopy
 states = ["PO","MX","MY","Y","W","PO_fed"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","PO_fed"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)]}
-p_noisy = {"A":['p','i'],"Hrxn":['p']}
+p_noisy = {"A":['p','i']}
 u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
 
 cons = ['PO_ptg','unsat','mw','temp_b','heat_removal_a']
-dummies = ['dummy_constraint1','dummy_constraint2','dummy_constraint3']
 
 # measured variables
 y = {"PO", "Y", "W", "MY", "MX", "MW","m_tot"}
@@ -55,6 +54,10 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            u=u,
            noisy_inputs = False,
            noisy_params = True,
+           adapt_params = True,
+           update_uncertainty_set = True,
+           alpha = ({('A','p'):0.2,('A','i'):0.2},'adapted'),
+           confidence_threshold = 1.0,
            u_bounds=u_bounds,
            diag_QR=True,
            nfe_t=nfe,
@@ -104,7 +107,7 @@ for i in range(1,nfe):
     e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
     
     e.load_reference_trajectories(i) # loads the reference trajectory in olnmpc problem (for regularization)
-    e.solve_olrnmpc(cons=cons,dummy_cons=dummies,eps=1e-1) # solves the olnmpc problem
+    e.solve_olrnmpc(cons=cons,eps=1e-1) # solves the olnmpc problem
     #e.olnmpc.write_nl()
     
     # preparation for nmpc
@@ -117,7 +120,7 @@ for i in range(1,nfe):
     # solve mhe problem
     e.solve_mhe(fix_noise=True) # solves the mhe problem
     previous_mhe = e.store_results(e.lsmhe)
-    #e.compute_confidence_ellipsoid()
+    e.compute_confidence_ellipsoid()
     
     
     # update state estimate 
@@ -293,7 +296,7 @@ plt.figure(l)
 ###############################################################################
 
 # confidence intervall
-confidence = chi2.isf(0.95,2) # 0.05**2
+confidence = chi2.isf(1-0.95,2) # 0.05**2
 dimension = 2 # dimension n of the n x n matrix
 rows = {}
 for r in range(2,k):
@@ -316,3 +319,4 @@ for r in range(2,k):
     
 plt.xlabel(r'$\Delta A_i$')
 plt.ylabel(r'$\Delta A_p$')
+

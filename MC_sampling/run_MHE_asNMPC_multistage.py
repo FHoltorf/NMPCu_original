@@ -23,15 +23,16 @@ def run():
     states = ["PO","MX","MY","Y","W","PO_fed"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
     x_noisy = ["PO","MX","MY","Y","W","PO_fed"] # all the states are noisy  
     x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)]}
-    p_noisy = {"A":['p','i']}
+    #p_noisy = {"A":['p','i']}
+    p_noisy = {"A":['p','i']}#,"Hrxn_aux":['p']}
     u = ["u1", "u2"]
     u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
     
     # measured variables
-    #y = ["PO","heat_removal","m_tot","MW"] 
-    #y_vars = {"PO":[()],"heat_removal":[()],"m_tot":[()],"MW":[()]}
-    y = {"PO", "Y", "W", "MY", "MX", "MW","m_tot"}
-    y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
+    y = ["heat_removal","m_tot","MW"] 
+    y_vars = {"heat_removal":[()],"m_tot":[()],"MW":[()]}
+    #y = {"PO", "Y", "W", "MY", "MX", "MW","m_tot"}
+    #y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
     
     
     pc = ['Tad','heat_removal']
@@ -41,19 +42,20 @@ def run():
     s_max = 5
     nr = 1
     nfe = 24
+    alpha = 0.2
     for i in range(1,nfe+1):
         if i < nr + 1:
             for s in range(1,s_max**i+1):
                 if s%s_max == 1:
                     st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{'p':1.0,'i':1.0})
                 elif s%s_max == 2:
-                    st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{'p':1.1,'i':1.0})
+                    st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{'p':1.0+alpha,'i':1.0+alpha})
                 elif s%s_max == 3:
-                    st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{'p':0.9,'i':1.0})
+                    st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{'p':1.0-alpha,'i':1.0+alpha})
                 elif s%s_max == 4:
-                    st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{'p':1.0,'i':1.1})
+                    st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{'p':1.0+alpha,'i':1.0-alpha})
                 else:
-                    st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{'p':1.0,'i':0.9})
+                    st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{'p':1.0-alpha,'i':1.0-alpha})
         else:
             for s in range(1,s_max**nr+1):
                 st[(i,s)] = (i-1,s,True,st[(i-1,s)][3])
@@ -74,12 +76,15 @@ def run():
                s_max = sr,
                noisy_inputs = False,
                noisy_params = True,
+               adapt_params = True,
+               update_scenario_tree = True,
+               confidence_threshold = 0.2,
+               robustness_threshold = 0.05,
                obj_type='economic',
                nfe_t=nfe,
                sens=None,
                diag_QR=True,
                del_ics=False,
-               update_scenario_tree = True,
                path_constraints=pc)
     e.recipe_optimization()
     e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))

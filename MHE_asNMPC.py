@@ -89,12 +89,12 @@ for i in range(1,nfe):
     if i == 1:
         e.plant_simulation(e.store_results(e.recipe_optimization_model),disturbances=v_disturbances,first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
         e.set_prediction(e.store_results(e.recipe_optimization_model))
-        e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,fix_params=True) #adjusts the mhe problem according to new available measurements
+        e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov) #adjusts the mhe problem according to new available measurements
         e.cycle_nmpc(e.store_results(e.recipe_optimization_model),nfe_new)
     else:
         e.plant_simulation(e.store_results(e.olnmpc),disturbances=v_disturbances,disturbance_src="parameter_noise",parameter_disturbance=v_param)
         e.set_prediction(e.store_results(e.forward_simulation_model))
-        e.cycle_mhe(previous_mhe,mcov,qcov,ucov,fix_params=True) 
+        e.cycle_mhe(previous_mhe,mcov,qcov,ucov) 
         e.cycle_nmpc(e.store_results(e.olnmpc),nfe_new)   
     
     # solve the advanced step problems

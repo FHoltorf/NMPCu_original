@@ -54,6 +54,9 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            u=u,
            noisy_inputs = False,
            noisy_params = True,
+           adapt_params = True,
+           confidence_threshold = 1.0,
+           robustness_threshold = 0.05,
            u_bounds=u_bounds,
            diag_QR=True,
            nfe_t=nfe,
@@ -275,17 +278,20 @@ plt.figure(l)
 ###############################################################################
 
 # confidence intervall
-confidence = chi2.isf(0.95,2) #fragen: 0.05**2
+confidence = chi2.isf(1-0.95,2) #fragen: 0.05**2
 dimension = 2 # dimension n of the n x n matrix
 rows = {}
+#scaling = np.array([[360687.81359,0],[0.0,13301.6888373]])
+#scaling = np.array([[1.0,0],[0.0,1.0]])
 for r in range(1,k):
     A_dict = e.mhe_confidence_ellipsoids[r]
+    #confidence = chi2.isf(1-0.95,6*r) 
     center = [0,0]
     for m in range(dimension):
         rows[m] = np.array([A_dict[(m,i)] for i in range(dimension)])
     A = 1/confidence*np.array([np.array(rows[i]) for i in range(dimension)])
     center = np.array([0]*dimension)
-    U, s, rotation = linalg.svd(A) # singular value decomposition 
+    U, s, V = linalg.svd(A) # singular value decomposition 
     radii = 1/np.sqrt(s) # radii
     
     # transform in polar coordinates for simple plot
@@ -293,7 +299,11 @@ for r in range(1,k):
     x = radii[0] * np.sin(theta) #
     y = radii[1] * np.cos(theta) #
     for i in range(len(x)):
-        [x[i],y[i]] = np.dot([x[i],y[i]], rotation) + center
+        [x[i],y[i]] = np.dot([x[i],y[i]], V) + center
     plt.plot(x,y, label = str(r))
 plt.xlabel(r'$\Delta A_i$')
 plt.ylabel(r'$\Delta A_p$')
+
+
+
+

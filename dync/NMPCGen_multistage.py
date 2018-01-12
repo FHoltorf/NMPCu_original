@@ -391,7 +391,7 @@ class NmpcGen(DynGen):
     def recipe_optimization(self):
         self.nfe_t_0 = self.nfe_t # set self.nfe_0 to keep track of the length of the reference trajectory
         self.generate_state_index_dictionary()
-        self.recipe_optimization_model = self.d_mod(self.nfe_t, self.ncp_t, scenario_tree = self.scenario_tree)
+        self.recipe_optimization_model =  self.d_mod(self.nfe_t,self.ncp_t,scenario_tree = self.scenario_tree, s_max = self.s_max, nr = self.nr)#self.d_mod(self.nfe_t, self.ncp_t, scenario_tree = self.scenario_tree)
         self.recipe_optimization_model.initialize_element_by_element()
         self.recipe_optimization_model.create_bounds()
         self.recipe_optimization_model.create_output_relations()
@@ -1154,6 +1154,10 @@ class NmpcGen(DynGen):
 
         self.olnmpc.set_suffix_value(self.olnmpc.f_timestamp, self.int_file_nmpc_suf)
         self.olnmpc.f_timestamp.display(ostream=sys.stderr)
+        #self.k_aug_sens.options["no_inertia"] = ""
+        #self.k_aug_sens.options["no_barrier"] = ""
+        #self.k_aug_sens.options['target_log10mu'] = -5.7
+        self.k_aug_sens.options['no_scale'] = ""
         results = self.k_aug_sens.solve(self.olnmpc, tee=True, symbolic_solver_labels=True)
         self.olnmpc.solutions.load_from(results)
         self.olnmpc.f_timestamp.display(ostream=sys.stderr)

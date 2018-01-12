@@ -120,6 +120,19 @@ class NmpcGen(DynGen):
         # parameters covariance matrix
         self.par_dict = kwargs.pop('par_dict',{}) #par_dict {'name of parameter':[list of indices]}
         
+        # robust cl nmpc approximation
+        # alpha represents the uncertainty level
+        #   case a): same uncertainty level for all parameters (normalized on nominal value):
+                        # --> alpha is a scalar: float
+        #   case b): different uncertainty levels:
+                        # --> alpha is dictionary/vector: {(parameter.name,(key)):value} or {(parameter.name,key):value}
+        #   case c): uncertainty set is adapted based on the confidence ellipsoids
+                        # --> put initial guess of confidence + keyword 'adapted' in tuple:  ({(parameter.nem,(key)):value},'adapted') 
+                        # --> alpha is matrix that gets computed in MHEGen (represented as dictionary)
+                        
+        self.alpha = kwargs.pop('alpha',self.confidence_threshold)
+        self.weighting_matrix = {}
+        
     def open_loop_simulation(self, sample_size = 10, disturbances = {}, **kwargs):
         #disturbance_src = kwargs.pop('disturbance_src', 'process_noise')
         initial_disturbance = kwargs.pop('initial_disturbance', {(x,j):0.0 for x in self.states for j in self.state_vars})
@@ -1058,19 +1071,17 @@ class NmpcGen(DynGen):
     
         self.olnmpc.write_nl()
         
-    def solve_olrnmpc(self,cons,dummy_cons,**kwargs):
+    def solve_olrnmpc(self,cons,**kwargs):
         # open-loop robust nonlinear model predictive control problem with linear approximation of the lower level program
         print("solve_olrnmpc")
         print('#'*20 + ' ' + str(self.iterations) + ' ' + '#'*20)
 
         # specify inputs
             # cons: list of the 'name's of the slack variables 's_name'
-            # dummy_cons: names of the dummy constraints needed to obtain the relevant partial derivatives
-            
+    
         # set algorithmic options
         iterlim = kwargs.pop('iterlim',10)  
         eps = kwargs.pop('eps',0.0)
-        alpha = kwargs.pop('alpha',0.1)
         
         ip = SolverFactory('asl:ipopt')
         ip.options["halt_on_ampl_error"] = "yes"
@@ -1083,17 +1094,21 @@ class NmpcGen(DynGen):
         iters = 0
         converged = False
         
-        # preperation phase
+        # initialize everything
         backoff = {}
         for i in cons:
             backoff_var = getattr(self.olnmpc,'xi_'+i)
             for index in backoff_var.index_set():
                 try:
-                    backoff[(('s_'+i,index),'p1')] = 0.0
+                    backoff[('s_'+i,index)] = 0.0
                     backoff_var[index].value = 0.0
                 except KeyError:
                     continue
-        n_p = len(dummy_cons)
+        n_p = 0
+        for p in self.p_noisy:
+            for key in self.p_noisy[p]:
+                n_p += 1
+        
         print('iterations:')
         while (iters < iterlim and not(converged)):
             print(' '*7 + str(iters))
@@ -1110,7 +1125,7 @@ class NmpcGen(DynGen):
                 slack = getattr(self.olnmpc, 's_'+i)
                 for index in slack.index_set():
                     slack[index].setlb(0)
-            nlp_results = ip.solve(self.olnmpc, tee=True)
+            nlp_results = ip.solve(self.olnmpc, tee=False)
 
             if [str(nlp_results.solver.status),str(nlp_results.solver.termination_condition)] != ['ok','optimal']:
                 self.olnmpc.A.pprint()
@@ -1123,7 +1138,7 @@ class NmpcGen(DynGen):
             # check whether optimal control problem feasible
             flag = False
             for index in self.olnmpc.eps.index_set():
-                if self.olnmpc.eps[index].value > 1e-6:
+                if self.olnmpc.eps[index].value > 1e-3:
                     flag = True
             if flag:
                 break
@@ -1145,25 +1160,28 @@ class NmpcGen(DynGen):
             self.olnmpc.ipopt_zL_in.update(self.olnmpc.ipopt_zL_out)
             self.olnmpc.ipopt_zU_in.update(self.olnmpc.ipopt_zU_out)
         
-            
             if iters == 0:
                 self.olnmpc.var_order = Suffix(direction=Suffix.EXPORT)
                 self.olnmpc.dcdp = Suffix(direction=Suffix.EXPORT)
                 i = 1
-                for dummy in dummy_cons:
-                    dummy_con = getattr(self.olnmpc, dummy)
-                    for index in dummy_con.index_set():
-                        self.olnmpc.dcdp.set_value(dummy_con[index], i)
-                        i += 1
+                reverse_dict_pars ={}
+                for p in self.p_noisy:
+                    for key in self.p_noisy[p]:
+                        dummy = 'dummy_constraint_p_' + p + '_' + key
+                        dummy_con = getattr(self.olnmpc, dummy)
+                        for index in dummy_con.index_set():
+                            self.olnmpc.dcdp.set_value(dummy_con[index], i)
+                            reverse_dict_pars[i] = (p,key)
+                            i += 1
             
                 i = 1
-                reverse_dict = {}
+                reverse_dict_cons = {}
                 for k in cons:
                     s = getattr(self.olnmpc, 's_'+k)
                     for index in s.index_set():
                         if not(s[index].stale):
                             self.olnmpc.var_order.set_value(s[index], i)
-                            reverse_dict[i] = ('s_'+ k,index)
+                            reverse_dict_cons[i] = ('s_'+ k,index)
                             i += 1
                     
             k_aug.solve(self.olnmpc, tee=False)
@@ -1174,28 +1192,58 @@ class NmpcGen(DynGen):
                 i = 1
                 for row in reader:
                     k = 1
-                    s = reverse_dict[i]
+                    s = reverse_dict_cons[i]
                     for col in row[1:]:
-                        sens[(s,'p'+str(k))] = float(col)
+                        p = reverse_dict_pars[k]
+                        sens[(s,p)] = float(col)
                         k += 1
                     i += 1
+            # compute weighted sensitivity matrix
+            if type(self.alpha) == float:
+                # case a): hypercube
+                for key in sens:
+                    sens[key] = self.alpha*sens[key]
+            elif type(self.alpha) == dict:
+                # case b): hyperrectangle
+                for key in sens:
+                    sens[key] = self.alpha[key[1]]*sens[key]
+            elif type(self.alpha) == tuple and self.alpha[1] == 'adapted':
+                # case c): weighting_matrix --> rectangle is tilted
+                # homemade matrix multiplication to ensure the rows and cols match...
+                if type(self.weighting_matrix) != dict:
+                    for key in sens:
+                        #key[1] = p # the exact same index for self.PI_indices
+                        #self.PI_indices[key[1]] returns index for corresponding parameter in _PI
+                        s = key[0] 
+                        m = self.PI_indices[key[1]]
+                        sens[key] = sum(sens[s,p]*self.weighting_matrix[m][self.PI_indices[p]] for p in self.PI_indices)
+                else:
+                    for key in sens:
+                        sens[key] = self.alpha[0][key[1]]*sens[key]
+            else:
+                print('ERROR: WRONG SPECIFICATION OF CONFIDENCE REGION')
+                sys.exit()
             # convergence check and update    
             converged = True
             for i in cons:
                 backoff_var = getattr(self.olnmpc,'xi_'+i)
                 for index in backoff_var.index_set():
                     try:
-                        new_backoff = sum(abs(alpha*sens[(('s_'+i,index),'p'+str(k))]) for k in range(1,n_p+1))
-                        old_backoff = backoff[(('s_'+i,index),'p1')]
-                        if backoff[(('s_'+i,index),'p1')] - new_backoff < 0:
-                            backoff[(('s_'+i,index),'p1')] = new_backoff
+                        # computes the 1-norm of the respective part of the sensitivity matrix
+                        new_backoff = sum(abs(sens[(('s_'+i,index),reverse_dict_pars[k])]) for k in range(1,n_p+1))
+                        # update backoff margins 
+                        old_backoff = backoff[('s_'+i,index)]
+                        if backoff[('s_'+i,index)] - new_backoff < 0:
+                            backoff[('s_'+i,index)] = new_backoff
                             backoff_var[index].value = new_backoff
-                            if old_backoff - new_backoff < -eps:
+                            # check convergence
+                            if  old_backoff - new_backoff <= -eps:
                                 converged = False
                         else:
                             continue
                     except KeyError:
                         continue
+                    
             iters += 1
             
         self.olnmpc.create_bounds()

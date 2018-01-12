@@ -19,8 +19,8 @@ qcov[("X",()), ("X",())] = disturbance_error
 qcov[("MY",()), ("MY",())] = disturbance_error
 qcov[("Y",()), ("Y",())] = disturbance_error
 qcov[("W",()), ("W",())] = disturbance_error
-qcov[("m_tot",()), ("m_tot",())] = disturbance_error*0.0
-qcov[("PO_fed",()), ("PO_fed",())] = disturbance_error*0.0
+qcov[("m_tot",()), ("m_tot",())] = 0.0
+qcov[("PO_fed",()), ("PO_fed",())] = 0.0
 
 # process disturbances
 v_disturbances = {}
@@ -95,6 +95,10 @@ v_param[('Hrxn',('a',))] = [0.0,200]
 v_param[('Hrxn',('i',))] = [0.0,200]
 v_param[('Hrxn',('p',))] = [0.0,200]
 v_param[('Hrxn',('t',))] = [0.0,200]
+v_param[('Hrxn_aux',('a',))] = [0.0,200] 
+v_param[('Hrxn_aux',('i',))] = [0.0,200]
+v_param[('Hrxn_aux',('p',))] = [0.0,200]
+v_param[('Hrxn_aux',('t',))] = [0.0,200]
 
         
 

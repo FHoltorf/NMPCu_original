@@ -18,16 +18,18 @@ import time
 
 __author__ = 'FHoltorf'
 
-end = ['PO_ptg','unsat','mw','temp_b','heat_removal_a']
-dummies = ['dummy_constraint1','dummy_constraint2','dummy_constraint3']
-n_p = len(dummies)
+cons = ['PO_ptg','unsat','mw','temp_b','heat_removal_a']
+p_noisy = {'A':['p','i'],'Hrxn':['p']}
 iters = 0
 iterlim = 100
 converged = False
 eps = 0.0
 alpha = 0.2
 
-
+n_p = 0
+for key1 in p_noisy:
+    for key2 in p_noisy[key1]:
+        n_p += 1
 Solver = SolverFactory('ipopt')
 Solver.options["halt_on_ampl_error"] = "yes"
 Solver.options["max_iter"] = 5000
@@ -48,11 +50,11 @@ m.initialize_element_by_element()
 CPU_time = {}
 
 backoff = {}
-for i in end:
+for i in cons:
     backoff_var = getattr(m,'xi_'+i)
     for index in backoff_var.index_set():
         try:
-            backoff[(('s_'+i,index),'p1')] = 0.0
+            backoff[('s_'+i,index)] = 0.0
             backoff_var[index].value = 0.0
         except KeyError:
             continue
@@ -65,7 +67,7 @@ while (iters < iterlim and not(converged)):
     m.u1.unfix()
     m.u2.unfix()
     m.tf.unfix()
-    for i in end:
+    for i in cons:
         slack = getattr(m, 's_'+i)
         for index in slack.index_set():
             slack[index].setlb(0)
@@ -87,20 +89,24 @@ while (iters < iterlim and not(converged)):
         m.var_order = Suffix(direction=Suffix.EXPORT)
         m.dcdp = Suffix(direction=Suffix.EXPORT)
         i = 1
-        for dummy in dummies:
-            dummy_con = getattr(m, dummy)
-            for index in dummy_con.index_set():
-                m.dcdp.set_value(dummy_con[index], i)
-                i += 1
+        reverse_dict_pars = {}
+        for p in p_noisy:
+            for key in p_noisy[p]:
+                dummy = 'dummy_constraint_p_' + p + '_' + key
+                dummy_con = getattr(m, dummy)
+                for index in dummy_con.index_set():
+                    m.dcdp.set_value(dummy_con[index], i)
+                    reverse_dict_pars[i] = (p,key)
+                    i += 1
     
         i = 1
-        reverse_dict = {}
-        for k in end:
+        reverse_dict_cons = {}
+        for k in cons:
             s = getattr(m, 's_'+k)
             for index in s.index_set():
                 if not(s[index].stale):
                     m.var_order.set_value(s[index], i)
-                    reverse_dict[i] = ('s_'+ k,index)
+                    reverse_dict_cons[i] = ('s_'+ k,index)
                     i += 1
             
     k_aug.solve(m, tee=True)
@@ -111,21 +117,24 @@ while (iters < iterlim and not(converged)):
         i = 1
         for row in reader:
             k = 1
-            s = reverse_dict[i]
+            s = reverse_dict_cons[i]
             for col in row[1:]:
-                sens[(s,'p'+str(k))] = float(col)
+                p = reverse_dict_pars[k]
+                sens[(s,p)] = float(col)
                 k += 1
             i += 1
+            
+    
     # convergence check and update    
     converged = True
-    for i in end:
+    for i in cons:
         backoff_var = getattr(m,'xi_'+i)
         for index in backoff_var.index_set():
             try:
-                new_backoff = sum(abs(alpha*sens[(('s_'+i,index),'p'+str(k))]) for k in range(1,n_p+1))
-                old_backoff = backoff[(('s_'+i,index),'p1')]
-                if backoff[(('s_'+i,index),'p1')] - new_backoff < 0:
-                    backoff[(('s_'+i,index),'p1')] = new_backoff
+                new_backoff = sum(abs(alpha*sens[(('s_'+i,index),reverse_dict_pars[k])]) for k in range(1,n_p+1))
+                old_backoff = backoff[('s_'+i,index)]
+                if backoff[('s_'+i,index)] - new_backoff < 0:
+                    backoff[('s_'+i,index)] = new_backoff
                     backoff_var[index].value = new_backoff
                     if old_backoff - new_backoff < -eps:
                         converged = False

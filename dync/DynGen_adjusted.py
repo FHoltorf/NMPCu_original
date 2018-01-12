@@ -101,10 +101,17 @@ class DynGen(object):
  
         self.multimodel = kwargs.pop('multimodel', False)
         self.multistage = kwargs.pop('multistage', False)
+        self.adapt_params = kwargs.pop('adapt_params',False)
         self.linapprox = kwargs.pop('linapprox', False)
+        self.robustness_threshold = kwargs.pop('robustness_threshold',0.05)
+        self.confidence_threshold = kwargs.pop('confidence_threshold',0.2)
         self.n_r = kwargs.pop('n_r', 1)
         self.n_s = kwargs.pop('n_s', 1)
         self.st = kwargs.pop('st', {})
+        
+        # need to know them also in NMPCGen
+        self.PI_indices = {}
+        self._PI = {}
         with open("ipopt.opt", "w") as f:
             f.close()
 

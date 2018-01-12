@@ -22,7 +22,7 @@ def run():
     states = ["PO","MX","MY","Y","W","PO_fed"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
     x_noisy = ["PO","MX","MY","Y","W","PO_fed"] # all the states are noisy  
     x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)]}
-    p_noisy = {"A":['p','i'],"Hrxn":['p']}
+    p_noisy = {"A":['p','i']}
     u = ["u1", "u2"]
     u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
     
@@ -48,6 +48,11 @@ def run():
                u=u,
                noisy_inputs = False,
                noisy_params = True,
+               adapt_params = True,#update blindly
+               update_uncertainty_set = True,
+               alpha = ({('A','p'):0.2,('A','i'):0.2},'adapted'),
+               confidence_threshold = 1.0,
+               #robustness_threshold = 0.05,
                u_bounds=u_bounds,
                diag_QR=True,
                nfe_t=nfe,

@@ -19,6 +19,7 @@ from itertools import product
 import sys, os, time
 from copy import deepcopy
 from scipy.stats import chi2
+from scipy.linalg import sqrtm
 from pyomo import *
 
 __author__ = "David M Thierry @dthierry"
@@ -50,7 +51,9 @@ class MheGen(NmpcGen):
         self.measurement = {}
         self.mhe_confidence_ellipsoids = {}
         self.noisy_inputs = kwargs.pop('noisy_inputs', False)
-        self.noisy_params = kwargs.pop('noisy_params', False)
+        self.noisy_params = kwargs.pop('noisy_params', False) # if True, means uncertain parameters are estimated on-line
+        self.update_scenario_tree = kwargs.pop('update_scenario_tree', False)
+        self.update_uncertainty_set = kwargs.pop('update_uncertainty_set', False)
         self.p_noisy = kwargs.pop('p_noisy', {})
         self.sens = kwargs.pop('sens', None) # specify 'sIpopt' if sensitivity based update of lsmhe problem 
         
@@ -357,10 +360,14 @@ class MheGen(NmpcGen):
                 vni = self.yk_key[(x,j)]
                 self.lsmhe.yk0_mhe[self.nfe_mhe,vni] = self.measurement[self.nfe_mhe][(x,j)]
                 
-    def cycle_mhe(self,initialguess,m_cov,q_cov,u_cov,fix_params=False):
+    def cycle_mhe(self,initialguess,m_cov,q_cov,u_cov):
         # load initialguess from previous iteration lsmhe and olnmpc for the missing element
-        if self.noisy_params and not(fix_params): 
+        if self.noisy_params: 
             self.lsmhe.par_to_var()
+            for p in self.p_noisy:
+                p_mhe = getattr(self.lsmhe,p)
+                for key in self.p_noisy[p]:
+                    p_mhe[key].unfix()
         
         for _var in self.lsmhe.component_objects(Var):
             for _key in _var.index_set():
@@ -487,32 +494,55 @@ class MheGen(NmpcGen):
                 else:
                     xic.value = ivs[(x,j)]
 
-        if self.noisy_params:
-            for p in self.p_noisy:
-                olnmpc_param = getattr(self.olnmpc,p)
-                fs_param = getattr(self.forward_simulation_model,p)
-                estimated_param = getattr(self.lsmhe,p)
-                for key in self.p_noisy[p]:
-                    olnmpc_param[key].value = estimated_param[key].value          
-                    fs_param[key].value = estimated_param[key].value 
-            
-            if self.multimodel and self.iterations>1:
-                # compute worst case parameter realization constrained to confidence ellipsoid
+        if (self.adapt_params or self.update_scenario_tree or self.update_uncertainty_set) and self.iterations > 1:
+            ###################################################################
+            # comute principle components of approximate 95%-confidence region 
+            ###################################################################
+            try:
                 dimension = int(np.sqrt(len(self.mhe_confidence_ellipsoids[1])))
-                confidence = chi2.isf(0.95,dimension) # ask about confidence ellipsoid RHS 
+                confidence = chi2.isf(1-0.95,dimension)
                 A_dict = self.mhe_confidence_ellipsoids[self.iterations-1]
-    
                 # assemble dimension x dimension array
                 rows = {}
                 for m in range(dimension):
-                        rows[m] = np.array([A_dict[(m,i)] for i in range(dimension)])
-                A = 1/confidence*np.array([np.array(rows[i]) for i in range(dimension)]) # shape matrix of confidence ellipsoid
-                A = np.linalg.inv(A)
+                        rows[m] = np.array([A_dict[(m,i)] for i in range(dimension)]) 
+                A = 1/confidence*np.array([np.array(rows[i]) for i in range(dimension)]) # shape matrix of confidence ellipsoid, should rewrite and scale according to parameter values, much simpler afterwards
                 U, s, V = np.linalg.svd(A) # singular value decomposition of shape matrix 
                 radii = 1/np.sqrt(s) # radii --
-            
+                # adapt parameters iff estimates are confident enough
+                if self.adapt_params:
+                    for p in self.p_noisy:
+                        p_nom = getattr(self.olnmpc,p)
+                        p_mhe = getattr(self.lsmhe,p)
+                        p_fs = getattr(self.forward_simulation_model,p)
+                        for key in self.p_noisy[p]:
+                            index = self.PI_indices[p,key]
+                            dev = -1e8
+                            for m in range(dimension):
+                                 dev = max(dev,(abs(radii[m]*U[index][m]) + p_mhe[key].value)/p_mhe[key].value)
+                            if dev < 1 + self.confidence_threshold:
+                                p_nom[key].value = p_mhe[key].value
+                                p_fs[key].value = p_mhe[key].value
+                            else:
+                                continue
+            except KeyError: # adapt parameters blindly
+                if self.adapt_params:
+                    for p in self.p_noisy:
+                        p_nom = getattr(self.olnmpc,p)
+                        p_mhe = getattr(self.lsmhe,p)
+                        p_fs = getattr(self.forward_simulation_model,p)
+                        for key in self.p_noisy[p]:
+                             p_nom[key].value = p_mhe[key].value
+                             p_fs[key].value = p_mhe[key].value
+                             
+            ###############################################################
+            ### DISCLAIMER:
+            ### currently tailored to single stage which is reasonable since multiple stages do not make sense
+            ###############################################################
+            if self.update_scenario_tree:
                 # idea: go through the axis of the ellipsoid (U) and include the intersections of this axis with confidence ellipsoid on both ends as scenarios (sigmapoints)
                 # only accept these scenarios if sigmapoints are inside hypercube spanned by euclidean unit vectors around nominal value  
+                self.weighting_matrix = {}
                 l = 0
                 flag=False
                 for m in range(dimension):
@@ -523,10 +553,20 @@ class MheGen(NmpcGen):
                         p_mhe = getattr(self.lsmhe,p)
                         for key in self.p_noisy[p]:
                             index = self.PI_indices[p_mhe.name,key]
-                            dev = max((radii[m]*U[index][m] + p_nom[key].value)/p_nom[key].value,(p_nom[key].value - radii[m]*U[index][m])/p_nom[key].value)
-                            if dev < 1.1: 
-                                p_scen[(key,l)].value = (radii[m]*U[index][m] + p_nom[key].value)/p_nom[key].value
-                                p_scen[(key,l+1)].value = (p_nom[key].value - radii[m]*U[index][m])/p_nom[key].value
+                            dev = -1e8
+                            for m in range(dimension): # little redundant but ok
+                                dev = max(dev,(abs(radii[m]*U[index][m]) + p_mhe[key].value)/p_mhe[key].value)
+                            if dev < 1 + self.confidence_threshold:# confident enough in parameter estimate --> adapt parameter in prediction and NMPC model
+                                if dev >  1 + self.robustness_threshold:# minimum robustness threshold is not reached
+                                    p_scen[(key,l)].value = (radii[m]*U[index][m] + p_mhe[key].value)/p_mhe[key].value
+                                    p_scen[(key,l+1)].value = (p_mhe[key].value - radii[m]*U[index][m])/p_mhe[key].value
+                                else:# minimum robustness threshold is reached already
+                                    if np.sign(U[index][m]) == 1:
+                                        p_scen[(key,l)].value = 1 + self.robustness_threshold
+                                        p_scen[(key,l+1)].value = 1 - self.robustness_threshold
+                                    else:
+                                        p_scen[(key,l)].value = 1 - self.robustness_threshold
+                                        p_scen[(key,l+1)].value = 1 + self.robustness_threshold
                             else:
                                 flag = True
                                 break
@@ -548,10 +588,57 @@ class MheGen(NmpcGen):
                     for p in self.p_noisy:
                         p_scen = getattr(self.olnmpc,'p_'+p)
                         for key in self.p_noisy[p]:
-                            p_scen[(key,l)].value = 1.1
-                            p_scen[(key,l+1)].value = 0.9
+                            p_scen[(key,l)].value = 1 + self.confidence_threshold
+                            p_scen[(key,l+1)].value = 1 - self.confidence_threshold
                             l += 2
+                            
+            if self.update_uncertainty_set:
+                # tailored to hyperrectangles
+                # enscribe confidence_ellipsoid in hyperrectangle
+                        # started with hyperrectangle ||diag(alpha_i)^(-1)*x||_inf <= 1
+                        # replace weighting by approximate covariance matrix
+                        #           --> dual norm ||V_p * x||_1 <= 1
+                        #           --> compute parameter covariance matrix normalized to nominal values
+                # check if all half axis endpoints lie inside hyperrectangle
+                flag = False
+                for p in self.p_noisy:
+                    p_mhe = getattr(self.lsmhe,p)
+                    dev = -1e8# initialize
+                    for key in self.p_noisy[p]:
+                        index = self.PI_indices[p_mhe.name,key]
+                        for m in range(dimension):
+                            dev = max(dev,(abs(radii[m]*U[index][m]) + p_mhe[key].value)/p_mhe[key].value)
+                            if dev > 1 + self.confidence_threshold:
+                                flag = True
+                                break
+                        if flag:
+                            break
+                    if flag:
+                        break
                 
+                # if all halfaxis endpoints lie inside hyperrectangle --> continue
+                if not(flag):
+                    # create new weighting matrix:
+                    #  --> generally normalize principle components to their size
+                    scaling = np.zeros((dimension,dimension))
+                    for p in self.p_noisy:
+                        p_mhe = getattr(self.lsmhe,p)
+                        for key in self.p_noisy[p]:
+                            m = self.PI_indices[p,key]
+                            scaling[m][m] = p_mhe[key].value
+                    self.weighting_matrix = np.linalg.inv(np.dot(scaling.transpose(),np.dot(A,scaling)))
+                    self.weighting_matrix = sqrtm(self.weighting_matrix) # weighting matrix to find rectangle that has ellipsoid inscribed
+                    
+#             #REPORT JAN2018 --> replaced by updating parameters if confidence high enough!
+#                for p in self.p_noisy:
+#                olnmpc_param = getattr(self.olnmpc,p)
+#                fs_param = getattr(self.forward_simulation_model,p)
+#                estimated_param = getattr(self.lsmhe,p)
+#                for key in self.p_noisy[p]:
+#                    olnmpc_param[key].value = estimated_param[key].value          
+#                    fs_param[key].value = estimated_param[key].value 
+            # compute worst case parameter realization constrained to confidence ellipsoid
+             
                                 
     def compute_offset_measurements(self):
         mhe_y = getattr(self.lsmhe, "yk0_mhe")
@@ -717,7 +804,7 @@ class MheGen(NmpcGen):
                 for _t in range(1,self.nfe_mhe+1):
                     if self.diag_Q_R:                
                         try:
-                            rtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.measurement[_t][vni] + 0.01)**2
+                            rtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.measurement[_t][vni] + 0.001)**2
                         except ZeroDivisionError:
                             rtarget[_t,v_i] = 1 
                     else:
@@ -745,9 +832,9 @@ class MheGen(NmpcGen):
                 xic = getattr(self.lsmhe, vni[0] + "_ic")
                 try:
                     if vni[1] == ():
-                        qtarget[0, v_i] = 1 / (cov_dict[vni, vnj]*xic.value + 0.01)**2 # .00001
+                        qtarget[0, v_i] = 1 / (cov_dict[vni, vnj]*xic.value + 0.001)**2 # .00001
                     else:
-                        qtarget[0, v_i] = 1 / (cov_dict[vni, vnj]*xic[vni[1]].value + 0.01)**2 # .0001
+                        qtarget[0, v_i] = 1 / (cov_dict[vni, vnj]*xic[vni[1]].value + 0.001)**2 # .0001
                     
                     if set_bounds:
                         if cov_dict[vni, vnj] != 0:
@@ -773,7 +860,7 @@ class MheGen(NmpcGen):
                 for _t in range(1,self.nfe_mhe):
                     if self.diag_Q_R:
                         try:
-                            qtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.nmpc_trajectory[_t,vni] + .01)**2 
+                            qtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.nmpc_trajectory[_t,vni] + .001)**2 
                         except ZeroDivisionError:
                             qtarget[_t, v_i] = 1
                     else:
@@ -782,9 +869,9 @@ class MheGen(NmpcGen):
                     # bound disturbances to help solution
                     if set_bounds:                        
                         if cov_dict[vni, vnj] != 0.0:
-                            confidence = 3*cov_dict[vni,vnj]*self.nmpc_trajectory[_t,vni]
+                            confidence = 10*cov_dict[vni,vnj]*self.nmpc_trajectory[_t,vni]
                         else:
-                            confidence = abs(0.5*self.nmpc_trajectory[_t,vni])
+                            confidence = abs(10*self.nmpc_trajectory[_t,vni])
 
                         w[_t,v_i].setlb(-confidence)
                         w[_t,v_i].setub(confidence)
@@ -809,7 +896,7 @@ class MheGen(NmpcGen):
                 else:
                     aux_key = _t # tailored to my code basically
                 try:
-                    utarget[_t, vni] = 1 #/ (cov_dict[key]*self.reference_control_trajectory[vni,aux_key] + .01)**2
+                    utarget[_t, vni] = 1 / (cov_dict[key]*self.reference_control_trajectory[vni,aux_key] + .001)**2
                 except ZeroDivisionError:
                     utarget[_t, vni] = 1
                 #qtarget[_t, vni] = 1 / cov_dict[key]
@@ -941,8 +1028,8 @@ class MheGen(NmpcGen):
 
         self.journalizer("I", self._c_it, "load_covariance_prior", "K_AUG w red_hess")
         self.k_aug.options["compute_inv"] = ""
-        #self.k_aug.options["no_scale"] = ""
-        #self.k_aug.options["no_barrier"] = ""
+        self.k_aug.options["no_scale"] = ""
+        self.k_aug.options["no_barrier"] = ""
         
         # FIX THAT ASAP
         try:
