@@ -136,7 +136,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.n_PG = Param(initialize=self.m_PG/self.mw_PG) # [kmol] mole of PG;
         
         # reactor and product specs
-        self.T_safety = Param(initialize=190) # [°C] maximum allowed temperature after adiabatic temperature rise
+        self.T_safety = Param(initialize=150) # [°C] maximum allowed temperature after adiabatic temperature rise
         self.molecular_weight = Param(initialize=949.5, mutable=True) # 3027.74 # [g/mol] or [kg/kmol] target molecular weights
         self.unsat_value = Param(initialize=0.032) #0.032 # unsaturation value
         self.unreacted_PO = Param(initialize=120.0) #120.0 # [PPM] unreacted PO
@@ -933,6 +933,8 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 parent_node = self.scenario_tree[(i,s)][0:2]
                 if i > self.nr+1:
                     return 0 == self.tf[i,s] - self.tf[parent_node]
+                elif s == 1 and i != 1: #nominal scenario
+                    return 0 == self.tf[i,s] - self.tf[parent_node]
                 else:
                     return Constraint.Skip
             else:
@@ -1036,9 +1038,9 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         for s in self.s:
             for i in self.fe_t:
                 #self.tf[i,s].setlb(3*60/self.nfe)
-                self.tf[i,s].setlb(12.0)
+                self.tf[i,s].setlb(min(10.0,10.0*24.0/self.nfe))
                 #self.tf.setub(14*60/self.nfe)
-                self.tf[i,s].setub(40.0)#14*60/24)
+                self.tf[i,s].setub(min(50.0,50.0*24.0/self.nfe))#14*60/24)
                 self.T[i,s].setlb((100 + self.Tb)/self.T_scale)
                 self.u1[i,s].setlb((100 + self.Tb)/self.T_scale)
                 self.T[i,s].setub((170 + self.Tb)/self.T_scale)
@@ -1089,11 +1091,12 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         m_aux.epc_PO_fed.deactivate()
         m_aux.epc_mw.deactivate()
         m_aux.pc_heat_removal_a.deactivate()
+        m_aux.pc_temp_b.deactivate()
         m_aux.epc_unsat.deactivate()
         m_aux.epc_PO_ptg.deactivate()
         m_aux.F[1,1] = 1.26
         m_aux.T[1,1] = 398.0/self.T_scale
-        m_aux.tf[1,1] = 7.0*60/self.nfe
+        m_aux.tf[1,1] = min(8.0*24.0/self.nfe,8.0)
         m_aux.F[1,1].fixed = True
         m_aux.T[1,1].fixed = True
         m_aux.tf[1,1].fixed = True
@@ -1367,10 +1370,10 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
 
     
 
-# create scenario_tree
+## create scenario_tree
 #s_max = 3
 #nr = 1
-#nfe = 24
+#nfe = 200
 #scenario_tree = {}
 #for i in range(1,nfe+1):
 #    if i < nr+1:
@@ -1393,17 +1396,17 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
 #f = open("ipopt.opt", "w")
 #f.write("print_info_string yes")
 #f.close()
-#
+##
 #m = SemiBatchPolymerization_multistage(nfe,3,robust_horizon=nr,s_max=s_max,scenario_tree=scenario_tree)
 ##
 #m.initialize_element_by_element()
 #m.create_output_relations()
 #m.create_bounds()
 ##m.tf.setlb(None)
-##m.tf.setub(None)
+###m.tf.setub(None)
 #m.clear_aux_bounds()
 #results = Solver.solve(m, tee=True)
-#prev_res = m.save_results(results)
+##prev_res = m.save_results(results)
 #m.plot_profiles(var_list=['W', 'X', 'm_tot', 'PO'],control_list=['F', 'T'])
 ##m.print_file('Optimal_Control_Profile')
 #

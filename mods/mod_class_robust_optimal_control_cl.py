@@ -998,9 +998,9 @@ class SemiBatchPolymerization(ConcreteModel):
         for s in self.s:
             for i in self.fe_t:
                 #self.tf[i,s].setlb(3*60/self.nfe)
-                self.tf[i,s].setlb(12.0)
+                self.tf[i,s].setlb(min(10.0*24.0/self.nfe,10.0))
                 #self.tf.setub(14*60/self.nfe)
-                self.tf[i,s].setub(50.0)#14*60/24)
+                self.tf[i,s].setub(min(50.0,50.0*24.0/self.nfe))#14*60/24)
                 self.T[i,s].setlb((100 + self.Tb)/self.T_scale)
                 self.u1[i,s].setlb((100 + self.Tb)/self.T_scale)
                 self.T[i,s].setub((170 + self.Tb)/self.T_scale)
@@ -1060,7 +1060,7 @@ class SemiBatchPolymerization(ConcreteModel):
         m_aux.p_Hrxn.fix()
         m_aux.F[1,1] = 1.26
         m_aux.T[1,1] = 398.0/self.T_scale
-        m_aux.tf[1,1] = 7.0*60/self.nfe
+        m_aux.tf[1,1] = min(8.0*24.0/self.nfe,8.0)
         m_aux.F[1,1].fixed = True
         m_aux.T[1,1].fixed = True
         m_aux.tf[1,1].fixed = True

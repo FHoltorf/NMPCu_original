@@ -1181,7 +1181,7 @@ class NmpcGen(DynGen):
         #self.k_aug_sens.options["no_inertia"] = ""
         #self.k_aug_sens.options["no_barrier"] = ""
         #self.k_aug_sens.options['target_log10mu'] = -5.7
-        #self.k_aug_sens.options['no_scale'] = ""
+        self.k_aug_sens.options['no_scale'] = ""
         results = self.k_aug_sens.solve(self.olnmpc, tee=True, symbolic_solver_labels=True)
         self.olnmpc.solutions.load_from(results)
         self.olnmpc.f_timestamp.display(ostream=sys.stderr)
@@ -1301,7 +1301,7 @@ class NmpcGen(DynGen):
             
         sIP = SolverFactory('ipopt_sens', solver_io = 'nl')
         sIP.options['run_sens'] = 'yes'
-        sIP.options['tol'] = 1e-5
+        sIP.options['tol'] = 1e-8
         sIP.options["halt_on_ampl_error"] = "yes"
         sIP.options["print_user_options"] = "yes"
         sIP.options["linear_solver"] = "ma57"

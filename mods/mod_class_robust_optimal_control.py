@@ -844,9 +844,9 @@ class SemiBatchPolymerization(ConcreteModel):
                            
     def create_bounds(self):
         #self.tf.setlb(3*60/self.nfe)
-        self.tf.setlb(1.0)
+        self.tf.setlb(min(10.0,10.0*24.0/self.nfe))
         #self.tf.setub(14*60/self.nfe)
-        self.tf.setub(20.0)#14*60/24)
+        self.tf.setub(min(50,50*24.0/self.nfe))#14*60/24)
         for i in self.fe_t:
             self.T[i].setlb((100 + self.Tb)/self.T_scale)
             self.u1[i].setlb((100+self.Tb)/self.T_scale)
@@ -904,7 +904,7 @@ class SemiBatchPolymerization(ConcreteModel):
         m_aux.pc_heat_removal_a.deactivate()
         m_aux.F[1] = 1.26
         m_aux.T[1] = 398/self.T_scale
-        m_aux.tf = 9.0*60/self.nfe
+        m_aux.tf = min(8.0*24.0/self.nfe,8.0)
         m_aux.F[1].fixed = True
         m_aux.T[1].fixed = True
         m_aux.tf.fixed = True

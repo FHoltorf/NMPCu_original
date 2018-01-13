@@ -6,8 +6,8 @@ Created on Wed Nov  1 13:49:10 2017
 @author: flemmingholtorf
 """
 # relative standard deviation that is associated with disturbances
-disturbance_error = 0.0
-measurement_error = 0.05
+disturbance_error = 0.1
+measurement_error = 0.1
 disturbance_error_T = 0.0
 disturbance_error_F = 0.0
 

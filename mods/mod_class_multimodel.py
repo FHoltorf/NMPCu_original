@@ -808,9 +808,9 @@ class SemiBatchPolymerization(ConcreteModel):
                            
     def create_bounds(self):
         #self.tf.setlb(3*60/self.nfe)
-        self.tf.setlb(1.0)
+        self.tf.setlb(min(10,10.0*self.nfe/24.0))
         #self.tf.setub(14*60/self.nfe)
-        self.tf.setub(20.0)#14*60/24)
+        self.tf.setub(min(50.0,50.0*self.nfe/24.0))#14*60/24)
         for i in self.fe_t:
             self.T[i].setlb((100 + self.Tb)/self.T_scale)
             self.u1[i].setlb((100+self.Tb)/self.T_scale)
@@ -864,7 +864,7 @@ class SemiBatchPolymerization(ConcreteModel):
         m_aux.pc_heat_removal_a.deactivate()
         m_aux.F[1] = 1.26
         m_aux.T[1] = 398/self.T_scale
-        m_aux.tf = 9.0*60/self.nfe
+        m_aux.tf = min(8.0*24/self.nfe,8.0)
         m_aux.F[1].fixed = True
         m_aux.T[1].fixed = True
         m_aux.tf.fixed = True
@@ -1125,24 +1125,24 @@ class SemiBatchPolymerization(ConcreteModel):
         self.p_A["p",5] = 1.1
     
 
-#Solver = SolverFactory('ipopt')
-#Solver.options["halt_on_ampl_error"] = "yes"
-#Solver.options["max_iter"] = 5000
-#Solver.options["tol"] = 1e-8
-#Solver.options["linear_solver"] = "ma57"
-#f = open("ipopt.opt", "w")
-#f.write("print_info_string yes")
-#f.close()
-#
-#m = SemiBatchPolymerization(24,3, n_s = 5)
-#m.aux()
-#m.initialize_element_by_element()
-#m.create_output_relations()
-#m.create_bounds()
-##m.tf.setlb(None)
-##m.tf.setub(None)
-#m.clear_aux_bounds()
-#results = Solver.solve(m, tee=True)
+Solver = SolverFactory('ipopt')
+Solver.options["halt_on_ampl_error"] = "yes"
+Solver.options["max_iter"] = 5000
+Solver.options["tol"] = 1e-8
+Solver.options["linear_solver"] = "ma57"
+f = open("ipopt.opt", "w")
+f.write("print_info_string yes")
+f.close()
+
+m = SemiBatchPolymerization(24,3, n_s = 5)
+m.aux()
+m.initialize_element_by_element()
+m.create_output_relations()
+m.create_bounds()
+#m.tf.setlb(None)
+#m.tf.setub(None)
+m.clear_aux_bounds()
+results = Solver.solve(m, tee=True)
 #prev_res = m.save_results(results)
 ##m.plot_profiles([m.W, m.F, m.T, m.X, m.Tad, m.heat_removal])
 ##m.print_file('Optimal_Control_Profile')

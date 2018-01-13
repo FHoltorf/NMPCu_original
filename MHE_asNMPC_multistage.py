@@ -139,7 +139,7 @@ for i in range(1,nfe):
 
     e.create_suffixes_nmpc()
     e.sens_k_aug_nmpc()
-
+    
     e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
 
     # solve mhe problem
@@ -149,10 +149,14 @@ for i in range(1,nfe):
 
     # update state estimate 
     e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True
+    
     # compute fast update for nmpc
     state_offset[i], curr_pstate[i], curr_estate[i] = e.compute_offset_state(src_kind="estimated")
     before[i], after[i], diff[i], applied[i] = e.sens_dot_nmpc()   
 
+    #sIpopt
+    #e.create_nmpc_sIpopt_suffixes()
+    #e.nmpc_sIpopt_update()
 
 #    if i == 1:
 #        break
@@ -338,7 +342,7 @@ plt.figure(l)
 dimension = 2 # dimension n of the n x n matrix = #DoF
 rhs_confidence = chi2.isf(1.0-0.95,dimension) # 0.1**2*5% measurment noise, 95% confidence level, dimension degrees of freedo
 rows = {}
-for r in range(5,k):
+for r in range(1,k):
     A_dict = e.mhe_confidence_ellipsoids[r]
     center = [0,0]
     for m in range(dimension):

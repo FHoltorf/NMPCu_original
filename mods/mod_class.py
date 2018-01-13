@@ -135,7 +135,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.n_PG = Param(initialize=self.m_PG/self.mw_PG) # [kmol] mole of PG;
         
         # reactor and product specs
-        self.T_safety = Param(initialize=190) # [°C] maximum allowed temperature after adiabatic temperature rise
+        self.T_safety = Param(initialize=150) # [°C] maximum allowed temperature after adiabatic temperature rise
         self.molecular_weight = Param(initialize=949.5, mutable=True) # 3027.74 # [g/mol] or [kg/kmol] target molecular weights
         self.unsat_value = Param(initialize=0.032) #0.032 # unsaturation value
         self.unreacted_PO = Param(initialize=120.0) #120.0 # [PPM] unreacted PO
@@ -826,9 +826,9 @@ class SemiBatchPolymerization(ConcreteModel):
                            
     def create_bounds(self):
         #self.tf.setlb(3*60/self.nfe)
-        self.tf.setlb(1.0)
+        self.tf.setlb(min(10.0,10.0*24.0/self.nfe))
         #self.tf.setub(14*60/self.nfe)
-        self.tf.setub(20.0)#14*60/24)
+        self.tf.setub(min(50.0,50.0*24/self.nfe))#14*60/24)
         for i in self.fe_t:
             self.T[i].setlb((100 + self.Tb)/self.T_scale)
             self.u1[i].setlb((100+self.Tb)/self.T_scale)
@@ -878,9 +878,10 @@ class SemiBatchPolymerization(ConcreteModel):
         m_aux.eobj.deactivate()
         m_aux.deactivate_epc()        
         m_aux.pc_heat_removal_a.deactivate()
+        m_aux.pc_temp_b.deactivate()
         m_aux.F[1] = 1.26
         m_aux.T[1] = 398/self.T_scale
-        m_aux.tf = 9.0*60/self.nfe
+        m_aux.tf = min(8.0*24.0/self.nfe,8.0)
         m_aux.F[1].fixed = True
         m_aux.T[1].fixed = True
         m_aux.tf.fixed = True
