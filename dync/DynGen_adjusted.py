@@ -109,6 +109,7 @@ class DynGen(object):
         self.n_r = kwargs.pop('n_r', 1)
         self.n_s = kwargs.pop('n_s', 1)
         self.st = kwargs.pop('st', {})
+        self.curr_epars = {}
         
         # need to know them also in NMPCGen
         self.PI_indices = {}

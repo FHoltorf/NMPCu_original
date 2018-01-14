@@ -526,31 +526,42 @@ class NmpcGen(DynGen):
         for _var in self.olnmpc.component_objects(Var, active=True):
             for _key in _var.index_set():
                 if not(_key == None or type(_key) == str): # if the variable is time invariant scalar skip this 
-                    if type(_key) == tuple: # for variables that are indexed not only by number of finite element      
+                    if type(_key) == tuple and type(_key[0]) == int: # for variables that are indexed not only by number of finite element      
                         if _key[0] == self.min_horizon and self.nfe_t == self.min_horizon:
                             shifted_element = (_key[0],)
                         else:
                             shifted_element = (_key[0] + 1,)   # shift finite element by 1
                         aux_key = (_var.name,shifted_element + _key[1:-1] + (1,)) # adjust key
-                    else: # for variables that are only indexed by number of finite element
+                    elif type(_key) == int: # for variables that are only indexed by number of finite element
                         if _key == self.min_horizon and self.nfe_t == self.min_horizon:
                             shifted_element = _key
                         else:
                             shifted_element = _key + 1      # shift finite element by 1
-                        aux_key = (_var.name,shifted_element)
+                            aux_key = (_var.name,shifted_element)
+                    else:
+                        aux_key = (_var.name,_key)
                 else:
                     aux_key = (_var.name,_key)
                 try:
                     _var[_key] = initialguess[aux_key]
                 except KeyError:
-                    continue
+                    if self.multimodel or self.linapprox:
+                        try:
+                            if type(aux_key[1]) == int:
+                                aux_key = (aux_key[0],1)
+                            else:
+                                aux_key = (aux_key[0],aux_key[1][:-1] + (1,))
+                            _var[_key] = initialguess[aux_key]
+                        except KeyError:
+                            continue
+                    else:    
+                        continue 
         
-        
-        # initial_values for new problem = initialguess for fe = 2, cp= 0 OR  fe = 1 and cp = ncp_t for radau nodes
-        #for x in self.states:
-        #    for j in self.state_vars[x]:
-        #        self.initial_values[(x,j)] = self.curr_pstate[(x,j)]#initialguess[(x,(2,0)+j)] 
-                #self.curr_pstate[(x,j)] = initialguess[x,(2,0)+j] # !!o!! used for exact same thing eventually remove one of them
+        # adapt parameters by on-line estimation
+        if self.adapt_params and self.iterations > 1:
+            for index in self.curr_epars:
+                p = getattr(self.olnmpc, index[0])
+                p[index[1]].value = self.curr_epars[index]
  
         # set initial value parameters in model olnmpc
         # set according to predicted state by forward simulation
@@ -1223,8 +1234,8 @@ class NmpcGen(DynGen):
             #           
             # repeat until as many scenarios as possible are included 
         
-        epsilon = kwargs.pop('epsilon',0.1)
-        
+        epsilon = kwargs.pop('epsilon',0.2)
+        shape_matrix = kwargs.pop('shape_matrix',self._scaled_shape_matrix)
         # set shape matrix             
         # prepare sensitivity computation
         self.olnmpc.eps.fix()
@@ -1233,6 +1244,13 @@ class NmpcGen(DynGen):
         self.olnmpc.tf.fix()
         self.olnmpc.clear_all_bounds()
         
+        # deactivate nonanticipativity
+        for u in self.u:
+            non_anti = getattr(self.olnmpc, 'non_anticipativity_' + u)
+            non_anti.deactivate()
+        self.olnmpc.fix_element_size.deactivate()
+        self.olnmpc.non_anticipativity_tf.deactivate()
+            
         # set suffixes
         self.olnmpc.var_order = Suffix(direction=Suffix.EXPORT)
         self.olnmpc.dcdp = Suffix(direction=Suffix.EXPORT)
@@ -1243,10 +1261,17 @@ class NmpcGen(DynGen):
                 dummy = 'dummy_constraint_p_' + p + '_' + key
                 dummy_con = getattr(self.olnmpc, dummy)
                 for index in dummy_con.index_set():
-                    self.olnmpc.dcdp.set_value(dummy_con[index], i+1)
-                    cols[i] = (p,key)
-                    i += 1
-        cols_r = {value:key for key, vale in cols.items()}
+                    if type(index) == tuple:
+                        if index[-1] == 1: # only take the nominal trajectory
+                            self.olnmpc.dcdp.set_value(dummy_con[index], i+1)
+                            cols[i] = (p,key)
+                            i += 1
+                    else:
+                        if index == 1:
+                            self.olnmpc.dcdp.set_value(dummy_con[index], i+1)
+                            cols[i] = (p,key)
+                            i += 1
+        cols_r = {value:key for key, value in cols.items()}
         tot_cols = i
         
         i = 0
@@ -1281,6 +1306,14 @@ class NmpcGen(DynGen):
         self.olnmpc.create_bounds()
         self.olnmpc.clear_aux_bounds()
         
+        # activate non_anticipativity
+        for u in self.u:
+            non_anti = getattr(self.olnmpc, 'non_anticipativity_' + u)
+            non_anti.activate()
+        self.olnmpc.fix_element_size.activate()    
+        self.olnmpc.non_anticipativity_tf.activate()
+        
+
         sens = np.zeros((tot_rows,tot_cols))
         with open('dxdp_.dat') as f:
             reader = csv.reader(f, delimiter="\t")
@@ -1299,7 +1332,7 @@ class NmpcGen(DynGen):
             for index2 in cols:
                 key_sens2 = cols[index2]
                 key_PI2 = self.PI_indices[key_sens2]
-                A[index1][index2] = self._scaled_shape_matrix[key_PI1][key_PI2] # unnecessary when using the inverse of the reduced hessian directly, ask David about k_aug 
+                A[index1][index2] = shape_matrix[key_PI1][key_PI2] # unnecessary when using the inverse of the reduced hessian directly, ask David about k_aug 
         A_inv = np.linalg.inv(A) # in principle not required, scaled inverse reduced hessian
         
         # compute worst case parameter realizations and expected violations:
@@ -1309,10 +1342,10 @@ class NmpcGen(DynGen):
             con = rows[i] # ('s_name', index)
             dsdp = sens[i][:].transpose()
             aux = np.sqrt(np.dot(dsdp.transpose(),np.dot(A_inv,dsdp)))
-            delta_p_wc[con] = np.dot(A_inv,dsdp) 
+            delta_p_wc[con] = np.dot(A_inv,dsdp)/aux
             # get current constraint violation (slack)
-            s = getattr(self.olnmpc, con[1])
-            con_vio[con] =  -s[con[2]].value + aux
+            s = getattr(self.olnmpc, con[0])
+            con_vio[con] =  -s[con[1]].value + aux
             
         # generate new set of worst case scenarios
         scenarios = {}
@@ -1321,18 +1354,32 @@ class NmpcGen(DynGen):
             wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
             scenarios[s] = delta_p_wc[wc_scenario]
             # remove all scenarios that are in epsilon-neighborhood of the just utilized scenario
-            con_vio_copy = {key: value for key, value in con_vio_copy.items() if np.linalg.norm(delta_p_wc[key]-delta_p_wc[wc_scenario]) >= epsilon}
+            while(True):
+                con_vio_dummy = {key: value for key, value in con_vio_copy.items() if np.linalg.norm(delta_p_wc[key]-delta_p_wc[wc_scenario]) >= epsilon}
+                if len(con_vio_dummy) < self.s_max + 1 - s:
+                    epsilon *= 0.8
+                else:
+                    con_vio_copy = deepcopy(con_vio_dummy)
+                    break
             # what to do if con_vio_copy is empty?????????????/
-            
+        
+        # truncate scenarios that are unreasonable
+        for s in scenarios:
+            for i in range(tot_cols):
+                if scenarios[s][i] > self.confidence_threshold:
+                    scenarios[s][i] = self.confidence_threshold
+                elif scenarios[s][i] < -self.confidence_threshold:
+                    scenarios[s][i] = -self.confidence_threshold
+                    
         # update scenario tree
         # tailored to 2 stage stochastic programming currently
         for i in range(1,self.nfe_t+1):
             if i == 1:
                 for s in range(1,self.s_max**i+1):
                     if s == 1:
-                        self.st[(i,s)] = (i-1,int(ceil(s/float(self.s_max))),True,{(p,key) : 1.0 for p in self.p_noisy for key in self.p_noisy[p]})
+                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(self.s_max))),True,{(p,key) : 1.0 for p in self.p_noisy for key in self.p_noisy[p]})
                     else:
-                        self.st[(i,s)] = (i-1,int(ceil(s/float(self.s_max))),False,{(p,key) : scenarios[s][cols_r[(p,key)]] for p in self.p_noisy for key in self.p_noisy[p]})
+                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(self.s_max))),False,{(p,key) : 1.0 + scenarios[s][cols_r[(p,key)]] for p in self.p_noisy for key in self.p_noisy[p]})
             else:
                 for s in range(1,self.s_max**self.nr+1):
                     self.st[(i,s)] = (i-1,s,True,self.st[(i-1,s)][3])

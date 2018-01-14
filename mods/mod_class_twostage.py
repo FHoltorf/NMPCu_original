@@ -36,7 +36,11 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         
         # keyboardarguments
         self.s_max = kwargs.pop('s_max',1) # number of scenarios
-        self.nr = 1 # two stage
+        self.nr = kwargs.pop('robust_horizon', 1)
+        if self.nr != 1:
+            print('WRONG ROBUST HORIZON SPECIFICATION')
+            sys.exit()
+            
         dummy_tree = {}
         for i in range(1,self.nfe+1):
             dummy_tree[i,1] = (i-1,1,1,{('A','p'):1.0,('A','i'):1.0})
@@ -87,23 +91,21 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         # parameter for different models
         self.p_A = Var(self.r, self.s, initialize=1.0)
         self.p_A.fix()
+        self.p_A_par = Param(self.r, self.s, initialize=1.0, mutable=True)
         self.p_Hrxn_aux = Var(self.r, self.s, initialize=1.0)
         self.p_Hrxn_aux.fix()
-        self.p_A_par = Param(self.r, self.s, initialize=1.0, mutable=True)
         self.p_Hrxn_aux_par = Param(self.r, self.s, initialize=1.0, mutable = True)
-        # set parameter values
-         for k in self.scenario_tree:
+        
+        # set parameter values, redundant but should work
+        for index in self.scenario_tree:
             try:
                 for key in self.scenario_tree[1,1][3]:
-                    p_par = getattr(self, 'p_' + key[0] + '_par')
-                    p = getattr(self, 'p_' + key[0])
-                    if type(key[1]) == tuple:
-                        aux_key = key[1] + k[1] #k[1] = scenario index
-                    else:
-                        aux_key = (key[1],k[1])
-                    p_par[aux_key] = self.scenario_tree[k][3][key]
-                    p[aux_key].unfix()
-            except:
+                    p_par = getattr(self, 'p_'+key[0]+'_par')
+                    p = getattr(self, 'p_'+key[0])
+                    p_par[key[1],index[1]].value = self.scenario_tree[index][3][key] 
+                    p[key[1],index[1]].value = self.scenario_tree[index][3][key]     
+                    p[key[1],index[1]].unfix()
+            except KeyError:
                 continue
         # parameters for l1-relaxation of endpoint-constraints
         self.eps = Var(self.epc, self.s, initialize=0, bounds=(0,None))
@@ -888,7 +890,7 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         self.u2_c = Constraint(self.fe_t, self.s, rule = lambda self, i, s: self.u2_e[i,s] == self.u2[i,s] if (i,s) in self.scenario_tree else Constraint.Skip)
         
         # non anticipativity
-        def _non_anticipativity_F(self,i,s):
+        def _non_anticipativity_u2(self,i,s): #F
             if (i,s) in self.scenario_tree:
                 parent_node = self.scenario_tree[(i,s)][0:2]
                 reference_node = self.scenario_tree[(i,s)][2]
@@ -903,9 +905,9 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
             else:
                 return Constraint.Skip    
         
-        self.non_anticipativity_F = Constraint(self.fe_t, self.s, rule=_non_anticipativity_F)
+        self.non_anticipativity_u2 = Constraint(self.fe_t, self.s, rule=_non_anticipativity_u2)
         
-        def _non_anticipativity_T(self,i,s):
+        def _non_anticipativity_u1(self,i,s): #T
             if (i,s) in self.scenario_tree:
                 parent_node = self.scenario_tree[(i,s)][0:2]
                 reference_node = self.scenario_tree[(i,s)][2]
@@ -920,7 +922,7 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
             else:
                 return Constraint.Skip    
         
-        self.non_anticipativity_T = Constraint(self.fe_t, self.s, rule=_non_anticipativity_T)
+        self.non_anticipativity_u1 = Constraint(self.fe_t, self.s, rule=_non_anticipativity_u1)
         
         def _non_anticipativity_tf(self,i,s):
             if (i,s) in self.scenario_tree:
@@ -955,9 +957,12 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         self.fix_element_size = Constraint(self.fe_t, self.cp, rule = _fix_element_size)
                
         # dummy_constraints    
-        self.dummy_constraint_p_A_p = Constraint(self.s, rule = lambda self,s: self.p_A['p',s] == self.p_A_par['p',s])
-        self.dummy_constraint_p_A_i = Constraint(self.s, rule = lambda self,s: self.p_A['i',s] == self.p_A_par['i',s])
-        self.dummy_constraint_p_Hrxn_p = Constraint(self.s, rule = lambda self,s: self.p_Hrxn['p',s] == self.p_Hrxn_par['p',s])
+        if ('A','p') in self.scenario_tree[1,1][3]:
+            self.dummy_constraint_p_A_p = Constraint(self.s, rule = lambda self,s: self.p_A['p',s] == self.p_A_par['p',s])
+        if ('A','i') in self.scenario_tree[1,1][3]:
+            self.dummy_constraint_p_A_i = Constraint(self.s, rule = lambda self,s: self.p_A['i',s] == self.p_A_par['i',s])
+        if ('Hrxn_aux','p') in self.scenario_tree[1,1][3]:
+            self.dummy_constraint_p_Hrxn_aux_p = Constraint(self.s, rule = lambda self,s: self.p_Hrxn_aux['p',s] == self.p_Hrxn_aux_par['p',s])
 
         
         # objective
@@ -1042,6 +1047,12 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
                 var[key].setlb(0)
                 var[key].setub(None)
     
+    def clear_all_bounds(self):
+        for var in self.component_objects(Var):
+            for key in var.index_set():
+                var[key].setlb(None)
+                var[key].setub(None)
+    
     def clear_aux_bounds(self):
         keep_bounds = ['s_temp_b','s_heat_removal_a','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','T','F','u1','u2','tf'] 
         for var in self.component_objects(Var, active=True):
@@ -1104,7 +1115,7 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         
     def initialize_element_by_element(self):
         print('initializing element by element ...')
-        m_aux = SemiBatchPolymerization_multistage(1,self.ncp)
+        m_aux = SemiBatchPolymerization_twostage(1,self.ncp)
         m_aux.eobj.deactivate()
         m_aux.epc_PO_fed.deactivate()
         m_aux.epc_mw.deactivate()
@@ -1176,12 +1187,15 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
                         # non-index variable (only m.tf --> already initialized in real model)
                         break
                     elif isinstance(aux_index_set[i],collections.Sequence): # only one index
-                        aux_key = list(aux_index_set[i])
-                        fe_t = aux_key[0]
-                        aux_key[0] = 1
-                        aux_key[len(aux_key)-1] = 1 # intialize every scenario by the same point
-                        aux_key = tuple(aux_key)
-                        var[key] = results[fe_t][var.name,aux_key]
+                        if type(key[0]) == int:
+                            aux_key = list(aux_index_set[i])
+                            fe_t = aux_key[0]
+                            aux_key[0] = 1
+                            aux_key[len(aux_key)-1] = 1 # intialize every scenario by the same point
+                            aux_key = tuple(aux_key)
+                            var[key] = results[fe_t][var.name,aux_key]
+                        else:
+                            continue
                     else: # multiple indices
                         aux_key = 1
                         try:
@@ -1385,3 +1399,18 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         def _obj_u(self):
             return (self.u1[1,1] - self.u1_nom)**2/(self.u1[1,1].ub-self.u1[1,1].lb)**2 + (self.u2[1,1] - self.u2_nom)**2/(self.u2[1,1].ub-self.u2[1,1].lb)**2
         self.obj_u = Objective(rule=_obj_u,sense=minimize)
+        
+# create scenario_tree
+
+#Solver = SolverFactory('ipopt')
+#Solver.options["halt_on_ampl_error"] = "yes"
+#Solver.options["max_iter"] = 5000
+#Solver.options["tol"] = 1e-8
+#Solver.options["linear_solver"] = "ma57"
+#f = open("ipopt.opt", "w")
+#f.write("print_info_string yes")
+#f.close()
+##
+#m = SemiBatchPolymerization_twostage(24,3)
+##
+#m.initialize_element_by_element()

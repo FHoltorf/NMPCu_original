@@ -1039,7 +1039,13 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 for key in var.index_set():
                     var[key].setlb(None)
                     var[key].setub(None)
-                           
+     
+    def clear_all_bounds(self):
+        for var in self.component_objects(Var):
+            for key in var.index_set():
+                var[key].setlb(None)
+                var[key].setub(None)
+                      
     def create_bounds(self):
         for s in self.s:
             for i in self.fe_t:

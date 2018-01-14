@@ -814,6 +814,12 @@ class SemiBatchPolymerization(ConcreteModel):
                 var[key].setlb(0)
                 var[key].setub(None)
     
+    def clear_all_bounds(self):
+        for var in self.component_objects(Var):
+            for key in var.index_set():
+                var[key].setlb(None)
+                var[key].setub(None)
+    
     def clear_aux_bounds(self):
         keep_bounds = ['s_temp_b','s_heat_removal_a','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','T','F','u1','u2','tf'] 
         for var in self.component_objects(Var, active=True):

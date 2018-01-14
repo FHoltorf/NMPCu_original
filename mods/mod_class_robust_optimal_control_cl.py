@@ -728,7 +728,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 if j == 0:
                     return Constraint.Skip
                 else:
-                    return 0.0 == ((((self.kr[i,j,'i',s]-self.kr[i,j,'p',s])*(self.G[i,j,s]*self.G_scale + self.U[i,j,s]*self.U_scale) + (self.kr[i,j,'p',s] + self.kr[i,j,'t',s])*self.n_KOH + self.kr[i,j,'a',s]*self.W[i,j,s])*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale) + self.dW_dt[i,j,s] - (self.heat_removal[i,j,s]/(self.Hrxn_aux['p']*self.p_Hrxn['p',i,s])s + self.F[i,s]*self.monomer_cooling[i,j,s]*self.monomer_cooling_scale)*self.tf[i,s]*self.fe_dist[i])
+                    return 0.0 == ((((self.kr[i,j,'i',s]-self.kr[i,j,'p',s])*(self.G[i,j,s]*self.G_scale + self.U[i,j,s]*self.U_scale) + (self.kr[i,j,'p',s] + self.kr[i,j,'t',s])*self.n_KOH + self.kr[i,j,'a',s]*self.W[i,j,s])*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale) + self.dW_dt[i,j,s] - (self.heat_removal[i,j,s]/(self.Hrxn_aux['p']*self.p_Hrxn['p',i,s]) + self.F[i,s]*self.monomer_cooling[i,j,s]*self.monomer_cooling_scale)*self.tf[i,s]*self.fe_dist[i])
             else:
                 return Constraint.Skip
             

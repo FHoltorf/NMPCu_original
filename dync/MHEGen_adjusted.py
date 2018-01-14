@@ -512,28 +512,23 @@ class MheGen(NmpcGen):
                 # adapt parameters iff estimates are confident enough
                 if self.adapt_params:
                     for p in self.p_noisy:
-                        p_nom = getattr(self.olnmpc,p)
                         p_mhe = getattr(self.lsmhe,p)
-                        p_fs = getattr(self.forward_simulation_model,p)
+                        p_nom = getattr(self.olnmpc,p)
                         for key in self.p_noisy[p]:
                             index = self.PI_indices[p,key]
                             dev = -1e8
                             for m in range(dimension):
                                  dev = max(dev,(abs(radii[m]*U[index][m]) + p_mhe[key].value)/p_mhe[key].value)
                             if dev < 1 + self.estimate_acceptance:
-                                p_nom[key].value = p_mhe[key].value
-                                p_fs[key].value = p_mhe[key].value
+                                self.curr_epars[(p,key)] = p_mhe[key].value
                             else:
-                                continue
+                                self.curr_epars[(p,key)] = p_nom[key].value
             except KeyError: # adapt parameters blindly
                 if self.adapt_params:
                     for p in self.p_noisy:
-                        p_nom = getattr(self.olnmpc,p)
                         p_mhe = getattr(self.lsmhe,p)
-                        p_fs = getattr(self.forward_simulation_model,p)
                         for key in self.p_noisy[p]:
-                             p_nom[key].value = p_mhe[key].value
-                             p_fs[key].value = p_mhe[key].value
+                             self.curr_epars[(p,key)] = p_mhe[key].value
                              
             ###############################################################
             ### DISCLAIMER:
@@ -542,55 +537,48 @@ class MheGen(NmpcGen):
             if self.update_scenario_tree:
                 # idea: go through the axis of the ellipsoid (U) and include the intersections of this axis with confidence ellipsoid on both ends as scenarios (sigmapoints)
                 # only accept these scenarios if sigmapoints are inside hypercube spanned by euclidean unit vectors around nominal value  
-                self.weighting_matrix = {}
+                
                 l = 0
-                flag=False
+                scenarios = {}
                 for m in range(dimension):
                     l += 2
                     for p in self.p_noisy:
-                        p_scen = getattr(self.olnmpc,'p_'+p)
-                        p_nom = getattr(self.olnmpc,p)
                         p_mhe = getattr(self.lsmhe,p)
                         for key in self.p_noisy[p]:
                             index = self.PI_indices[p_mhe.name,key]
                             dev = -1e8
-                            for m in range(dimension): # little redundant but ok
-                                dev = max(dev,(abs(radii[m]*U[index][m]) + p_mhe[key].value)/p_mhe[key].value)
+                            for check in range(dimension): # little redundant but ok
+                                dev = max(dev,(abs(radii[check]*U[index][check]) + p_mhe[key].value)/p_mhe[key].value)
                             if dev < 1 + self.confidence_threshold:# confident enough in parameter estimate --> adapt parameter in prediction and NMPC model
                                 if dev >  1 + self.robustness_threshold:# minimum robustness threshold is not reached
-                                    p_scen[(key,l)].value = (radii[m]*U[index][m] + p_mhe[key].value)/p_mhe[key].value
-                                    p_scen[(key,l+1)].value = (p_mhe[key].value - radii[m]*U[index][m])/p_mhe[key].value
+                                    scenarios[(p,key),l] = (radii[m]*U[index][m] + p_mhe[key].value)/p_mhe[key].value
+                                    scenarios[(p,key),l+1] = (p_mhe[key].value - radii[m]*U[index][m])/p_mhe[key].value
                                 else:# minimum robustness threshold is reached already
                                     if np.sign(U[index][m]) == 1:
-                                        p_scen[(key,l)].value = 1 + self.robustness_threshold
-                                        p_scen[(key,l+1)].value = 1 - self.robustness_threshold
+                                        scenarios[(p,key),l] = 1 + self.robustness_threshold
+                                        scenarios[(p,key),l+1]= 1 - self.robustness_threshold
                                     else:
-                                        p_scen[(key,l)].value = 1 - self.robustness_threshold
-                                        p_scen[(key,l+1)].value = 1 + self.robustness_threshold
+                                        scenarios[(p,key),l] = 1 - self.robustness_threshold
+                                        scenarios[(p,key),l+1] = 1 + self.robustness_threshold
                             else:
-                                flag = True
-                                break
-                        if flag:
-                            break
-                    if flag:
-                        break
-                    
-                # if flag=True sigmapoints not inside basic hypercube --> use corners of hypercube instead
-                if flag:
-                    # set all values ot 1 
+                                if np.sign(U[index][m]) == 1:
+                                    scenarios[(p,key),l] = 1+self.confidence_threshold
+                                    scenarios[(p,key),l+1] = 1-self.confidence_threshold
+                                else:
+                                    scenarios[(p,key),l] = 1-self.confidence_threshold
+                                    scenarios[(p,key),l+1] = 1+self.confidence_threshold
+                
+                # update scenario tree
+                l = 0
+                for m in range(dimension):
+                    l += 1
                     for p in self.p_noisy:
-                        p_scen = getattr(self.olnmpc, 'p_'+p)
-                        for key in p_scen.index_set():
-                            p_scen[key] = 1.0
-                            
-                    # keep using base case scenarios
-                    l = 2
-                    for p in self.p_noisy:
-                        p_scen = getattr(self.olnmpc,'p_'+p)
                         for key in self.p_noisy[p]:
-                            p_scen[(key,l)].value = 1 + self.confidence_threshold
-                            p_scen[(key,l+1)].value = 1 - self.confidence_threshold
-                            l += 2
+                            try:
+                                self.st[p,key,l] = scenarios[(p,key),l]
+                            except KeyError:
+                                self.st[p,key,l] = 1.0
+                                              
                             
             if self.update_uncertainty_set:
                 # tailored to hyperrectangles
@@ -600,6 +588,7 @@ class MheGen(NmpcGen):
                         #           --> dual norm ||V_p * x||_1 <= 1
                         #           --> compute parameter covariance matrix normalized to nominal values
                 # check if all half axis endpoints lie inside hyperrectangle
+                self.weighting_matrix = {}
                 flag = False
                 for p in self.p_noisy:
                     p_mhe = getattr(self.lsmhe,p)

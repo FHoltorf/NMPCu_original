@@ -12,7 +12,7 @@ from pyomo.environ import *
 # from nmpc_mhe.dync.MHEGen import MheGen
 from main.dync.MHEGen_multistage import MheGen
 from main.mods.mod_class import *
-from main.mods.mod_class_multistage import *
+from main.mods.mod_class_twostage import *
 import sys
 import itertools, sys
 import numpy as np
@@ -35,6 +35,8 @@ p_noisy = {"A":['p','i']}
 #p_noisy = {"A":['p','i']}
 u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
+cons = ['PO_ptg','unsat','mw','temp_b','heat_removal_a']
+
 
 # measured variables
 #y = ["heat_removal","m_tot","MW","PO"] 
@@ -47,10 +49,10 @@ pc = ['Tad','heat_removal']
 
 # scenario_tree
 st = {} # scenario tree : {parent_node, scenario_number on current stage, base node (True/False), scenario values {'name',(index):value}}
-s_max = 5
+s_max = 3
 nr = 1
 nfe = 24
-alpha = 0.1
+alpha = 0.2
 for i in range(1,nfe+1):
     if i < nr + 1:
         for s in range(1,s_max**i+1):
@@ -58,10 +60,6 @@ for i in range(1,nfe+1):
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A','p'):1.0,('A','i'):1.0})
             elif s%s_max == 2:
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0+alpha})
-            elif s%s_max == 3:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0+alpha})
-            elif s%s_max == 4:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0-alpha})
             else:
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0-alpha})
     else:
@@ -70,7 +68,7 @@ for i in range(1,nfe+1):
 
 sr = s_max**nr
 
-e = MheGen(d_mod=SemiBatchPolymerization_multistage,
+e = MheGen(d_mod=SemiBatchPolymerization_twostage,
            d_mod_mhe=SemiBatchPolymerization,
            y=y,
            x_noisy=x_noisy,
@@ -85,8 +83,8 @@ e = MheGen(d_mod=SemiBatchPolymerization_multistage,
            noisy_inputs = False,
            noisy_params = True,
            adapt_params = True,
-           update_scenario_tree = True,
-           confidence_threshold = 0.1,
+           update_scenario_tree = False,
+           confidence_threshold = 0.2,
            robustness_threshold = 0.05,
            estimate_exceptance = 10000,
            obj_type='economic',
@@ -134,6 +132,7 @@ for i in range(1,nfe):
         e.set_prediction(e.store_results(e.forward_simulation_model))
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov) # only required for asMHE
         e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
+        e.SB_scenario_generation(cons=cons)
         e.cycle_nmpc(e.store_results(e.olnmpc),nfe_new)   
 
     # solve the advanced step problem
@@ -343,12 +342,13 @@ plt.figure(l)
 dimension = 2 # dimension n of the n x n matrix = #DoF
 rhs_confidence = chi2.isf(1.0-0.95,dimension) # 0.1**2*5% measurment noise, 95% confidence level, dimension degrees of freedo
 rows = {}
+Scaling = np.diag([329132.265895, 13886.7548015])
 for r in range(1,k):
     A_dict = e.mhe_confidence_ellipsoids[r]
     center = [0,0]
     for m in range(dimension):
         rows[m] = np.array([A_dict[(m,i)] for i in range(dimension)])
-    A = 1/rhs_confidence*np.array([np.array(rows[i]) for i in range(dimension)])
+    A = 1/rhs_confidence*np.dot(Scaling.transpose(), np.dot(np.array([np.array(rows[i]) for i in range(dimension)]),Scaling))
     center = np.array([0]*dimension)
     U, s, V = linalg.svd(A) # singular value decomposition 
     radii = 1/np.sqrt(s) # length of half axes, V rotation

@@ -400,8 +400,7 @@ class NmpcGen(DynGen):
         
         # IMPORTANT:
         # --> before calling forward_simulation() need to call dot_sens to perform the update
-    
-        
+                
         # save results to current_state_info
         for key in self.curr_pstate:
             self.current_state_info[key] = self.curr_pstate[key] - self.curr_state_offset[key]
@@ -416,6 +415,12 @@ class NmpcGen(DynGen):
         self.forward_simulation_model.tf = self.olnmpc.tf.value
         self.forward_simulation_model.tf.fixed = True
         
+        
+        # Update adpated params
+        if self.adapt_params and self.iterations > 1:
+            for index in self.curr_epars:
+                p = getattr(self.forward_simulation_model, index[0])
+                p[index[1]].value = self.curr_epars[index]
 
         
         # general initialization
@@ -613,17 +618,17 @@ class NmpcGen(DynGen):
         
     def create_nmpc2(self):
         if self.multimodel:
-            if self.iterations > 1:
-                self.olnmpc = self.d_mod(self.nfe_t, self.ncp_t, n_s = self.n_s)
-                self.olnmpc.set_default_confidence()
-            else:
-                self.olnmpc = self.d_mod(self.nfe_t, self.ncp_t, n_s = 5)
-                self.olnmpc.set_default_confidence() 
+            self.olnmpc = self.d_mod(self.nfe_t, self.ncp_t, n_s = self.n_s)
+            # if scenario tree is not updated self.st = {}
+            for index in self.st: #scenario tree: self.st = {'parname','key',l:value} with l being the scenario
+                p = getattr(self.olnmpc, 'p_' + index[0])
+                p[index[1],index[2]] = self.st[index]
         elif self.linapprox:
             self.olnmpc = self.d_mod(self.nfe_t, self.ncp_t)
         else:    
             self.olnmpc = self.d_mod(self.nfe_t, self.ncp_t)
-        
+            
+                    
         self.olnmpc.name = "olnmpc (Open-Loop NMPC)"
         self.olnmpc.create_bounds()
         
@@ -820,12 +825,13 @@ class NmpcGen(DynGen):
                     else:    
                         continue 
         
-        # initial_values for new problem = initialguess for fe = 2, cp= 0 OR  fe = 1 and cp = ncp_t for radau nodes
-        #for x in self.states:
-        #    for j in self.state_vars[x]:
-        #        self.initial_values[(x,j)] = self.curr_pstate[(x,j)]#initialguess[(x,(2,0)+j)] 
-                #self.curr_pstate[(x,j)] = initialguess[x,(2,0)+j] # !!o!! used for exact same thing eventually remove one of them
- 
+        # adapt parameters obtained from on-line estimation
+        if self.adapt_params and self.iterations > 1:
+            for index in self.curr_epars:
+                p = getattr(self.olnmpc, index[0])
+                p[index[1]].value = self.curr_epars[index]
+        
+
         # set initial value parameters in model olnmpc
         # set according to predicted state by forward simulation
         # a) values will not be overwritten in case advanced step is used
@@ -1133,7 +1139,7 @@ class NmpcGen(DynGen):
                 self.olnmpc.troubleshooting()
                 sys.exit()
             
-            # solve square system
+            # NOT REQUIRED!
             
             # check whether optimal control problem feasible
             flag = False
@@ -1148,13 +1154,15 @@ class NmpcGen(DynGen):
             self.olnmpc.u2.fix()
             self.olnmpc.tf.fix()
             self.olnmpc.clear_all_bounds()
-            results = ip.solve(self.olnmpc, tee=False)
             
-            if [str(results.solver.status),str(results.solver.termination_condition)] != ['ok','optimal']:
-                self.olnmpc.A.pprint()
-                self.olnmpc.write_nl()
-                self.olnmpc.troubleshooting()
-                sys.exit()
+            
+            #results = ip.solve(self.olnmpc, tee=False)
+            
+#            if [str(results.solver.status),str(results.solver.termination_condition)] != ['ok','optimal']:
+#                self.olnmpc.A.pprint()
+#                self.olnmpc.write_nl()
+#                self.olnmpc.troubleshooting()
+#                sys.exit()
                 
             # compute sensitivities
             self.olnmpc.ipopt_zL_in.update(self.olnmpc.ipopt_zL_out)

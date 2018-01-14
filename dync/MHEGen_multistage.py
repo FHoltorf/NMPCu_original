@@ -491,45 +491,37 @@ class MheGen(NmpcGen):
                 
                 if self.adapt_params:
                     for p in self.p_noisy:
-                        p_nom = getattr(self.olnmpc,p)
                         p_mhe = getattr(self.lsmhe,p)
-                        p_fs = getattr(self.forward_simulation_model,p)
+                        p_nom = getattr(self.olnmpc,p)
                         for key in self.p_noisy[p]:
                             index = self.PI_indices[p,key]
                             dev = -1e8
                             for m in range(dimension):
                                  dev = max(dev,(abs(radii[m]*U[index][m]) + p_mhe[key].value)/p_mhe[key].value)
                             if dev < 1 + self.estimate_acceptance:
-                                p_nom[key].value = p_mhe[key].value
-                                p_fs[key].value = p_mhe[key].value
+                                self.curr_epars[(p,key)] = p_mhe[key].value
                             else:
-                                continue
+                                self.curr_epars[(p,key)] = p_nom[key].value
             except KeyError: # adapt parameters blindly
                 if self.adapt_params:
                     for p in self.p_noisy:
-                        p_nom = getattr(self.olnmpc,p)
                         p_mhe = getattr(self.lsmhe,p)
-                        p_fs = getattr(self.forward_simulation_model,p)
                         for key in self.p_noisy[p]:
-                             p_nom[key].value = p_mhe[key].value
-                             p_fs[key].value = p_mhe[key].value
+                            self.curr_epars[(p,key)] = p_mhe[key].value
             
             # adapt parameters iff estimates are confident enough
-            if self.adapt_params:
-                for p in self.p_noisy:
-                    p_nom = getattr(self.olnmpc,p)
-                    p_mhe = getattr(self.lsmhe,p)
-                    p_fs = getattr(self.forward_simulation_model,p)
-                    for key in self.p_noisy[p]:
-                        index = self.PI_indices[p,key]
-                        dev = -1e8
-                        for m in range(dimension):
-                             dev = max(dev,(abs(radii[m]*U[index][m]) + p_mhe[key].value)/p_mhe[key].value)
-                        if dev < 1 + self.confidence_threshold:
-                            p_nom[key].value = p_mhe[key].value
-                            p_fs[key].value = p_mhe[key].value
-                        else:
-                            continue
+#            if self.adapt_params:
+#                for p in self.p_noisy:
+#                    p_mhe = getattr(self.lsmhe,p)
+#                    for key in self.p_noisy[p]:
+#                        index = self.PI_indices[p,key]
+#                        dev = -1e8
+#                        for m in range(dimension):
+#                             dev = max(dev,(abs(radii[m]*U[index][m]) + p_mhe[key].value)/p_mhe[key].value)
+#                        if dev < 1 + self.confidence_threshold:
+#                            self.curr_epars[(p,key)] = p_mhe[key].value
+#                        else:
+#                            continue
             ###############################################################
             ### DISCLAIMER:
             ### currently tailored to two stage which is reasonable since multiple stages do not make sense
@@ -539,12 +531,9 @@ class MheGen(NmpcGen):
                 # only accept these scenarios if sigmapoints are inside hypercube spanned by euclidean unit vectors around nominal value  
                 l = 0
                 scenarios = {}    
-                flag=False
                 for m in range(dimension):
                     l += 2
                     for p in self.p_noisy:
-                        p_scen = getattr(self.olnmpc,'p_'+p)
-                        p_nom = getattr(self.olnmpc,p)
                         p_mhe = getattr(self.lsmhe,p)
                         for key in self.p_noisy[p]:
                             index = self.PI_indices[p,key]
@@ -553,9 +542,6 @@ class MheGen(NmpcGen):
                                 dev = max(dev,(abs(radii[check]*U[index][check]) + p_mhe[key].value)/p_mhe[key].value)
                             if dev < 1 + self.confidence_threshold:# confident enough in parameter estimate --> adapt parameter in prediction and NMPC model
                                 if dev > 1 + self.robustness_threshold:# minimum robustness threshold is not reached
-                                    #for t in self.olnmpc.fe_t:
-                                    #    p_scen[(key,t,l)].value = (radii[m]*U[index][m] + p_nom[key].value)/p_nom[key].value
-                                    #    p_scen[(key,t,l+1)].value = (p_nom[key].value - radii[m]*U[index][m])/p_nom[key].value
                                     # scenario tree : {(i,s):parent_node i, parent_node s, base node (True/False), scenario values {'name',(index):value}}
                                     scenarios[(p,(key,)),l] = (radii[m]*U[index][m] + p_mhe[key].value)/p_mhe[key].value
                                     scenarios[(p,(key,)),l+1] = (p_mhe[key].value - radii[m]*U[index][m])/p_mhe[key].value
@@ -563,68 +549,26 @@ class MheGen(NmpcGen):
                                     if np.sign(U[index][m]) == 1:
                                         scenarios[(p,(key,)),l] = 1+self.robustness_threshold
                                         scenarios[(p,(key,)),l+1] = 1-self.robustness_threshold
-                                        #for t in self.olnmpc.fe_t:
-                                            #p_scen[(key,t,l)].value = 1+self.robustness_threshold
-                                            #p_scen[(key,t,l+1)].value = 1-self.robustness_threshold
                                     else:
                                         scenarios[(p,(key,)),l] = 1-self.robustness_threshold
                                         scenarios[(p,(key,)),l+1] = 1+self.robustness_threshold
-                                        #for t in self.olnmpc.fe_t:
-                                            #p_scen[(key,t,l)].value = 1-self.robustness_threshold
-                                            #p_scen[(key,t,l+1)].value = 1+self.robustness_threshold
-                                            
                             else:
-                                flag = True
-                                break
-                        if flag:
-                            break
-                    if flag:
-                        break
-                
-                if not(flag):
-                    for k in self.st:
-                        for index in self.st[k][3]:
-                            p = index[0]
-                            key = index[1:]
-                            try:
-                                self.st[k][3][index] = scenarios[(p,key),k[1]]
-                            except KeyError:
-                                print(index)
-                                self.st[k][3][index] = 1.0
-                    print(scenarios)
-                    
-                # if flag=True sigmapoints not inside basic hypercube --> use corners of hypercube instead
-                if flag:
-                    # set all values ot 1 
-                    for p in self.p_noisy:
-                        p_scen = getattr(self.olnmpc, 'p_'+p)
-                        for key in p_scen.index_set():
-                            p_scen[key] = 1.0
-                            
-                    # keep using base case scenarios
-                    l = 2
-                    for p in self.p_noisy:
-                        p_scen = getattr(self.olnmpc,'p_'+p)
-                        for key in self.p_noisy[p]:
-                            for t in self.olnmpc.fe_t:
-                                p_scen[(key,t,l)].value = 1 + self.confidence_threshold
-                                p_scen[(key,t,l+1)].value = 1 - self.confidence_threshold
-                            l += 2
-                                
-                                    
-                                    
-                    # ALTERNATIVE: ONLY USE THE LONGEST HALF AXIS
-                    #for p in self.p_noisy:
-                    #    p_scen = getattr(self.olnmpc,'p_'+p)
-                    #    p_nom = getattr(self.olnmpc,p)
-                    #    p_mhe = getattr(self.lsmhe,p)
-                    #    for key in self.p_noisy[p]:
-                    #        index = self.PI_indices[p_mhe.name,key]
-                    #        ex1 = (radii[0]*U[index][0] + p_nom[key].value)/p_nom[key].value 
-                    #        ex2 = (p_nom[key].value - radii[0]*U[index][0])/p_nom[key].value
-                    #        for i in self.olnmpc.fe_t:
-                    #            p_scen[(key,i,2)].value = ex1 
-                    #            p_scen[(key,i,3)].value = ex2
+                                if np.sign(U[index][m]) == 1:
+                                    scenarios[(p,(key,)),l] = 1+self.confidence_threshold
+                                    scenarios[(p,(key,)),l+1] = 1-self.confidence_threshold
+                                else:
+                                    scenarios[(p,(key,)),l] = 1-self.confidence_threshold
+                                    scenarios[(p,(key,)),l+1] = 1+self.confidence_threshold
+                # update scenario tree
+                for k in self.st:
+                    for index in self.st[k][3]:
+                        p = index[0]
+                        key = index[1:]
+                        try:
+                            self.st[k][3][index] = scenarios[(p,key),k[1]]
+                        except KeyError:
+                            self.st[k][3][index] = 1.0
+            
 
     def compute_offset_measurements(self):
         mhe_y = getattr(self.lsmhe, "yk0_mhe")
@@ -1077,7 +1021,7 @@ class MheGen(NmpcGen):
         m = 0
         for p in self.PI_indices:
             p_mhe = getattr(self.lsmhe,p[0])
-            S[self.PI_indices[p]][self.PI_indices[p]] = 1.0/p_mhe[p[1]].value
+            S[self.PI_indices[p]][self.PI_indices[p]] = p_mhe[p[1]].value
             rows[m] = np.array([self._PI[(m,i)] for i in range(dim)])
             m += 1
         A = 1/confidence*np.array([np.array(rows[i]) for i in range(dim)]) 

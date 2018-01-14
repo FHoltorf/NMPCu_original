@@ -16,19 +16,48 @@ import sys, os, time
 from copy import deepcopy
 from scipy.stats import chi2
 from pyomo import *
+import matplotlib.pyplot as plt
 
 l= 0
-confidence_threshold = 1.2
-robustness_threshold = 0.05
-p_noisy = {"A":['p'],'Hrxn_aux':['p']}
-PI_indices = {('A', 'p'): 0, ('Hrxn_aux', 'p'): 1}
+confidence_threshold = 10.0
+robustness_threshold = 0.00
+p_noisy = {"A":['p','i']}
+PI_indices = {('A', 'i'): 0, ('A', 'p'): 1}
 dimension = 2
-U = np.array([[ -5.00584929e-06,   1.00000000e+00],
-       [  1.00000000e+00,   5.00584929e-06]])
+#U = np.array([[ -5.00584929e-06,   1.00000000e+00],
+#       [  1.00000000e+00,   5.00584929e-06]])
 
-radii = np.array([  2.57725616e-02,   1.87954855e+02])
-                
-p_mhe = {('A', 'p'):13020.7284858,('Hrxn_aux', 'p'):1.0}
+#radii = np.array([  2.57725616e-02,   1.87954855e+02])
+
+dimension = 2 # dimension n of the n x n matrix = #DoF
+rhs_confidence = chi2.isf(1.0-0.95,dimension) # 0.1**2*5% measurment noise, 95% confidence level, dimension degrees of freedo
+rows = {}
+center = [0,0]
+A_dict = {(0, 0): 5.231882896e-09,
+ (0, 1): 4.863562094e-08,
+ (1, 0): 4.863562094e-08,
+ (1, 1): 1.028543136e-06}
+for m in range(dimension):
+    rows[m] = np.array([A_dict[(m,i)] for i in range(dimension)])
+A = 1/rhs_confidence*np.array([np.array(rows[i]) for i in range(dimension)])
+center = np.array([0]*dimension)
+U, s, V = np.linalg.svd(A) # singular value decomposition 
+radii = 1/np.sqrt(s) # length of half axes, V rotation
+               
+theta = np.linspace(0.0, 2.0 * np.pi, 100) # angle = idenpendent variable
+x = radii[0] * np.sin(theta) # x-coordinate
+y = radii[1] * np.cos(theta) # y-coordinate
+for i in range(len(x)):
+    [x[i],y[i]] = np.dot([x[i],y[i]], V) + center
+plt.plot(x,y, label = str(1))
+plt.axis('equal')
+for p in range(dimension):
+    x = radii[p]*U[p][0]
+    y = radii[p]*U[p][1]
+    print(x,y)
+    plt.plot([0,x],[0,y],color='red')
+    
+p_mhe = {('A', 'p'):9689.15547642,('A', 'i'):454906.651312 }
 scenarios = {}    
 flag=False
 for m in range(dimension):
