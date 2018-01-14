@@ -32,13 +32,14 @@ from copy import deepcopy
 states = ["PO","MX","MY","Y","W","PO_fed"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","PO_fed"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)]}
-p_noisy = {"A":['p','i']}
+p_noisy = {"A":['p'],'Hrxn_aux':['p']}
+#p_noisy = {"A":['p','i']}
 u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
 
 # measured variables
-y = {"PO", "Y", "W", "MY", "MX", "MW","m_tot"}
-y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
+y = {"heat_removal","PO", "Y", "W", "MY", "MX", "MW","m_tot"}
+y_vars = {"heat_removal":[()],"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
 
 nfe = 24
 

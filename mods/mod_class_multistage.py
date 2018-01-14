@@ -39,7 +39,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.nr = kwargs.pop('robust_horizon', 1) # robust horizon
         dummy_tree = {}
         for i in range(1,self.nfe+1):
-            dummy_tree[i,1] = (i-1,1,1,{'p':1.0,'i':1.0})
+            dummy_tree[i,1] = (i-1,1,1,{('A','p'):1.0,('A','i'):1.0})
         self.scenario_tree = kwargs.pop('scenario_tree',dummy_tree) # default should be a symmetric scenario tree
         
         # scaling factors
@@ -87,10 +87,16 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         # parameter for different models
         self.p_A = Param(self.r, self.fe_t, self.s, initialize=1.0, mutable=True)
         self.p_Hrxn_aux = Param(self.r, self.fe_t, self.s, initialize=1.0, mutable = True)
+        # set parameter values
         for k in self.scenario_tree:
             try:
-                self.p_A['p',k] = self.scenario_tree[k][3]['p']
-                #self.p_A['i',k] = self.scenario_tree[k][3]['i']
+                for key in self.scenario_tree[1,1][3]:
+                    p = getattr(self, 'p_' + key[0])
+                    if type(key[1]) == tuple:
+                        aux_key = key[1] + k
+                    else:
+                        aux_key = (key[1],k[0],k[1])
+                    p[aux_key] = self.scenario_tree[k][3][key]
             except:
                 continue
         # parameters for l1-relaxation of endpoint-constraints
@@ -136,7 +142,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.n_PG = Param(initialize=self.m_PG/self.mw_PG) # [kmol] mole of PG;
         
         # reactor and product specs
-        self.T_safety = Param(initialize=150) # [°C] maximum allowed temperature after adiabatic temperature rise
+        self.T_safety = Param(initialize=190.0) # [°C] maximum allowed temperature after adiabatic temperature rise
         self.molecular_weight = Param(initialize=949.5, mutable=True) # 3027.74 # [g/mol] or [kg/kmol] target molecular weights
         self.unsat_value = Param(initialize=0.032) #0.032 # unsaturation value
         self.unreacted_PO = Param(initialize=120.0) #120.0 # [PPM] unreacted PO
@@ -941,7 +947,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 return Constraint.Skip
             
         self.fix_element_size = Constraint(self.fe_t, self.cp, rule = _fix_element_size)
-        
+               
         # objective
         def _eobj(self):
             return 1.0/self.s_max * sum(sum(self.tf[i,s] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) + self.rho*sum(sum(self.eps[k,s] for s in self.s) for k in self.epc)#*nfe

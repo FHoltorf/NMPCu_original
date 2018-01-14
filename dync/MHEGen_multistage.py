@@ -484,7 +484,7 @@ class MheGen(NmpcGen):
                 rows = {}
                 for m in range(dimension):
                         rows[m] = np.array([A_dict[(m,i)] for i in range(dimension)])
-                A = 1/confidence*np.array([np.array(rows[i]) for i in range(dimension)]) # shape matrix of confidence ellipsoid
+                A = 1/confidence*np.array([np.array(rows[i]) for i in range(dimension)]) # shape matrix of confidence ellipsoid, reduced hessian in this case
                 #A = np.linalg.inv(A)
                 U, s, V = np.linalg.svd(A) # singular value decomposition of shape matrix 
                 radii = 1/np.sqrt(s) # radii --
@@ -532,12 +532,13 @@ class MheGen(NmpcGen):
                             continue
             ###############################################################
             ### DISCLAIMER:
-            ### currently tailored to single stage which is reasonable since multiple stages do not make sense
+            ### currently tailored to two stage which is reasonable since multiple stages do not make sense
             ###############################################################
-            if self.update_scenario_tree:
+            if self.update_scenario_tree: 
                 # idea: go through the axis of the ellipsoid (U) and include the intersections of this axis with confidence ellipsoid on both ends as scenarios (sigmapoints)
                 # only accept these scenarios if sigmapoints are inside hypercube spanned by euclidean unit vectors around nominal value  
                 l = 0
+                scenarios = {}    
                 flag=False
                 for m in range(dimension):
                     l += 2
@@ -546,24 +547,32 @@ class MheGen(NmpcGen):
                         p_nom = getattr(self.olnmpc,p)
                         p_mhe = getattr(self.lsmhe,p)
                         for key in self.p_noisy[p]:
-                            index = self.PI_indices[p_mhe.name,key]
+                            index = self.PI_indices[p,key]
                             dev = -1e8
-                            for m in range(dimension): # little redundant but ok
-                                dev = max(dev,(abs(radii[m]*U[index][m]) + p_mhe[key].value)/p_mhe[key].value)
+                            for check in range(dimension): # little redundant but ok
+                                dev = max(dev,(abs(radii[check]*U[index][check]) + p_mhe[key].value)/p_mhe[key].value)
                             if dev < 1 + self.confidence_threshold:# confident enough in parameter estimate --> adapt parameter in prediction and NMPC model
                                 if dev > 1 + self.robustness_threshold:# minimum robustness threshold is not reached
-                                    for t in self.olnmpc.fe_t:
-                                        p_scen[(key,t,l)].value = (radii[m]*U[index][m] + p_nom[key].value)/p_nom[key].value
-                                        p_scen[(key,t,l+1)].value = (p_nom[key].value - radii[m]*U[index][m])/p_nom[key].value
+                                    #for t in self.olnmpc.fe_t:
+                                    #    p_scen[(key,t,l)].value = (radii[m]*U[index][m] + p_nom[key].value)/p_nom[key].value
+                                    #    p_scen[(key,t,l+1)].value = (p_nom[key].value - radii[m]*U[index][m])/p_nom[key].value
+                                    # scenario tree : {(i,s):parent_node i, parent_node s, base node (True/False), scenario values {'name',(index):value}}
+                                    scenarios[(p,(key,)),l] = (radii[m]*U[index][m] + p_mhe[key].value)/p_mhe[key].value
+                                    scenarios[(p,(key,)),l+1] = (p_mhe[key].value - radii[m]*U[index][m])/p_mhe[key].value
                                 else:# minimum robustness threshold is reached already
                                     if np.sign(U[index][m]) == 1:
-                                        for t in self.olnmpc.fe_t:
-                                            p_scen[(key,t,l)].value = 1+self.robustness_threshold
-                                            p_scen[(key,t,l+1)].value = 1-self.robustness_threshold
+                                        scenarios[(p,(key,)),l] = 1+self.robustness_threshold
+                                        scenarios[(p,(key,)),l+1] = 1-self.robustness_threshold
+                                        #for t in self.olnmpc.fe_t:
+                                            #p_scen[(key,t,l)].value = 1+self.robustness_threshold
+                                            #p_scen[(key,t,l+1)].value = 1-self.robustness_threshold
                                     else:
-                                        for t in self.olnmpc.fe_t:
-                                            p_scen[(key,t,l)].value = 1-self.robustness_threshold
-                                            p_scen[(key,t,l+1)].value = 1+self.robustness_threshold
+                                        scenarios[(p,(key,)),l] = 1-self.robustness_threshold
+                                        scenarios[(p,(key,)),l+1] = 1+self.robustness_threshold
+                                        #for t in self.olnmpc.fe_t:
+                                            #p_scen[(key,t,l)].value = 1-self.robustness_threshold
+                                            #p_scen[(key,t,l+1)].value = 1+self.robustness_threshold
+                                            
                             else:
                                 flag = True
                                 break
@@ -571,6 +580,18 @@ class MheGen(NmpcGen):
                             break
                     if flag:
                         break
+                
+                if not(flag):
+                    for k in self.st:
+                        for index in self.st[k][3]:
+                            p = index[0]
+                            key = index[1:]
+                            try:
+                                self.st[k][3][index] = scenarios[(p,key),k[1]]
+                            except KeyError:
+                                print(index)
+                                self.st[k][3][index] = 1.0
+                    print(scenarios)
                     
                 # if flag=True sigmapoints not inside basic hypercube --> use corners of hypercube instead
                 if flag:
@@ -1027,7 +1048,8 @@ class MheGen(NmpcGen):
                         self.PI_indices[par.name,j] = 0
                     else:
                         self.PI_indices[par.name,j] = aux
-                    
+                   
+        #"inv_.in" gives the reduced hessian which is the shape matrix in x^T A x = 1
         with open("inv_.in", "r") as rh:
             ll = []
             l = rh.readlines()
@@ -1044,9 +1066,25 @@ class MheGen(NmpcGen):
         print("I[[load covariance]] e-states nrows {:d} ncols {:d}".format(len(l), len(ll)))
         print("-" * 120)
         
+        # unscaled matrix
         self.mhe_confidence_ellipsoids[self.iterations] = deepcopy(self._PI)
-
-
+        
+        # scaled based on the current estimate
+        dim = len(self.PI_indices)
+        S = np.zeros((dim,dim))
+        confidence = chi2.isf(1.0-0.95,dim)
+        rows = {}
+        m = 0
+        for p in self.PI_indices:
+            p_mhe = getattr(self.lsmhe,p[0])
+            S[self.PI_indices[p]][self.PI_indices[p]] = 1.0/p_mhe[p[1]].value
+            rows[m] = np.array([self._PI[(m,i)] for i in range(dim)])
+            m += 1
+        A = 1/confidence*np.array([np.array(rows[i]) for i in range(dim)]) 
+        self._scaled_shape_matrix = np.dot(S.transpose(),np.dot(A,S)) # scaled shape matrix = scaled reduced hessian
+        # alternatively much more efficient to just compute inverse of reduced hessian and scale that.
+        # not is not required to compute the actual shape matrix of the ellipsoid
+        
     def create_rh_sfx(self, set_suffix=True):
         """Creates relevant suffixes for k_aug (prior at fe=2) (Reduced_Hess)
         Args:

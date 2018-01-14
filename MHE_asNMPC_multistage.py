@@ -32,20 +32,21 @@ states = ["PO","MX","MY","Y","W","PO_fed"] # ask about PO_fed ... not really a r
 x_noisy = ["PO","MX","MY","Y","W","PO_fed"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)]}
 p_noisy = {"A":['p','i']}
+#p_noisy = {"A":['p','i']}
 u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
 
 # measured variables
 #y = ["heat_removal","m_tot","MW","PO"] 
 #y_vars = {"heat_removal":[()],"m_tot":[()],"MW":[()],"PO":[()]}
-y = {"PO", "Y", "W", "MY", "MX", "MW","m_tot"}
-y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
+y = {"heat_removal","PO", "Y", "W", "MY", "MX", "MW","m_tot"}
+y_vars = {"heat_removal":[()],"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
 
 
 pc = ['Tad','heat_removal']
 
 # scenario_tree
-st = {}
+st = {} # scenario tree : {parent_node, scenario_number on current stage, base node (True/False), scenario values {'name',(index):value}}
 s_max = 5
 nr = 1
 nfe = 24
@@ -54,15 +55,15 @@ for i in range(1,nfe+1):
     if i < nr + 1:
         for s in range(1,s_max**i+1):
             if s%s_max == 1:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{'p':1.0,'i':1.0})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A','p'):1.0,('A','i'):1.0})
             elif s%s_max == 2:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{'p':1.0+alpha,'i':1.0+alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0+alpha})
             elif s%s_max == 3:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{'p':1.0-alpha,'i':1.0+alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0+alpha})
             elif s%s_max == 4:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{'p':1.0+alpha,'i':1.0-alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0-alpha})
             else:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{'p':1.0-alpha,'i':1.0-alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0-alpha})
     else:
         for s in range(1,s_max**nr+1):
             st[(i,s)] = (i-1,s,True,st[(i-1,s)][3])
@@ -84,9 +85,10 @@ e = MheGen(d_mod=SemiBatchPolymerization_multistage,
            noisy_inputs = False,
            noisy_params = True,
            adapt_params = True,
-           update_scenario_tree = False,
-           confidence_threshold = 0.2,
+           update_scenario_tree = True,
+           confidence_threshold = 10.0,
            robustness_threshold = 0.05,
+           estimate_exceptance = 10000,
            obj_type='economic',
            nfe_t=nfe,
            sens=None,

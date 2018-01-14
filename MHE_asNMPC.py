@@ -32,7 +32,8 @@ from copy import deepcopy
 states = ["PO","MX","MY","Y","W","PO_fed"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","PO_fed"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)]}
-p_noisy = {"A":['p','i']}
+#p_noisy = {"A":['p','i']}
+p_noisy = {"A":['p'],"Hrxn_aux":['p']}
 u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
 

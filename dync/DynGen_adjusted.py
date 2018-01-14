@@ -113,6 +113,7 @@ class DynGen(object):
         # need to know them also in NMPCGen
         self.PI_indices = {}
         self._PI = {}
+        self._scaled_shape_matrix = None # will be rewritten by MHEGen_multistage.compute_confidence_ellipsoid
         with open("ipopt.opt", "w") as f:
             f.close()
 

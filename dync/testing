@@ -1,0 +1,75 @@
+#!/usr/bin/env python2
+# -*- coding: utf-8 -*-
+"""
+Created on Sat Jan 13 22:17:24 2018
+
+@author: flemmingholtorf
+"""
+from pyomo.core.base import Var, Objective, minimize, value, Set, Constraint, Expression, Param, Suffix, ConstraintList
+from pyomo.core.base.sets import SimpleSet
+from pyomo.opt import SolverFactory, ProblemFormat, SolverStatus, TerminationCondition
+from main.dync.DynGen_adjusted import DynGen
+from main.dync.NMPCGen_multistage import NmpcGen
+import numpy as np
+from itertools import product
+import sys, os, time
+from copy import deepcopy
+from scipy.stats import chi2
+from pyomo import *
+
+l= 0
+confidence_threshold = 1.2
+robustness_threshold = 0.05
+p_noisy = {"A":['p'],'Hrxn_aux':['p']}
+PI_indices = {('A', 'p'): 0, ('Hrxn_aux', 'p'): 1}
+dimension = 2
+U = np.array([[ -5.00584929e-06,   1.00000000e+00],
+       [  1.00000000e+00,   5.00584929e-06]])
+
+radii = np.array([  2.57725616e-02,   1.87954855e+02])
+                
+p_mhe = {('A', 'p'):13020.7284858,('Hrxn_aux', 'p'):1.0}
+scenarios = {}    
+flag=False
+for m in range(dimension):
+    print(m)
+    l += 2
+    for p in p_noisy:
+        for key in p_noisy[p]:
+            index = PI_indices[p,key]
+            dev = -1e8
+            for t in range(dimension): # little redundant but ok
+                dev = max(dev,(abs(radii[t]*U[index][t]) + p_mhe[p,key])/p_mhe[p,key])
+            if dev < 1 + confidence_threshold:# confident enough in parameter estimate --> adapt parameter in prediction and NMPC model
+                if dev > 1 + robustness_threshold:# minimum robustness threshold is not reached
+                    #for t in olnmpc.fe_t:
+                    #    p_scen[(key,t,l)].value = (radii[m]*U[index][m] + p_nom[key].value)/p_nom[key].value
+                    #    p_scen[(key,t,l+1)].value = (p_nom[key].value - radii[m]*U[index][m])/p_nom[key].value
+                    # scenario tree : {(i,s):parent_node i, parent_node s, base node (True/False), scenario values {'name',(index):value}}
+                    scenarios[(p,(key,)),l] = (radii[m]*U[index][m] + p_mhe[p,key])/p_mhe[p,key]
+                    scenarios[(p,(key,)),l+1] = (p_mhe[p,key] - radii[m]*U[index][m])/p_mhe[p,key]
+                else:# minimum robustness threshold is reached already
+                    if np.sign(U[index][m]) == 1:
+                        scenarios[(p,(key,)),l] = 1+robustness_threshold
+                        scenarios[(p,(key,)),l+1] = 1-robustness_threshold
+                        #for t in olnmpc.fe_t:
+                            #p_scen[(key,t,l)].value = 1+robustness_threshold
+                    
+                        print(radii[m])
+                    #p_scen[(key,t,l+1)].value = 1-robustness_threshold
+                    else:
+                        scenarios[(p,(key,)),l] = 1-robustness_threshold
+                        scenarios[(p,(key,)),l+1] = 1+robustness_threshold
+                        #for t in self.olnmpc.fe_t:
+                            #p_scen[(key,t,l)].value = 1-self.robustness_threshold
+                            #p_scen[(key,t,l+1)].value = 1+self.robustness_threshold
+                        print(radii[m])
+            else:
+                flag = True
+                break
+        if flag:
+            break
+    if flag:
+        break
+for key in scenarios:
+    print(key,scenarios[key])

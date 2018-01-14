@@ -12,7 +12,7 @@ from pyomo.core.base import Var, Objective, minimize, value, Set, Constraint, Ex
 from pyomo.opt import SolverFactory, ProblemFormat, SolverStatus, TerminationCondition
 from main.dync.DynGen_adjusted import DynGen
 import numpy as np
-import sys, os, time
+import sys, os, time, csv
 from six import iterkeys
 from copy import deepcopy
 __author__ = "David M Thierry @dthierry"
@@ -56,7 +56,7 @@ class NmpcGen(DynGen):
         dummy_tree = {}
         for i in range(1,self.nfe_t+1):
             dummy_tree[i,1] = (i-1,1,1,{'p':1.0,'i':1.0})
-        self.scenario_tree = kwargs.pop('scenario_tree', dummy_tree)
+        self.st = kwargs.pop('scenario_tree', dummy_tree)
         self.multistage = kwargs.pop('multistage', True)
         self.s_max = kwargs.pop('s_max', 1) # number of scenarios
         self.nr = kwargs.pop('robust_horizon', 1) # robust horizon
@@ -395,7 +395,7 @@ class NmpcGen(DynGen):
     def recipe_optimization(self):
         self.nfe_t_0 = self.nfe_t # set self.nfe_0 to keep track of the length of the reference trajectory
         self.generate_state_index_dictionary()
-        self.recipe_optimization_model =  self.d_mod(self.nfe_t,self.ncp_t,scenario_tree = self.scenario_tree, s_max = self.s_max, nr = self.nr)#self.d_mod(self.nfe_t, self.ncp_t, scenario_tree = self.scenario_tree)
+        self.recipe_optimization_model =  self.d_mod(self.nfe_t,self.ncp_t,scenario_tree = self.st, s_max = self.s_max, nr = self.nr)#self.d_mod(self.nfe_t, self.ncp_t, scenario_tree = self.st)
         self.recipe_optimization_model.initialize_element_by_element()
         self.recipe_optimization_model.create_bounds()
         self.recipe_optimization_model.create_output_relations()
@@ -492,7 +492,7 @@ class NmpcGen(DynGen):
                     continue
          
     def create_enmpc(self):
-        self.olnmpc = self.d_mod(self.nfe_t,self.ncp_t,scenario_tree = self.scenario_tree, s_max = self.s_max, nr = self.nr)
+        self.olnmpc = self.d_mod(self.nfe_t,self.ncp_t,scenario_tree = self.st, s_max = self.s_max, nr = self.nr)
         self.olnmpc.name = "olnmpc (Open-Loop eNMPC)"
         for i in self.olnmpc.eps.index_set():
             self.olnmpc.eps[i] = 0.0
@@ -1198,82 +1198,168 @@ class NmpcGen(DynGen):
         m.sens_sol_state_1  = Suffix(direction=Suffix.IMPORT) # holds the updated variables and lagrange multipliers for inequalities (and equalities (would be relatively meaninglessS?)) 
         m.sens_init_constr  = Suffix(direction=Suffix.EXPORT) # flag constraint that are artificial Var(actual paramter) == Param(nominal_parameter_value)
         
-    def identify_worst_case_scenario(self):
-        # create nominal model
-        self.nom_mod = self.d_mod(self.nfe_t,self.ncp_t, s_max = 1, nr = 1)
-        m = self.nom_mod
-        m.name = "nominal model for computation of sensitivites with sIpopt"
-        for i in m.eps.index_set():
-            m.eps[i] = 0.0
-        m.eps.fix()    
-        m.create_bounds()
-        delta_p = 1e-5
-        state_suffix_map = m.construct_sensitivity_constraint(delta_p)
+    def SB_scenario_generation(self, cons = [], **kwargs):
+        # for ellipsoidal sets:
+        # solve for all constraints (all timepoints) the optimization problem:
+        #           max ds/dp^T * delta_p
+        #    s.t. 
+        #           delta_p^T * A * delta_p <= 1
+        #
+        #
+        # solution analytically derivable:
+        #               delta_p^* = A^{-1} * ds/dp / sqrt(ds/dp^T A^{-1} ds/dp)
+        #
+        # note: - A \in \in \mathbb{S}^{n_p}_{++} describes ellipsoidal uncertainty set
+        #       - natural choice: A = 1/chisquare * V_p^{-1} in case normally distributed parameters 
+        #       - red_hessian^-1 approx. V_p which ultimately is required
+        #            - scaled_red_hessian \in \mathbb{S}^{n_p}_{++} obtained from KKT matrix by k_aug (efficient, backsolves basically)
+        #       - ds/dp \in \mathbb{R}^{n_p} obtained from k_aug
 
-        # initialize by previous step? (open question)
-        for var in m.component_objects(Var, active = True):
-            var_ref = getattr(self.recipe_optimization_model, var.name)
-            for key in var.index_set():
-                var[key].value = var_ref[key].value   
+        # Iteratively populate scenarios:
+            # include scenario that would result in maximum constraint violation in first order approximation:
+            #           - approx. violation: sqrt(ds/dp^T A^{-1} ds/dp)
+            #
+            # exclude everything that lies inside a ball neighborhood around WC-scenario parameter realization
+            #           
+            # repeat until as many scenarios as possible are included 
         
-        for u in self.u:
-            control = getattr(m,u)
-            control.fix()
+        epsilon = kwargs.pop('epsilon',0.1)
         
-        bounds = {}
-        for x in self.states:
-            x_var = getattr(self.recipe_optimization_model, x)
-            for j in self.state_vars[x]:
-                if j == (1,):
-                    key = x_var.name
-                else:
-                    key = x_var.name + str(j[0])
-                bounds[key] = 0.05*x_var[(1,3)+j].value
+        # set shape matrix             
+        # prepare sensitivity computation
+        self.olnmpc.eps.fix()
+        self.olnmpc.u1.fix()
+        self.olnmpc.u2.fix()
+        self.olnmpc.tf.fix()
+        self.olnmpc.clear_all_bounds()
+        
+        # set suffixes
+        self.olnmpc.var_order = Suffix(direction=Suffix.EXPORT)
+        self.olnmpc.dcdp = Suffix(direction=Suffix.EXPORT)
+        i = 0
+        cols ={}
+        for p in self.p_noisy:
+            for key in self.p_noisy[p]:
+                dummy = 'dummy_constraint_p_' + p + '_' + key
+                dummy_con = getattr(self.olnmpc, dummy)
+                for index in dummy_con.index_set():
+                    self.olnmpc.dcdp.set_value(dummy_con[index], i+1)
+                    cols[i] = (p,key)
+                    i += 1
+        cols_r = {value:key for key, vale in cols.items()}
+        tot_cols = i
+        
+        i = 0
+        rows = {}
+        for k in cons:
+            s = getattr(self.olnmpc, 's_'+k)
+            for index in s.index_set():
+                if not(s[index].stale): # only take
+                    if type(index) == tuple:
+                        if index[-1] == 1: # only take the nominal trajectory
+                            self.olnmpc.var_order.set_value(s[index], i+1)
+                            rows[i] = ('s_'+ k,index)
+                            i += 1
+                    else:
+                        if index == 1:
+                            self.olnmpc.var_order.set_value(s[index], i+1)
+                            rows[i] = ('s_'+ k,index)
+                            i += 1  
+        #rows_r = {value:key for key, vale in cols.items()}
+        tot_rows = i
+        
+        # compute sensitivity matrix (ds/dp , rows = s const., cols = p const.)
+        k_aug = SolverFactory("k_aug",executable="/home/flemmingholtorf/KKT_matrix/k_aug/src/kmatrix/k_aug")
+        k_aug.options["compute_dsdp"] = ""
+        k_aug.solve(self.olnmpc, tee=False)
+        
+        # no idea if necessery, I am lost in the code
+        self.olnmpc.eps.unfix()
+        self.olnmpc.u1.unfix()
+        self.olnmpc.u2.unfix()
+        self.olnmpc.tf.unfix()
+        self.olnmpc.create_bounds()
+        self.olnmpc.clear_aux_bounds()
+        
+        sens = np.zeros((tot_rows,tot_cols))
+        with open('dxdp_.dat') as f:
+            reader = csv.reader(f, delimiter="\t")
+            i = 1
+            for row in reader:
+                k = 1
+                for col in row[1:]:
+                    sens[i-1][k-1] = -float(col) #indices start at 0
+                    k += 1
+                i += 1  
+        # reorder self._PI (reduced hessian) and invert
+        A = np.zeros((tot_cols,tot_cols))  # can be sped up by exploiting symmetry
+        for index1 in cols:
+            key_sens1 = cols[index1]
+            key_PI1 = self.PI_indices[key_sens1]
+            for index2 in cols:
+                key_sens2 = cols[index2]
+                key_PI2 = self.PI_indices[key_sens2]
+                A[index1][index2] = self._scaled_shape_matrix[key_PI1][key_PI2] # unnecessary when using the inverse of the reduced hessian directly, ask David about k_aug 
+        A_inv = np.linalg.inv(A) # in principle not required, scaled inverse reduced hessian
+        
+        # compute worst case parameter realizations and expected violations:
+        delta_p_wc = {}
+        con_vio = {}
+        for i in rows:
+            con = rows[i] # ('s_name', index)
+            dsdp = sens[i][:].transpose()
+            aux = np.sqrt(np.dot(dsdp.transpose(),np.dot(A_inv,dsdp)))
+            delta_p_wc[con] = np.dot(A_inv,dsdp) 
+            # get current constraint violation (slack)
+            s = getattr(self.olnmpc, con[1])
+            con_vio[con] =  -s[con[2]].value + aux
             
-        # run sIpopt
-        sIP = SolverFactory('ipopt_sens', solver_io = 'nl')
-        #sIP.options['run_sens'] = 'yes'
-        #sIP.options['n_sens_steps'] = 2
-        #sIP.options['tol'] = 1e-5
-        sIP.options["halt_on_ampl_error"] = "yes"
-        #sIP.options["print_user_options"] = "yes"
-        #sIP.options["linear_solver"] = "ma57"
-        with open("ipopt.opt", "w") as f:
-            f.write('run_sens yes \n n_sens_steps 8 \n tol 1e-5 \n print_user_options yes \n linear_solver ma57')
-            f.close()
-        #m.write('test.nl')
-        results = sIP.solve(m, tee = True)
-        m.solutions.load_from(results)
-        
-        # compute finite difference approximation of sensitivities, first with respect to endpoint constraints only
-        sens = {} # dictionary that contains the sensitivities organized like {('slack_var','parameter'):value}
-        constraints = ['s_mw','s_PO_ptg','s_unsat']
-        p = 1
-
-        for key in state_suffix_map:
-            p = state_suffix_map[key]
-            print(p)
-            print(key)
-            for con in constraints:
-                rhs_0 = getattr(m, con)
-                solution_suffix = getattr(m,'sens_sol_state_' + str(p))
-                rhs_perturbed = solution_suffix.get(rhs_0[1])
-                delta_rhs =  rhs_perturbed - rhs_0[1].value
-                sens[(con,key)] = delta_rhs/delta_p 
+        # generate new set of worst case scenarios
+        scenarios = {}
+        con_vio_copy = deepcopy(con_vio)
+        for s in range(2,self.s_max+1): # scenario 1 is reserved for the nomnal sscenario
+            wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
+            scenarios[s] = delta_p_wc[wc_scenario]
+            # remove all scenarios that are in epsilon-neighborhood of the just utilized scenario
+            con_vio_copy = {key: value for key, value in con_vio_copy.items() if np.linalg.norm(delta_p_wc[key]-delta_p_wc[wc_scenario]) >= epsilon}
+            # what to do if con_vio_copy is empty?????????????/
+            
+        # update scenario tree
+        # tailored to 2 stage stochastic programming currently
+        for i in range(1,self.nfe_t+1):
+            if i == 1:
+                for s in range(1,self.s_max**i+1):
+                    if s == 1:
+                        self.st[(i,s)] = (i-1,int(ceil(s/float(self.s_max))),True,{(p,key) : 1.0 for p in self.p_noisy for key in self.p_noisy[p]})
+                    else:
+                        self.st[(i,s)] = (i-1,int(ceil(s/float(self.s_max))),False,{(p,key) : scenarios[s][cols_r[(p,key)]] for p in self.p_noisy for key in self.p_noisy[p]})
+            else:
+                for s in range(1,self.s_max**self.nr+1):
+                    self.st[(i,s)] = (i-1,s,True,self.st[(i-1,s)][3])
+            
+            
+        # enough for today!
+            
+        # for hypercubes:
+        # solve for all constraints (all timepoints) the optimization problem:
+        #           max ds/dp^T * delta_p
+        #    s.t. 
+        #           delta_p_min <= delta_p <= delta_p_max
+        #           
+        # solution analytically derivable:
+        #       delta_p^*_i =  delta_p_max if ds/dp_i > 0 else delta_p_min
     
-        # assemble LP 
-        self.lp = m.assemble_lp(sens,bounds)
+        # Iteratively populate scenarios:
+            # include scenario that would result in maximum constraint violation in first order approximation:
+            #           - approx. violation: \\ scaling ds/dp \\_{1}
+            #           - always a corner point
+            #
+            # exclude the corner
+            #           
+            # repeat until as many scenarios as posisble are included
+            
+            
         
-        # solve LP wih Ipopt and find worst case scenario
-        ip = SolverFactory('ipopt')
-        ip.options["halt_on_ampl_error"] = 'yes'
-        with open("ipopt.opt", "w") as f:
-            f.write('\n tol 1e-5 \n print_user_options yes \n linear_solver ma57')
-            f.close()
-        
-        results = ip.solve(self.lp,tee = True)
-        
-        return sens
     
     def nmpc_sIpopt_update(self, src='estimated'): 
         if src == 'estimated':
