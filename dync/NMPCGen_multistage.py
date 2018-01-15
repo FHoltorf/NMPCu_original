@@ -66,8 +66,8 @@ class NmpcGen(DynGen):
         self.min_horizon = kwargs.pop('min_horizon',0)
 
         self.noisy_model = self.d_mod(1,self.ncp_t)
-        self.recipe_optimization_model = object() # model to compute the reference trajectory (open loop optimal control problem with economic obj)
-        # take self.olnmpc from original framework
+        self.recipe_optimization_model = object() 
+        # model to compute the reference trajectory (open loop optimal control problem with economic obj)
         self.reference_state_trajectory = {} # {('state',(fe,j)):value)}
         self.reference_control_trajectory = {} # {('control',(fe,j)):value)}
         self.storage_model = object()
@@ -81,21 +81,14 @@ class NmpcGen(DynGen):
         self.forward_simulation_model.create_bounds()
         self.forward_simulation_model.deactivate_pc()
         self.forward_simulation_model.deactivate_epc()
-        #self.forward_simulation_model.deactivate_aux_pc()
         self.forward_simulation_model.eobj.deactivate()
         self.forward_simulation_model.del_pc_bounds()
-        self.forward_simulation_model.fallback_strategy()
-        
         self.simulation_trajectory = {}
-        
-        self.current_state_info = {} # dictionary that contains the current predicted state (actually complete solution) {('var.name',(j)):value} + also the next control intervall length
-            # current_state_info is set 
-            #   w/ MHE: after the MHE fast update
-            #   w/o MHE: by the measurement + noise directly
-            # includes information about the horizon 'tf'
-        self.current_control_info = {} # dictionary that contains the current control variables
-            # current_control_info is set
-            #   w/ or w/o MHE: after NMPC fast update
+        # organized as follows   
+        #- for states:   {i, ('name',(index)): value} # actual state at time step i
+        #- for controls: {i, 'name': value} 
+                # --> control input valid between iteration i-1 and i 
+                #     (i=1 --> is the first piecewise constant control input) 
         
         
         # plant simulation model in order to distinguish between noise and disturbances
@@ -107,40 +100,61 @@ class NmpcGen(DynGen):
         self.plant_simulation_model.deactivate_pc()
         self.plant_simulation_model.deactivate_epc()
         self.plant_simulation_model.eobj.deactivate()
-        self.plant_simulation_model.fallback_strategy()
-        self.plant_trajectory = {} # organized as follows   - for states:   {i, ('name',(index)): value} # actual state at time step i
-                                   #                        - for controls: {i, 'name': value} --> control input valid between iteration i-1 and i (i=1 --> is the first piecewise constant control input) 
+        self.plant_trajectory = {} 
         self.plant_trajectory[0,'tf'] = 0
+        # organized as follows   
+        #- for states:   {i, ('name',(index)): value} # actual state at time step i
+        #- for controls: {i, 'name': value} 
+                # --> control input valid between iteration i-1 and i 
+                #     (i=1 --> is the first piecewise constant control input) 
         
-        self.nmpc_trajectory = {} # organized as follows   - for states:   {i, ('name',(index)): value} # state prediction at time step i
-                                  #                        - for controls: {i, 'name': value} --> control input valid between iteration i-1 and i (i=1 --> is the first piecewise constant control input)  
-        
-
-        self.pc_trajectory = {} # organized as follows {(pc,(iteration,collocation_point):value}
+        self.nmpc_trajectory = {} 
         self.nmpc_trajectory[0,'tf'] = 0
+        #- for states:   {i, ('name',(index)): value} # actual state at time step i
+        #- for controls: {i, 'name': value} 
+                # --> control input valid between iteration i-1 and i 
+                #     (i=1 --> is the first piecewise constant control input) 
+                
+        self.pc_trajectory = {} 
+        # organized as follows 
+        #  {(pc,(iteration,collocation_point):value}
         
         self.iterations = 1
         self.nfe_mhe = 1
         self.nfe_t_0 = 0 # gets set during the recipe optimization
 
         
-    def plant_simulation(self,result,disturbances = {},first_call = False, **kwargs):
-        """noisy_states = Dictionary of structure: {(statename,(add. indices except for time)): relative standard deviation}"""
-        print("plant_simulation")
+    def plant_simulation(self,result,first_call = False, **kwargs):
+        print("plant_simulation")      
+        # simulates the current 
         disturbance_src = kwargs.pop('disturbance_src', 'process_noise')
+        # options: process_noise --> gaussian noise added to all states
+        #          parameter noise --> noise added to the uncertain model parameters
+        #                               or different ones
+        #          input noise --> noise added to the inputs/controls
+        # not exhaustive list, can be adapted/extended as one wishes
+        # combination of all the above with noise in the initial point supported
         initial_disturbance = kwargs.pop('initial_disturbance', {(x,j):0.0 for x in self.states for j in self.x_vars[x]})
         parameter_disturbance = kwargs.pop('parameter_disturbance', {})
+        state_disturbance = kwargs.pop('state_disturbance', {})
+        input_disturbance = kwargs.pop('input_disturbance',{})
         
-        #  generate gaussian noise that is added to the 
-        disturbance_noise = {}
+        #  generate the disturbance according to specified scenario
+        state_noise = {}
+        input_noise = {}
         if disturbance_src == 'process_noise':
-            if disturbances != {} : 
+            if state_disturbance != {}: 
                 for key in disturbances:
-                    disturbance_noise[key] = np.random.normal(loc=0.0, scale=disturbances[key])
-            else: # no speceficiation of noisy_states is interpreted such that no noise is added
+                    state_noise[key] = np.random.normal(loc=0.0, scale=state_disturbance[key])
+                    # potentially implement truncation at 2 sigma
+            else:
                 for x in self.states: 
                     for j in self.x_vars[x]:
-                        disturbance_noise[(x,j)] = 0.0        
+                        state_noise[(x,j)] = 0.0   
+            
+            for u in self.u:
+                input_noise[u] = 0.0     
+                
         elif disturbance_src == 'parameter_noise':
             for p in parameter_disturbance:
                 disturbed_parameter = getattr(self.plant_simulation_model, p[0])               
@@ -149,21 +163,29 @@ class NmpcGen(DynGen):
                 
                 if (self.iterations-1)%parameter_disturbance[p][1] == 0:
                     disturbed_parameter[p[1]].value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0]))                 
-            for u in self.u:
-                disturbance_noise[u] = 0.0               
+            
             for x in self.states:
                 for j in self.x_vars[x]:
-                    disturbance_noise[(x,j)] = 0.0
-        else: # input noise only
-            for x in self.states:
-                for j in self.state_vars[x]:
-                    disturbance_noise[(x,j)] = 0.0
+                    state_noise[(x,j)] = 0.0
+                    
             for u in self.u:
-                disturbance_noise[u] = np.random.normal(loc=0.0, scale=disturbances[u])
-                     
-        # shift the initial conditions: (without introduction of disturbances) 
+                input_noise[u] = 0.0
+        elif disturbance_src == 'input_disturbance': # input noise only
+            for x in self.states:
+                for j in self.x_vars[x]:
+                    state_noise[(x,j)] = 0.0
+            for u in self.u:
+                input_noise[u] = np.random.normal(loc=0.0, scale=input_disturbance[u])
+        else:
+            print('NO DISTURBANCE SCENARIO SPECIFIED, NO NOISE ADDED ANYWHERE')                     
+            for x in self.states:
+                for j in self.x_vars[x]:
+                        state_noise[(x,j)] = 0.0
+            for u in self.u:
+                input_noise[u] = 0.0
+                    
         
-        if first_call: # initial guess is not altered compared to the recipe optimization, however can be implemented here by calling add_noise
+        if first_call:
             for x in self.states:
                     xic = getattr(self.plant_simulation_model,x+'_ic')
                     xvar = getattr(self.plant_simulation_model,x)
@@ -175,9 +197,11 @@ class NmpcGen(DynGen):
                         else:
                             xic[j_ic].value = xic[j_ic].value * (1.0 + np.random.normal(loc=0.0, scale=initial_disturbance[(x,j_ic)]))
                             aux = xic[j_ic].value
+                        # just for initialization purposes for the simulation
                         for k in range(0,self.ncp_t+1):
                             xvar[(1,k)+j].value = aux
-                            
+            
+            # initialization of the simulation (initial guess)               
             for var in self.plant_simulation_model.component_objects(Var, active=True):
                 var_ref = getattr(self.recipe_optimization_model, var.name)
                 for key in var.index_set():
@@ -186,6 +210,7 @@ class NmpcGen(DynGen):
                     else:
                         var[key].value = var_ref[key].value
         else:                
+            # initialization of simulation
             for var in self.plant_simulation_model.component_objects(Var, active=True):
                 for key in var.index_set():
                     if var[key].fixed:
@@ -200,24 +225,23 @@ class NmpcGen(DynGen):
                                 var[key] = var[(1,key[1])].value
                         except KeyError:
                             continue
-                        
+            
+            # initialization of state trajectories
+            # adding state noise if specified            
             for x in self.states:
                 xic = getattr(self.plant_simulation_model,x+'_ic')
-                xvar = getattr(self.plant_simulation_model,x)
+                x_var = getattr(self.plant_simulation_model,x)
                 for j in self.x_vars[x]:
-                    #if disturbances:
-                    #    noise = np.random.normal(loc=0.0, scale=disturbance_variance[(xvar.name,j)])*xvar[(1,3)+j].value
-                    #else:
-                    #    noise = 0
                     if j == (): 
-                        xic.value = xvar[(1,self.ncp_t)+j+(1,)].value * (1 + disturbance_noise[(x,j)])#+ noise # again tailored to RADAU nodes
+                        xic.value = x_var[(1,self.ncp_t)+j+(1,)].value * (1.0 + state_noise[(x,j)])#+ noise # again tailored to RADAU nodes
                     else:
-                        xic[j].value = xvar[(1,self.ncp_t)+j+(1,)].value * (1 + disturbance_noise[(x,j)])# + noise # again tailored to RADAU nodes
+                        xic[j].value = x_var[(1,self.ncp_t)+j+(1,)].value * (1.0 + state_noise[(x,j)])# + noise # again tailored to RADAU nodes
                     # for initialization: take constant values + leave time invariant values as is!
                     for k in range(0,self.ncp_t+1):
-                        xvar[(1,k)+j+(1,)].value = xvar[(1,self.ncp_t)+j+(1,)].value * (1 + disturbance_noise[(x,j)])
+                        x_var[(1,k)+j+(1,)].value = x_var[(1,self.ncp_t)+j+(1,)].value
            
-        # result is the previous olnmpc solution --> therefore provides information about the sampling interval
+        # result is the previous olnmpc solution 
+        #    --> therefore provides information about the sampling interval
         # 1 element model for forward simulation
         self.plant_simulation_model.tf[1,1] = result['tf', (1,1)]
         self.plant_simulation_model.tf[1,1].fixed = True
@@ -225,18 +249,13 @@ class NmpcGen(DynGen):
         # FIX(!!) the controls, path constraints are deactivated
         for u in self.u:
             control = getattr(self.plant_simulation_model,u)
-            control_nom = getattr(self.plant_simulation_model,u+'_nom')
-            if not(disturbance_src == 'process_noise'):
-                control[1,1].value = result[u,(1,1)]*(1+disturbance_noise[u])
-                control_nom.value = result[u,(1,1)]*(1+disturbance_noise[u])
-            else:
-                control[1,1].value = result[u,(1,1)]
-                control_nom.value = result[u,(1,1)]      
+            control[1,1].value = result[u,(1,1)]*(1.0+input_noise[u])
             control[1,1].fixed = True 
             self.plant_simulation_model.equalize_u(direction="u_to_r") 
                  
-        self.plant_simulation_model.obj_u.deactivate() 
+        # probably redundant
         self.plant_simulation_model.clear_aux_bounds()
+        
         # solve statement
         ip = SolverFactory("asl:ipopt")
         ip.options["halt_on_ampl_error"] = "yes"
@@ -244,22 +263,16 @@ class NmpcGen(DynGen):
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
         ip.options["max_iter"] = 3000
-        #ip.options["bound_push"] = 1e-3
-        #ip.options["mu_init"] = 1e-6
         
         out = ip.solve(self.plant_simulation_model, tee=True)
-        if  [str(out.solver.status), str(out.solver.termination_condition)] != ['ok','optimal']:
-#            self.plant_simulation_model.equalize_u(direction="u_to_r")
-#            for u in self.u:
-#                control = getattr(self.plant_simulation_model,u)
-#                control[1,1].fixed = False
-#            self.forward_simulation_model.obj_u.activate()
-            self.plant_simulation_model.equalize_u(direction="u_to_r")
-            self.plant_simulation_model.clear_aux_bounds()
+        
+        #
+        if [str(out.solver.status), str(out.solver.termination_condition)] != ['ok','optimal']:
             out = ip.solve(self.plant_simulation_model, tee = True)
         
         self.plant_trajectory[self.iterations,'solstat'] = [str(out.solver.status), str(out.solver.termination_condition)]
         self.plant_trajectory[self.iterations,'tf'] = self.plant_simulation_model.tf[1,1].value
+        
         # safe results of the plant_trajectory dictionary {number of iteration, (x,j): value}
         for u in self.u:
             control = getattr(self.plant_simulation_model,u)
@@ -267,9 +280,10 @@ class NmpcGen(DynGen):
         for x in self.states:
             xvar = getattr(self.plant_simulation_model, x)
             for j in self.x_vars[x]:
-                    self.plant_trajectory[self.iterations,(x,j)] = xvar[(1,3)+j+(1,)].value  
-                    self.curr_rstate[(x,j)] = xvar[(1,3)+j+(1,)].value # setting the current real value w/o measurement noise
-      
+                    self.plant_trajectory[self.iterations,(x,j)] = xvar[(1,3)+j+(1,)].value 
+                    # setting the current real value w/o measurement noise
+                    self.curr_rstate[(x,j)] = xvar[(1,3)+j+(1,)].value 
+                    
         # to monitor path constraints if supplied:
         if self.path_constraints != []:
             for pc_name in self.path_constraints:
@@ -296,23 +310,25 @@ class NmpcGen(DynGen):
         
         # IMPORTANT:
         # --> before calling forward_simulation() need to call dot_sens to perform the update
- 
-        # save results to current_state_info
+        #
+                
+        # curr_state_info:
+        # comprises both cases where state is estimated and directly measured
+        current_state_info = {}
         for key in self.curr_pstate:
-            self.current_state_info[key] = self.curr_pstate[key] - self.curr_state_offset[key]
+            current_state_info[key] = self.curr_pstate[key] - self.curr_state_offset[key]
            
         # save updated controls to current_control_info
-        # apply clamping strategy if controls violate physical bounds
+        # apply clamping strategy if controls violate physical bounds#
+        current_control_info = {}
         for u in self.u:
             control = getattr(self.olnmpc, u)
-            self.current_control_info[u] = control[1,1].value
+            current_control_info[u] = control[1,1].value
             
             
         self.forward_simulation_model.tf[1,1] = self.olnmpc.tf[1,1].value # xxx
         self.forward_simulation_model.tf.fix()
-        
 
-        
         # general initialization
         # not super efficient but works
         for var in self.olnmpc.component_objects(Var, active=True):
@@ -327,36 +343,32 @@ class NmpcGen(DynGen):
                         else:
                             xvar[key].value = var[(1,self.ncp_t)].value
                 except KeyError:
-                    continue # catches exceptions for trying to access nfe>1 for self.forward_simulation_model
-                    
+                    # catches exceptions for trying to access nfe>1 for self.forward_simulation_model
+                    continue
+                
         # 1 element model for forward simulation
+        # set initial point (measured or estimated)
+        #       --> implicit assumption: RADAU nodes
         for x in self.states:
             xic = getattr(self.forward_simulation_model,x+'_ic')
             xvar = getattr(self.forward_simulation_model,x)
             for j in self.x_vars[x]:
                 if j == (): 
-                    xic.value = self.current_state_info[(x,j+(1,))] #+ noise # again tailored to RADAU nodes
+                    xic.value = current_state_info[(x,j+(1,))] #+ noise # again tailored to RADAU nodes
                 else:
-                    xic[j].value = self.current_state_info[(x,j+(1,))] # + noise # again tailored to RADAU nodes
+                    xic[j].value = current_state_info[(x,j+(1,))] # + noise # again tailored to RADAU nodes
                 # for initialization: take constant values + leave time invariant values as is!
                 for k in range(0,self.ncp_t+1):# use only 
-                    xvar[(1,k)+j+(1,)].value = self.current_state_info[(x,j)]
-                    #xvar[(1,k)+j].value = xvar_olnmpc[(1,k)+j].value
-                    # FIX(!!) the controls, path constraints and endpoint constraints are deactivated             
-                
+                    xvar[(1,k)+j+(1,)].value = current_state_info[(x,j+(1,))]
         
+        # set and fix control as provided by olnmpc/advanced step update
         for u in self.u:
             control = getattr(self.forward_simulation_model,u)
-            control[1,1].value = self.current_control_info[u] # xxx
+            control[1,1].value = current_control_info[u] # xxx
             control[1,1].fix() # xxx
-            
-            control_nom = getattr(self.forward_simulation_model,u+'_nom')
-            control_nom.value = control[1,1].value # xxx
             self.forward_simulation_model.equalize_u(direction="u_to_r") # xxx
-            
-            
         
-        self.forward_simulation_model.obj_u.deactivate()
+        self.forward_simulation_model.clear_aux_bounds()
         # solve statement
         ip = SolverFactory("asl:ipopt")
         ip.options["halt_on_ampl_error"] = "yes"
@@ -364,34 +376,24 @@ class NmpcGen(DynGen):
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
         ip.options["max_iter"] = 3000
-        #ip.options["mu_init"] = 1e-1
-        #ip.options["ma57_automatic_scaling"] = "yes"
-        #ip.options["mu_init"] = 1e-9
-        self.forward_simulation_model.clear_aux_bounds()
+
         out = ip.solve(self.forward_simulation_model, tee=True)
         self.simulation_trajectory[self.iterations,'obj_fun'] = 0.0
         
         if [str(out.solver.status), str(out.solver.termination_condition)] != ['ok','optimal']:
-#            for u in self.u:
-#                control = getattr(self.forward_simulation_model,u)
-#                control[1,1].fixed = False # xxx
-#            self.forward_simulation_model.equalize_u(direction="u_to_r")
-#            self.forward_simulation_model.obj_u.activate()
             self.forward_simulation_model.clear_bounds()
             out = ip.solve(self.forward_simulation_model, tee = True)
             self.simulation_trajectory[self.iterations,'obj_fun'] = value(self.forward_simulation_model.obj_u)
-            #sys.exit()
-            
+
         self.simulation_trajectory[self.iterations,'solstat'] = [str(out.solver.status), str(out.solver.termination_condition)]
         
         # save the simulated state as current predicted state
+        # implicit assumption of RADAU nodes
         for x in self.states:
             xvar = getattr(self.forward_simulation_model, x)
             for j in self.state_vars[x]:
                     self.curr_pstate[(x,j)] = xvar[(1,self.ncp_t)+j].value  # implicit assumption of RADAU nodes
-                    #self.simulation_trajectory[self.iterations,(x,j)] = self.curr_pstate[(x,j)]
                     
-                
     def recipe_optimization(self):
         self.nfe_t_0 = self.nfe_t # set self.nfe_0 to keep track of the length of the reference trajectory
         self.generate_state_index_dictionary()
@@ -407,14 +409,14 @@ class NmpcGen(DynGen):
         ip.options["max_iter"] = 5000
         results = ip.solve(self.recipe_optimization_model, tee=True, symbolic_solver_labels=True, report_timing=True)
         if not(str(results.solver.status) == 'ok' and str(results.solver.termination_condition)) == 'optimal':
+            print('Recipe Optimization failed!')
             sys.exit()
             
         
-        self.nmpc_trajectory[1,'tf'] = self.recipe_optimization_model.tf[1,1].value
+        self.nmpc_trajectory[1,'tf'] = self.recipe_optimization_model.tf[1,1].value # start at 0.0
         for u in self.u:
             control = getattr(self.recipe_optimization_model,u)
-            self.nmpc_trajectory[1,u] = control[1,1].value # xxx control input bewtween time step i-1 and i
-            self.current_control_info[u] = control[1,1] # xxx
+            self.nmpc_trajectory[1,u] = control[1,1].value # control input bewtween time step i-1 and i
             self.curr_u[u] = control[1,1].value
         
         # directly apply state as predicted state --> forward simulation would reproduce the exact same result since no additional measurement is known
@@ -423,8 +425,6 @@ class NmpcGen(DynGen):
             for j in self.state_vars[x]:
                 self.curr_pstate[(x,j)] = xvar[(1,self.ncp_t)+j].value
                 self.initial_values[(x,j)] = xvar[(1,self.ncp_t)+j].value
-        
-        # 
         
     def get_tf(self):
         t = [] 
@@ -482,8 +482,6 @@ class NmpcGen(DynGen):
                 continue
             for j in xv.keys():
                 if j[1] == 0:
-                    #if xv[j].stale:
-                    #    continue
                     if type(j[2:]) == tuple:
                         self.state_vars[x].append(j[2:])
                     else:
@@ -494,9 +492,6 @@ class NmpcGen(DynGen):
     def create_enmpc(self):
         self.olnmpc = self.d_mod(self.nfe_t,self.ncp_t,scenario_tree = self.st, s_max = self.s_max, nr = self.nr)
         self.olnmpc.name = "olnmpc (Open-Loop eNMPC)"
-        for i in self.olnmpc.eps.index_set():
-            self.olnmpc.eps[i] = 0.0
-        self.olnmpc.eps.fix()    
         self.olnmpc.create_bounds() 
         self.olnmpc.clear_aux_bounds()
         
@@ -512,16 +507,16 @@ class NmpcGen(DynGen):
                     continue
         return output       
 
-    def cycle_nmpc(self,initialguess,nfe_t_new):
-        # reassign new nfe_t --> must be sucessively reduced by 1 otherwise fail
-        if (self.nfe_t - nfe_t_new) > 1:
-            sys.exit()
-        self.nfe_t = nfe_t_new
+    def cycle_nmpc(self,initialguess):
+        # cut-off one finite element
+        self.nfe_t -= 1
+        
         # choose which type of nmpc controller is used
         if self.obj_type == 'economic':
             self.create_enmpc()
         else:
-            self.create_nmpc2()
+            self.create_nmpc()
+            
         # initialize the new problem with shrunk horizon by the old one
         for _var in self.olnmpc.component_objects(Var, active=True):
             for _key in _var.index_set():
@@ -708,10 +703,6 @@ class NmpcGen(DynGen):
         # save the new consistent initial conditions 
         for key in var_dict:
             vni = self.xp_key[key]
-            # THE FOLLOWING 3 LINES WORK
-            #self.initial_values[key] = self.noisy_model.w_pnoisy[vni].value + self.initial_values[key]
-            #self.current_state_info[key] = self.initial_values[key] # !!o!! # all three serve exactly the same purpose --> eliminate one 
-            #self.curr_rstate[key] = self.initial_values[key]  # set current_state_information
             self.curr_rstate[key] = self.noisy_model.w_pnoisy[vni].value + self.curr_rstate[key] # from here on it is a noisy real state
             
         # Set new (noisy) initial conditions in model self.olnmpc
@@ -734,9 +725,8 @@ class NmpcGen(DynGen):
             
     def solve_olnmpc(self):
         print("solve_olnmpc")
+        print('#'*20 + ' ' + str(self.iterations) + ' ' + '#'*20)
         ip = SolverFactory("asl:ipopt")
-        #ip.options["bound_push"] = 0
-        #ip.options["mu_init"] = 1e-3
         ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
@@ -744,36 +734,23 @@ class NmpcGen(DynGen):
         ip.options["max_iter"] = 3000
         with open("ipopt.opt", "w") as f:
             f.write("print_info_string yes")
-            f.close()
-        #self.olnmpc.eobj.deactivate()
-        #ip.solve(self.olnmpc, tee=True)       
-        
-        #self.olnmpc.eobj.activate()
-        #self.olnmpc.tf.setlb(10)
-        #self.olnmpc.tf.setub(None)
-        #self.olnmpc.tf.value = 15.0
-        #self.olnmpc.tf.fixed = True
+        f.close()
+
+        # enable l1-relaxation but set relaxation parameters to 0
         self.olnmpc.eps.unfix()
         for i in self.olnmpc.eps.index_set():
             self.olnmpc.eps[i].value = 0
-        results = ip.solve(self.olnmpc,tee=True)         
+            
+        self.olnmpc.clear_aux_bounds() #redudant I believe
+        
+        results = ip.solve(self.olnmpc,tee=True)
+        self.olnmpc.solutions.load_from(results)
+        self.olnmpc.write_nl()         
         if not(str(results.solver.status) == 'ok' and str(results.solver.termination_condition) == 'optimal'):
-            #self.save = self.olnmpc.troubleshooting()
-            self.olnmpc.del_pc_bounds() # 
-            self.olnmpc.clear_aux_bounds()
-            results = ip.solve(self.olnmpc,tee=True)             
-            """
-            #self.olnmpc.initialize_element_by_element()
-            self.olnmpc.eps.fixed = False
-            #self.olnmpc.epc_PO_ptg.deactivate()
-            #self.olnmpc.epc_unsat.deactivate()
-            #self.olnmpc.epc_PO_fed.deactivate()
-            #self.olnmpc.epc_mw.deactivate()
-            #self.olnmpc.tf.setub(100)
-            results = ip.solve(self.olnmpc,tee=True)
-            self.olnmpc.eps.value = 0
-            self.olnmpc.eps.fixed = True
-            #self.olnmpc.epc_mw.activate()"""
+            print('olnmpc failed to converge')
+            
+        # save relevant results
+        # self.iterations + 1 holds always if solve_olnmpc called at the correct time
         self.nmpc_trajectory[self.iterations,'solstat'] = [str(results.solver.status),str(results.solver.termination_condition)]
         self.nmpc_trajectory[self.iterations+1,'tf'] = self.nmpc_trajectory[self.iterations,'tf'] + self.olnmpc.tf[1,1].value
         self.nmpc_trajectory[self.iterations,'eps'] = [self.olnmpc.eps[1,1].value,self.olnmpc.eps[2,1].value,self.olnmpc.eps[3,1].value]  
@@ -786,6 +763,9 @@ class NmpcGen(DynGen):
         for u in self.u:
             control = getattr(self.olnmpc,u)
             self.nmpc_trajectory[self.iterations+1,u] = control[1,1].value # control input between timestep i-1 and i
+        
+        # initial state is saved to keep track of how good the estimates are
+        # here only self.iteration since its the beginning of the olnmpc run
         for x in self.states:
             xic = getattr(self.olnmpc, x + '_ic')
             for j in self.state_vars[x]:
@@ -794,14 +774,11 @@ class NmpcGen(DynGen):
                     self.nmpc_trajectory[self.iterations,(x,j_ic)] = xic.value   
                 else:
                     self.nmpc_trajectory[self.iterations,(x,j_ic)] = xic[j_ic].value
-
-        
+                    
         # save the control result as current control input
         for u in self.u:
             control = getattr(self.olnmpc,u)
             self.curr_u[u] = control[1,1].value
-            
-        self.olnmpc.write_nl()
         
     def cycle_iterations(self):
         self.iterations += 1

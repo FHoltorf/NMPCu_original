@@ -122,19 +122,18 @@ curr_pstate = {}
 for i in range(1,nfe):
     print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
     e.create_mhe()
-    nfe_new = nfe - i
     if i == 1:
         e.plant_simulation(e.store_results(e.recipe_optimization_model),disturbances=v_disturbances,first_call=True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
         e.set_prediction(e.store_results(e.recipe_optimization_model)) # only required for asMHE
         e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov, first_call=True) #adjusts the mhe problem according to new available measurements
         e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
-        e.cycle_nmpc(e.store_results(e.recipe_optimization_model),nfe_new)
+        e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
         e.plant_simulation(e.store_results(e.olnmpc),disturbances=v_disturbances,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
         e.set_prediction(e.store_results(e.forward_simulation_model))
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov) # only required for asMHE
         e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
-        e.cycle_nmpc(e.store_results(e.olnmpc),nfe_new)   
+        e.cycle_nmpc(e.store_results(e.olnmpc))   
 
     # solve the advanced step problem
     e.solve_olnmpc() # solves the olnmpc problem
@@ -144,8 +143,7 @@ for i in range(1,nfe):
     e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
 
     # solve mhe problem
-    e.solve_mhe(fix_noise=True) # solves the mhe problem
-    previous_mhe = e.store_results(e.lsmhe)
+    previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
     e.compute_confidence_ellipsoid()
 
     # update state estimate 

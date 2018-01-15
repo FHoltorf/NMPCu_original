@@ -317,7 +317,9 @@ class MheGen(NmpcGen):
                 var[key].setlb(None)
                 var[key].setub(None)
         
-    def set_prediction(self,results):
+    def set_measurement_prediction(self,results):
+        # needed for construction of lsmhe
+        # however only of importance when asMHE is applied
         measured_state = {}
         for x in self.states:
             for j in self.x_vars[x]:
@@ -333,15 +335,14 @@ class MheGen(NmpcGen):
         """
         # creates measurement for all variables that are in var_dict        
         # prediction for these variables must have been generated beforehand 
-        # due to set_prediction only allowing for states --> ALL measured variables must be states
         
         # Sets possibly more measured states than are loaded into the state estimation problem
         # what is specified in self.y determines which states are considered as measured for estimation
-        # truncate noise at 2 sigma = 95.7%
-        #if noise_init[key] > 2*var_dict[key]:
-        #    noise_init[key] = 2*var_dict[key]
-        #elif noise_init[key] < -2*var_dict[key]:
-        #    noise_init[key] = -2*var_dict[key]
+        # possibly: truncate noise at 2 sigma = 95.7%
+                #if noise_init[key] > 2*var_dict[key]:
+                #    noise_init[key] = 2*var_dict[key]
+                #elif noise_init[key] < -2*var_dict[key]:
+                #    noise_init[key] = -2*var_dict[key]
         noise_init = {}
         measured_state = {}
         for key in var_dict:
@@ -376,14 +377,11 @@ class MheGen(NmpcGen):
                 except KeyError:
                     try:
                         var_nmpc = getattr(self.olnmpc, _var.name)
-                        #if len(_key) > 2:
                         # check if I need to account for anything else
                         if type(_key) == int:
                             _var[_key].value = var_nmpc[_key].value
                         else:
                             _var[_key].value = var_nmpc[(1,3)+_key[2:]].value
-                        #else:
-                        #    _var[_key] = var_nmpc[(1,3)].value
                     except KeyError:
                         #print(_var.name) # only for troubleshooting
                         continue
@@ -393,32 +391,28 @@ class MheGen(NmpcGen):
                     except TypeError:
                         #print(self.iterations, _var.name) # only for troubleshooting
                         continue
+                    
         # adjust the time intervals via model parameter self.lsmhe.fe_dist[i]
         self.lsmhe.tf.fixed = True
         self.lsmhe.tf.value = self.recipe_optimization_model.tf.value # base is set via recipe_optimization_model
         for i in self.lsmhe.fe_t:
             self.lsmhe.fe_dist[i] = self.plant_trajectory[i,'tf']/self.lsmhe.tf.value
         
-        # fix the applied controls in the model:    
-        # self.lsmhe.equalize_u(direction='r_to_u')
+        # fix the applied controls in the model
+        # in case EVM is used --> slacks are added and penalized
         for u in self.u:
             control = getattr(self.lsmhe, u)
             control[self.nfe_mhe] = self.curr_u[u]
             control.fix()
-            #for i in control.index_set():
-            #    control[i].value = self.curr_u[u]#self.nmpc_trajectory[i,u]
-            #
 
         # reapply the measured variables
         for t in self.lsmhe.fe_t:
-            #for x in self.x_noisy: # should be whatever is measured not necessarily noisy states
-            for x in self.y:
-                #for j in self.x_vars[x]:
-                for j in self.y_vars[x]:
-                    vni = self.yk_key[(x,j)]
-                    self.lsmhe.yk0_mhe[t,vni] = self.measurement[t][(x,j)]
+            for y in self.y:
+                for j in self.y_vars[y]:
+                    vni = self.yk_key[(y,j)]
+                    self.lsmhe.yk0_mhe[t,vni] = self.measurement[t][(y,j)]
         
-        # redo the initialization of estimates and matrices
+        # reinitialization of covariance matrices
         self.set_covariance_meas(m_cov)
         self.set_covariance_disturb(q_cov)
         self.set_covariance_u(u_cov)
@@ -434,11 +428,11 @@ class MheGen(NmpcGen):
                 con_w.activate()
         
     def solve_mhe(self, fix_noise = False):
-        # fix process noise degrees of freedom
+        # fix process noise as degrees of freedom
         if fix_noise:
             self.lsmhe.wk_mhe.fix()
 
-        # solve statement
+        # don't relax the problem (path constraints are removed anyway, possibly redundant)
         for i in self.lsmhe.eps.index_set():
             self.lsmhe.eps[i].value = 0
         self.lsmhe.eps.fix()
@@ -455,24 +449,16 @@ class MheGen(NmpcGen):
 
         result = ip.solve(self.lsmhe, tee=True)
         aux = value(self.lsmhe.obfun_mhe)
-        #for k in self.lsmhe.wk_mhe.index_set():
-        #    self.lsmhe.wk_mhe[k] = 0
-        #    self.lsmhe.wk_mhe[k].fixed = False 
         
-        #result = ip.solve(self.lsmhe, tee=True)
-        #aux =- value(self.lsmhe.obfun_mhe)
-
-        output = self.store_results(self.lsmhe) # saves the results to initialize the upcoming mhe problem
+        # saves the results to initialize the upcoming mhe problem
+        # is up to the user to do it by hand
+        output = self.store_results(self.lsmhe)
     
         # saves the predicted initial_values for the states
         for x in self.states:
             for j in self.x_vars[x]:
                 self.initial_values[(x,j)] = output[(x,(self.nfe_mhe,3)+j)]
-                self.current_state_info[(x,j)] = self.initial_values[(x,j)]# !!o!! set current_state_info as the estimated state
-        # eliminate one ? save the same purpose
-        # expand the nfe_mhe horizon
-        # self.nfe_mhe += 1 this is done by cycle_iteration --> easier to switch from as to normal nmpc/mhe
-        
+                
         # load solution status in self.nmpc_trajectory
         self.nmpc_trajectory[self.iterations,'solstat_mhe'] = [str(result.solver.status),str(result.solver.termination_condition)]
         self.nmpc_trajectory[self.iterations,'obj_value_mhe'] = aux
@@ -537,7 +523,6 @@ class MheGen(NmpcGen):
             if self.update_scenario_tree:
                 # idea: go through the axis of the ellipsoid (U) and include the intersections of this axis with confidence ellipsoid on both ends as scenarios (sigmapoints)
                 # only accept these scenarios if sigmapoints are inside hypercube spanned by euclidean unit vectors around nominal value  
-                
                 l = 0
                 scenarios = {}
                 for m in range(dimension):
@@ -617,17 +602,6 @@ class MheGen(NmpcGen):
                             scaling[m][m] = p_mhe[key].value
                     self.weighting_matrix = np.linalg.inv(np.dot(scaling.transpose(),np.dot(A,scaling)))
                     self.weighting_matrix = sqrtm(self.weighting_matrix) # weighting matrix to find rectangle that has ellipsoid inscribed
-                    
-#             #REPORT JAN2018 --> replaced by updating parameters if confidence high enough!
-#                for p in self.p_noisy:
-#                olnmpc_param = getattr(self.olnmpc,p)
-#                fs_param = getattr(self.forward_simulation_model,p)
-#                estimated_param = getattr(self.lsmhe,p)
-#                for key in self.p_noisy[p]:
-#                    olnmpc_param[key].value = estimated_param[key].value          
-#                    fs_param[key].value = estimated_param[key].value 
-            # compute worst case parameter realization constrained to confidence ellipsoid
-             
                                 
     def compute_offset_measurements(self):
         mhe_y = getattr(self.lsmhe, "yk0_mhe")
@@ -1553,9 +1527,10 @@ class MheGen(NmpcGen):
         ftimings.close()
         self._k_timing = s.split()
 
-    def update_state_mhe(self, as_nmpc_mhe_strategy=False):
-        # Improvised strategy
-        if as_nmpc_mhe_strategy:
+    def update_state_mhe(self, asMHE=False):
+        # set curr_estate pretty much 
+        # forgot what this is good for except setting curr_estate
+        if asMHE:
             self.journalizer("I", self._c_it, "update_state_mhe", "offset ready for asnmpcmhe")
             for x in self.states:
                 xvar = getattr(self.lsmhe, x)

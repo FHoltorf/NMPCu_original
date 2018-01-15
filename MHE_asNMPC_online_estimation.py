@@ -32,7 +32,7 @@ from copy import deepcopy
 states = ["PO","MX","MY","Y","W","PO_fed"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","PO_fed"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)]}
-p_noisy = {"A":['p'],'Hrxn_aux':['p']}
+p_noisy = {"A":['p','i']}
 #p_noisy = {"A":['p','i']}
 u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
@@ -74,8 +74,8 @@ e.recipe_optimization()
 e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
 e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
 e.generate_state_index_dictionary()
-e.create_nmpc2() # with tracking-type regularization
-e.load_reference_trajectories(0)
+e.create_nmpc() # with tracking-type regularization
+e.load_reference_trajectories()
 
 k = 1  
 
@@ -89,25 +89,23 @@ curr_pstate = {}
 #try:
 for i in range(1,nfe):
     print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
-    nfe_new = nfe - i
     e.create_mhe()
     if i == 1:
-        e.plant_simulation(e.store_results(e.recipe_optimization_model),disturbances=v_disturbances,first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
-        e.set_prediction(e.store_results(e.recipe_optimization_model))
+        e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+        e.set_measurement_prediction(e.store_results(e.recipe_optimization_model))
         e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov) #adjusts the mhe problem according to new available measurements
-        e.cycle_nmpc(e.store_results(e.recipe_optimization_model),nfe_new)
+        e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
-        e.plant_simulation(e.store_results(e.olnmpc),disturbances=v_disturbances,disturbance_src="parameter_noise",parameter_disturbance=v_param)
-        e.set_prediction(e.store_results(e.forward_simulation_model))
+        e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
+        e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov) 
-        e.cycle_nmpc(e.store_results(e.olnmpc),nfe_new)   
+        e.cycle_nmpc(e.store_results(e.olnmpc))   
     
     # solve the advanced step problems
     e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
 
-    e.load_reference_trajectories(i) # loads the reference trajectory in olnmpc problem (for regularization)
+    e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
     e.solve_olnmpc() # solves the olnmpc problem
-    e.olnmpc.write_nl()
     
     # preparation for nmpc
     e.create_suffixes_nmpc()
@@ -117,8 +115,7 @@ for i in range(1,nfe):
     e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
     
     # solve mhe problem
-    e.solve_mhe(fix_noise=True) # solves the mhe problem
-    previous_mhe = e.store_results(e.lsmhe)
+    previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
     e.compute_confidence_ellipsoid()
     
     # update state estimate 
@@ -126,7 +123,6 @@ for i in range(1,nfe):
     
     # compute fast update for nmpc
     state_offset[i], curr_pstate[i], curr_estate[i] = e.compute_offset_state(src_kind="estimated")
-    
     before[i], after[i], diff[i], applied[i] = e.sens_dot_nmpc()   
 
     

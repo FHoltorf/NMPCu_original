@@ -414,9 +414,11 @@ class MheGen(NmpcGen):
             
         
     def solve_mhe(self,fix_noise=False):
+        # fix process noise as degrees of freedom
         if fix_noise:
             self.lsmhe.wk_mhe.fix()
-        # solve statement
+        
+        # don't relax the problem (path constraints are removed anyway, possibly redundant)
         for i in self.lsmhe.eps.index_set():
             self.lsmhe.eps[i].value = 0
         self.lsmhe.eps.fix()
@@ -433,23 +435,15 @@ class MheGen(NmpcGen):
 
         result = ip.solve(self.lsmhe, tee=True)
         aux = value(self.lsmhe.obfun_mhe)
-        #for k in self.lsmhe.wk_mhe.index_set():
-        #    self.lsmhe.wk_mhe[k] = 0
-        #    self.lsmhe.wk_mhe[k].fixed = False 
         
-        #result = ip.solve(self.lsmhe, tee=True)
-        #aux =- value(self.lsmhe.obfun_mhe)
-        
+        # saves the results to initialize the upcoming mhe problem
+        # is up to the user to do it by hand
         output = self.store_results(self.lsmhe) # saves the results to initialize the upcoming mhe problem
     
         # saves the predicted initial_values for the states
         for x in self.states:
             for j in self.x_vars[x]:
                 self.initial_values[(x,j+(1,))] = output[(x,(self.nfe_mhe,3)+j)]
-                self.current_state_info[(x,j)] = self.initial_values[(x,j+(1,))]# !!o!! set current_state_info as the estimated state
-                    # eliminate one ? save the same purpose
-        # expand the nfe_mhe horizon
-        #self.nfe_mhe += 1 this is done by cycle_iteration --> easier to switch from as to normal nmpc/mhe
         
         # load solution status in self.nmpc_trajectory
         self.nmpc_trajectory[self.iterations,'solstat_mhe'] = [str(result.solver.status),str(result.solver.termination_condition)]
