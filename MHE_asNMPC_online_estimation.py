@@ -131,8 +131,6 @@ for i in range(1,nfe):
     e.cycle_iterations()
     k += 1
     
-#    if i == 2:
-#        break
     if  e.nmpc_trajectory[i,'solstat'] != ['ok','optimal'] or \
         e.nmpc_trajectory[i,'solstat_mhe'] != ['ok','optimal'] or \
         e.plant_trajectory[i,'solstat'] != ['ok','optimal'] or \

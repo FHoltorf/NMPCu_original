@@ -1044,9 +1044,9 @@ class NmpcGen(DynGen):
             # solve optimization problem
             self.olnmpc.create_bounds()
             self.olnmpc.clear_aux_bounds()
-            self.olnmpc.tf.setub(50)
-            self.olnmpc.u1.unfix()
-            self.olnmpc.u2.unfix()
+            for u in self.u:
+                u_var = getattr(self.olnmpc,u)
+                u_var.unfix()
             self.olnmpc.tf.unfix()
             self.olnmpc.eps.unfix()
             
@@ -1062,8 +1062,6 @@ class NmpcGen(DynGen):
                 self.olnmpc.troubleshooting()
                 sys.exit()
             
-            # NOT REQUIRED!
-            
             # check whether optimal control problem feasible
             flag = False
             for index in self.olnmpc.eps.index_set():
@@ -1073,19 +1071,11 @@ class NmpcGen(DynGen):
                 break
             
             self.olnmpc.eps.fix()
-            self.olnmpc.u1.fix()
-            self.olnmpc.u2.fix()
+            for u in self.u:
+                u_var = getattr(self.olnmpc,u)
+                u_var.fix()
             self.olnmpc.tf.fix()
             self.olnmpc.clear_all_bounds()
-            
-            
-            #results = ip.solve(self.olnmpc, tee=False)
-            
-#            if [str(results.solver.status),str(results.solver.termination_condition)] != ['ok','optimal']:
-#                self.olnmpc.A.pprint()
-#                self.olnmpc.write_nl()
-#                self.olnmpc.troubleshooting()
-#                sys.exit()
                 
             # compute sensitivities
             self.olnmpc.ipopt_zL_in.update(self.olnmpc.ipopt_zL_out)
@@ -1140,7 +1130,7 @@ class NmpcGen(DynGen):
                     sens[key] = self.alpha[key[1]]*sens[key]
             elif type(self.alpha) == tuple and self.alpha[1] == 'adapted':
                 # case c): weighting_matrix --> rectangle is tilted
-                # homemade matrix multiplication to ensure the rows and cols match...
+                # self made matrix multiplication to ensure the rows and cols match...
                 if type(self.weighting_matrix) != dict:
                     for key in sens:
                         #key[1] = p # the exact same index for self.PI_indices
@@ -1179,10 +1169,11 @@ class NmpcGen(DynGen):
             
         self.olnmpc.create_bounds()
         self.olnmpc.clear_aux_bounds()
-        self.olnmpc.tf.setub(50)
-        self.olnmpc.u1.unfix()
-        self.olnmpc.u2.unfix()
+        for u in self.u:
+            u_var = getattr(self.olnmpc,u)
+            u_var.unfix()
         self.olnmpc.tf.unfix()
+        
         for i in cons:
             slack = getattr(self.olnmpc, 's_'+i)
             for index in slack.index_set():

@@ -50,7 +50,7 @@ st = {} # scenario tree : {parent_node, scenario_number on current stage, base n
 s_max = 5
 nr = 1
 nfe = 24
-alpha = 0.1
+alpha = 0.2
 for i in range(1,nfe+1):
     if i < nr + 1:
         for s in range(1,s_max**i+1):
@@ -123,14 +123,14 @@ for i in range(1,nfe):
     print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
     e.create_mhe()
     if i == 1:
-        e.plant_simulation(e.store_results(e.recipe_optimization_model),disturbances=v_disturbances,first_call=True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
-        e.set_prediction(e.store_results(e.recipe_optimization_model)) # only required for asMHE
+        e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call=True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+        e.set_measurement_prediction(e.store_results(e.recipe_optimization_model)) # only required for asMHE
         e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov, first_call=True) #adjusts the mhe problem according to new available measurements
         e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
         e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
-        e.plant_simulation(e.store_results(e.olnmpc),disturbances=v_disturbances,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
-        e.set_prediction(e.store_results(e.forward_simulation_model))
+        e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+        e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov) # only required for asMHE
         e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
         e.cycle_nmpc(e.store_results(e.olnmpc))   
@@ -154,18 +154,10 @@ for i in range(1,nfe):
     before[i], after[i], diff[i], applied[i] = e.sens_dot_nmpc()   
 
     #sIpopt
-    #e.create_nmpc_sIpopt_suffixes()
-    #e.nmpc_sIpopt_update()
-
-#    if i == 1:
-#        break
-    # forward simulation for next iteration
     e.forward_simulation()
-    
     e.cycle_iterations()
     k += 1
    
-
     #troubleshooting
     if  e.nmpc_trajectory[i,'solstat'] != ['ok','optimal'] or \
         e.nmpc_trajectory[i,'solstat_mhe'] != ['ok','optimal'] or \

@@ -585,6 +585,9 @@ class MheGen(NmpcGen):
                             if dev > 1 + self.confidence_threshold:
                                 flag = True
                                 break
+                            elif dev < 1 + self.robustness_threshold:
+                                self.weighting_matrix = np.diag([self.robustness_threshold,self.robustness_threshold])
+                                flag = True
                         if flag:
                             break
                     if flag:
@@ -756,18 +759,22 @@ class MheGen(NmpcGen):
         # measured states R_mhe
         rtarget = getattr(self.lsmhe, "R_mhe")
         for key in cov_dict:
+            if self.multimodel or self.linapprox:
+                aux_key = ((key[0][0], key[0][1] + (1,)),(key[1][0], key[1][1] + (1,)))
+            else:
+                aux_key = key       
             # 1. check whether the variable is even a measured one
-            if key[0] in self.yk_key: 
+            if aux_key[0] in self.yk_key: 
                 # 2. if yes: compute the respective weight as follows:
                 vni = key[0]
                 vnj = key[1]
-
-                v_i = self.yk_key[vni]
-                v_j = self.yk_key[vnj]
+                vni_m = aux_key[0]
+                v_i = self.yk_key[aux_key[0]]
+                v_j = self.yk_key[aux_key[1]]
                 for _t in range(1,self.nfe_mhe+1):
                     if self.diag_Q_R:                
                         try:
-                            rtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.measurement[_t][vni] + 0.001)**2
+                            rtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.measurement[_t][vni_m] + 0.001)**2
                         except ZeroDivisionError:
                             rtarget[_t,v_i] = 1 
                     else:
@@ -786,30 +793,35 @@ class MheGen(NmpcGen):
         qtarget = getattr(self.lsmhe, "Q_mhe")
         w = getattr(self.lsmhe, 'wk_mhe')
         for key in cov_dict:
-            if key[0] in self.xkN_key:
+            if self.multimodel or self.linapprox:
+                aux_key = ((key[0][0], key[0][1] + (1,)),(key[1][0], key[1][1] + (1,)))
+            else:
+                aux_key = key       
+            if aux_key[0] in self.xkN_key:
                 vni = key[0]
-                vnj = key[1]
-                v_i = self.xkN_key[vni]
-                v_j = self.xkN_key[vnj]
-            
+                vnj = key[1]    
+                xic_key = aux_key[0][1]
+                vni_traj = aux_key[0]
+                v_i = self.xkN_key[aux_key[0]]
+                v_j = self.xkN_key[aux_key[1]]
                 xic = getattr(self.lsmhe, vni[0] + "_ic")
                 try:
-                    if vni[1] == ():
+                    if xic_key == ():
                         qtarget[0, v_i] = 1 / (cov_dict[vni, vnj]*xic.value + 0.001)**2 # .00001
                     else:
-                        qtarget[0, v_i] = 1 / (cov_dict[vni, vnj]*xic[vni[1]].value + 0.001)**2 # .0001
+                        qtarget[0, v_i] = 1 / (cov_dict[vni, vnj]*xic[xic_key].value + 0.001)**2 # .0001
                     
                     if set_bounds:
                         if cov_dict[vni, vnj] != 0:
-                            if vni[1] == (): 
+                            if xic_key == (): 
                                 confidence = 3*cov_dict[vni, vnj]*xic.value
                             else:
-                                confidence = 3*cov_dict[vni, vnj]*xic[vni[1]].value
+                                confidence = 3*cov_dict[vni, vnj]*xic[xic_key].value
                         else:
-                            if vni[1] == ():     
+                            if xic_key == ():     
                                 confidence = 0.5*xic.value
                             else:
-                                confidence = 0.5*xic[vni[1]].value
+                                confidence = 0.5*xic[xic_key].value
                         w[0,v_i].setlb(-confidence)
                         w[0,v_i].setub(confidence)
                         
@@ -823,7 +835,7 @@ class MheGen(NmpcGen):
                 for _t in range(1,self.nfe_mhe):
                     if self.diag_Q_R:
                         try:
-                            qtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.nmpc_trajectory[_t,vni] + .001)**2 
+                            qtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.nmpc_trajectory[_t,vni_traj] + .001)**2 
                         except ZeroDivisionError:
                             qtarget[_t, v_i] = 1
                     else:
@@ -832,16 +844,17 @@ class MheGen(NmpcGen):
                     # bound disturbances to help solution
                     if set_bounds:                        
                         if cov_dict[vni, vnj] != 0.0:
-                            confidence = 10*cov_dict[vni,vnj]*self.nmpc_trajectory[_t,vni]
+                            confidence = 10*cov_dict[vni,vnj]*self.nmpc_trajectory[_t,vni_traj]
                         else:
-                            confidence = abs(10*self.nmpc_trajectory[_t,vni])
+                            confidence = abs(10*self.nmpc_trajectory[_t,vni_traj])
 
                         w[_t,v_i].setlb(-confidence)
                         w[_t,v_i].setub(confidence)
                         
                         if abs(w[_t,v_i].lb - w[_t,v_i].ub) < 1e-5:
                             w[_t,v_i].fix()
-            
+            else:
+                print(key[0], ' is not a state variable')
 
     def set_covariance_u(self, cov_dict):
         """Sets covariance(inverse) for the states.
@@ -850,18 +863,15 @@ class MheGen(NmpcGen):
         Returns:
             None
         """
+       
         utarget = getattr(self.lsmhe, "U_mhe")
         for key in cov_dict:
-            vni = key[0]
-            for _t in range(1,self.nfe_mhe+1):
-                if _t > self.nfe_t_0:
-                    aux_key = self.nfe_t_0
-                else:
-                    aux_key = _t # tailored to my code basically
+            u = key[0]
+            for t in range(1,self.nfe_mhe+1):
                 try:
-                    utarget[_t, vni] = 1 / (cov_dict[key]*self.reference_control_trajectory[vni,aux_key] + .001)**2
+                    utarget[t, u] = 1 / (cov_dict[key]*self.nmpc_trajectory[t,u] + .001)**2
                 except ZeroDivisionError:
-                    utarget[_t, vni] = 1
+                    utarget[t, u] = 1.0
                 #qtarget[_t, vni] = 1 / cov_dict[key]
 
     def shift_mhe(self):

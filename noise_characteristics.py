@@ -8,8 +8,8 @@ Created on Wed Nov  1 13:49:10 2017
 # relative standard deviation that is associated with disturbances
 disturbance_error = 0.05
 measurement_error = 0.05
-disturbance_error_T = 0.0
-disturbance_error_F = 0.0
+disturbance_error_T = 0.05
+disturbance_error_F = 0.05
 
 qcov = {}
 qcov[("PO",()), ("PO",())] = disturbance_error

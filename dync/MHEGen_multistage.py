@@ -287,7 +287,7 @@ class MheGen(NmpcGen):
                 var[key].setlb(None)
                 var[key].setub(None)
         
-    def set_prediction(self,results):
+    def set_measurement_prediction(self,results):
         measured_state = {}
         for x in self.states:
             for j in self.x_vars[x]:
@@ -1020,6 +1020,8 @@ class MheGen(NmpcGen):
             m += 1
         A = 1/confidence*np.array([np.array(rows[i]) for i in range(dim)]) 
         self._scaled_shape_matrix = np.dot(S.transpose(),np.dot(A,S)) # scaled shape matrix = scaled reduced hessian
+        
+        
         # alternatively much more efficient to just compute inverse of reduced hessian and scale that.
         # not is not required to compute the actual shape matrix of the ellipsoid
         

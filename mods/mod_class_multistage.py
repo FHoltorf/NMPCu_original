@@ -1108,7 +1108,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         m_aux.epc_PO_ptg.deactivate()
         m_aux.F[1,1] = 1.26
         m_aux.T[1,1] = 398.0/self.T_scale
-        m_aux.tf[1,1] = min(8.0*24.0/self.nfe,8.0)
+        m_aux.tf[1,1] = min(12.0*24.0/self.nfe,12.0)
         m_aux.F[1,1].fixed = True
         m_aux.T[1,1].fixed = True
         m_aux.tf[1,1].fixed = True
@@ -1372,15 +1372,6 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         with open("pprint.txt","w") as f:
             self.pprint(ostream=f)
             f.close()
-            
-    def fallback_strategy(self):
-        self.u1_nom = Param(initialize=0.01, mutable=True)
-        self.u2_nom = Param(initialize=0.01, mutable=True)
-        def _obj_u(self):
-            return (self.u1[1,1] - self.u1_nom)**2/(self.u1[1,1].ub-self.u1[1,1].lb)**2 + (self.u2[1,1] - self.u2_nom)**2/(self.u2[1,1].ub-self.u2[1,1].lb)**2
-        self.obj_u = Objective(rule=_obj_u,sense=minimize)
-
-    
 
 ## create scenario_tree
 #s_max = 3

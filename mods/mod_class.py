@@ -1127,13 +1127,6 @@ class SemiBatchPolymerization(ConcreteModel):
         with open("pprint.txt","w") as f:
             self.pprint(ostream=f)
             f.close()
-            
-    def fallback_strategy(self):
-        self.u1_nom = Param(initialize=0.01, mutable=True)
-        self.u2_nom = Param(initialize=0.01, mutable=True)
-        def _obj_u(self):
-            return (self.u1[1] - self.u1_nom)**2/(self.u1[1].ub-self.u1[1].lb)**2 + (self.u2[1] - self.u2_nom)**2/(self.u2[1].ub-self.u2[1].lb)**2
-        self.obj_u = Objective(rule=_obj_u,sense=minimize)
 
 
 

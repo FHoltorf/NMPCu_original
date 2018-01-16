@@ -49,7 +49,7 @@ pc = ['Tad','heat_removal']
 
 # scenario_tree
 st = {} # scenario tree : {parent_node, scenario_number on current stage, base node (True/False), scenario values {'name',(index):value}}
-s_max = 3
+s_max = 5
 nr = 1
 nfe = 24
 alpha = 0.2
@@ -60,6 +60,10 @@ for i in range(1,nfe+1):
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A','p'):1.0,('A','i'):1.0})
             elif s%s_max == 2:
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0+alpha})
+            elif s%s_max == 3:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0+alpha})
+            elif s%s_max == 4:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0-alpha})
             else:
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0-alpha})
     else:
@@ -67,6 +71,9 @@ for i in range(1,nfe+1):
             st[(i,s)] = (i-1,s,True,st[(i-1,s)][3])
 
 sr = s_max**nr
+
+shape_matrix = np.diag([1.0/0.2**2,1.0/0.2**2])
+shape_matrix_indices = {('A', 'i'): 0, ('A', 'p'): 1}
 
 e = MheGen(d_mod=SemiBatchPolymerization_twostage,
            d_mod_mhe=SemiBatchPolymerization,
@@ -103,12 +110,9 @@ e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_mo
 e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
 e.generate_state_index_dictionary()
 e.create_enmpc() # with tracking-type regularization
-
 e.create_mhe()
 
 k = 1 
-
-
 before = {}
 after = {}
 diff = {}
@@ -120,20 +124,19 @@ curr_pstate = {}
 for i in range(1,nfe):
     print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
     e.create_mhe()
-    nfe_new = nfe - i
     if i == 1:
-        e.plant_simulation(e.store_results(e.recipe_optimization_model),disturbances=v_disturbances,first_call=True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
-        e.set_prediction(e.store_results(e.recipe_optimization_model)) # only required for asMHE
+        e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call=True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+        e.set_measurement_prediction(e.store_results(e.recipe_optimization_model)) # only required for asMHE
         e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov, first_call=True) #adjusts the mhe problem according to new available measurements
         e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
-        e.cycle_nmpc(e.store_results(e.recipe_optimization_model),nfe_new)
+        e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
-        e.plant_simulation(e.store_results(e.olnmpc),disturbances=v_disturbances,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
-        e.set_prediction(e.store_results(e.forward_simulation_model))
+        e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+        e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov) # only required for asMHE
         e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
-        e.SB_scenario_generation(cons=cons)
-        e.cycle_nmpc(e.store_results(e.olnmpc),nfe_new)   
+        e.SB_scenario_generation(cons=cons,epsilon = 0.1, shape_matrix = shape_matrix, shape_matrix_indices=shape_matrix_indices)
+        e.cycle_nmpc(e.store_results(e.olnmpc))   
 
     # solve the advanced step problem
     e.solve_olnmpc() # solves the olnmpc problem
@@ -143,8 +146,7 @@ for i in range(1,nfe):
     e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
 
     # solve mhe problem
-    e.solve_mhe(fix_noise=True) # solves the mhe problem
-    previous_mhe = e.store_results(e.lsmhe)
+    previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
     e.compute_confidence_ellipsoid()
 
     # update state estimate 
@@ -155,18 +157,10 @@ for i in range(1,nfe):
     before[i], after[i], diff[i], applied[i] = e.sens_dot_nmpc()   
 
     #sIpopt
-    #e.create_nmpc_sIpopt_suffixes()
-    #e.nmpc_sIpopt_update()
-
-#    if i == 1:
-#        break
-    # forward simulation for next iteration
-    e.forward_simulation()
-    
+    e.forward_simulation() 
     e.cycle_iterations()
     k += 1
    
-
     #troubleshooting
     if  e.nmpc_trajectory[i,'solstat'] != ['ok','optimal'] or \
         e.nmpc_trajectory[i,'solstat_mhe'] != ['ok','optimal'] or \

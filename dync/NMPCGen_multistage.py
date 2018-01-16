@@ -494,7 +494,7 @@ class NmpcGen(DynGen):
         self.olnmpc.name = "olnmpc (Open-Loop eNMPC)"
         self.olnmpc.create_bounds() 
         self.olnmpc.clear_aux_bounds()
-        
+
     def store_results(self,m):
         # store the results of an entire optimization problem into one dictionary
         # output = {'name',(key):value}
@@ -1213,11 +1213,13 @@ class NmpcGen(DynGen):
         
         epsilon = kwargs.pop('epsilon',0.2)
         shape_matrix = kwargs.pop('shape_matrix',self._scaled_shape_matrix)
+        shape_matrix_indices = kwargs.pop('shape_matrix_indices',self.PI_indices)
         # set shape matrix             
         # prepare sensitivity computation
         self.olnmpc.eps.fix()
-        self.olnmpc.u1.fix()
-        self.olnmpc.u2.fix()
+        for u in self.u:
+            u_var = getattr(self.olnmpc,u)
+            u_var.fix()
         self.olnmpc.tf.fix()
         self.olnmpc.clear_all_bounds()
         
@@ -1277,8 +1279,9 @@ class NmpcGen(DynGen):
         
         # no idea if necessery, I am lost in the code
         self.olnmpc.eps.unfix()
-        self.olnmpc.u1.unfix()
-        self.olnmpc.u2.unfix()
+        for u in self.u:
+            u_var = getattr(self.olnmpc,u)
+            u_var.unfix()
         self.olnmpc.tf.unfix()
         self.olnmpc.create_bounds()
         self.olnmpc.clear_aux_bounds()
@@ -1305,10 +1308,10 @@ class NmpcGen(DynGen):
         A = np.zeros((tot_cols,tot_cols))  # can be sped up by exploiting symmetry
         for index1 in cols:
             key_sens1 = cols[index1]
-            key_PI1 = self.PI_indices[key_sens1]
+            key_PI1 = shape_matrix_indices[key_sens1]
             for index2 in cols:
                 key_sens2 = cols[index2]
-                key_PI2 = self.PI_indices[key_sens2]
+                key_PI2 = shape_matrix_indices[key_sens2]
                 A[index1][index2] = shape_matrix[key_PI1][key_PI2] # unnecessary when using the inverse of the reduced hessian directly, ask David about k_aug 
         A_inv = np.linalg.inv(A) # in principle not required, scaled inverse reduced hessian
         
@@ -1341,13 +1344,19 @@ class NmpcGen(DynGen):
             # what to do if con_vio_copy is empty?????????????/
         
         # truncate scenarios that are unreasonable
-        for s in scenarios:
-            for i in range(tot_cols):
-                if scenarios[s][i] > self.confidence_threshold:
-                    scenarios[s][i] = self.confidence_threshold
-                elif scenarios[s][i] < -self.confidence_threshold:
-                    scenarios[s][i] = -self.confidence_threshold
-                    
+        
+#        for s in scenarios:
+#            for i in range(tot_cols):
+#                if abs(scenarios[s][i]) > self.confidence_threshold:
+#                    if np.sign(scenarios[s][i]) == 1:
+#                        scenarios[s][i] = self.confidence_threshold
+#                    else:
+#                        scenarios[s][i] = self.confidence_threshold
+#                elif abs(scenarios[s][i]) < self.robustness_threshold:
+#                    if np.sign(scenarios[s][i]) == 1:
+#                        scenarios[s][i] = self.robustness_threshold
+#                    else:
+#                        scenarios[s][i] = self.robustness_threshold
         # update scenario tree
         # tailored to 2 stage stochastic programming currently
         for i in range(1,self.nfe_t+1):
