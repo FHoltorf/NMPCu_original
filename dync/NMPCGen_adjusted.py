@@ -224,7 +224,7 @@ class NmpcGen(DynGen):
         disturbance_src = kwargs.pop('disturbance_src', 'process_noise')
         # options: process_noise --> gaussian noise added to all states
         #          parameter noise --> noise added to the uncertain model parameters
-        #                               or different ones
+        #                              or different ones
         #          input noise --> noise added to the inputs/controls
         # not exhaustive list, can be adapted/extended as one wishes
         # combination of all the above with noise in the initial point supported
@@ -647,7 +647,7 @@ class NmpcGen(DynGen):
         self.olnmpc.Q_nmpc = Param(self.olnmpc.xmpcS_nmpc, initialize=1.0, mutable=True)  
         self.olnmpc.R_nmpc = Param(self.olnmpc.umpcS_nmpc, initialize=1.0, mutable=True) 
         # C: Weights for the different finite elements (time dependence) (for x (Q) and u (R))
-        self.olnmpc.Q_w_nmpc = Param(self.olnmpc.fe_t, initialize=0.0, mutable=True) # 1e-4
+        self.olnmpc.Q_w_nmpc = Param(self.olnmpc.fe_t, initialize=1.0, mutable=True) # 1e-4
         self.olnmpc.R_w_nmpc = Param(self.olnmpc.fe_t, initialize=0.0, mutable=True) # 1e2
         
         # generate the expressions for the objective function

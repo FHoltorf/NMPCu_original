@@ -6,7 +6,7 @@ Created on Wed Nov  1 13:49:10 2017
 @author: flemmingholtorf
 """
 # relative standard deviation that is associated with disturbances
-disturbance_error = 0.05
+disturbance_error = 0.10
 measurement_error = 0.05
 disturbance_error_T = 0.05
 disturbance_error_F = 0.05
@@ -86,7 +86,7 @@ v_param = {} #[relative standard deviation, frequency for changes (measured in i
 v_param[('A',('a',))] = [0.0,200]
 v_param[('A',('i',))] = [0.1,100]
 v_param[('A',('p',))] = [0.1,100]
-v_param[('A',('t',))] = [0.0,200]
+v_param[('A',('t',))] = [0.1,200]
 v_param[('Ea',('a',))] = [0.0,200] 
 v_param[('Ea',('i',))] = [0.0,200]
 v_param[('Ea',('p',))] = [0.0,200]

@@ -9,7 +9,7 @@ Created on Fri Sep 29 21:51:51 2017
 
 from __future__ import print_function
 from pyomo.environ import *
-# from nmpc_mhe.dync.MHEGen import MheGen
+
 from main.dync.MHEGen_adjusted import MheGen
 from main.mods.mod_class import *
 import sys
@@ -21,7 +21,7 @@ import numpy.linalg as linalg
 from scipy.stats import chi2
 from copy import deepcopy
 #redirect system output to a file:
-#sys.stdout = open('consol_output.txt','w')
+sys.stdout = open('consol_output.txt','w')
 
 
 ###############################################################################

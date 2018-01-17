@@ -33,13 +33,15 @@ states = ["PO","MX","MY","Y","W","PO_fed"] # ask about PO_fed ... not really a r
 x_noisy = ["PO","MX","MY","Y","W","PO_fed"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)]}
 #p_noisy = {"A":['p','i']}
-p_noisy = {"A":['p'],"Hrxn_aux":['p']}
+p_noisy = {"A":['p','i']}
 u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
 
 # measured variables
-y = {"PO", "Y", "W", "MY", "MX", "MW","m_tot"}
-y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
+#y = {"PO", "Y", "W", "MY", "MX", "MW","m_tot"}
+#y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
+y = {"heat_removal","m_tot","MW","PO"}
+y_vars = {"heat_removal":[()],"m_tot":[()],"MW":[()],"PO":[()]}
 
 nfe = 24
 
@@ -55,6 +57,7 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            u=u,
            noisy_inputs = False,
            noisy_params = False,
+           adapt_params = False,
            u_bounds=u_bounds,
            diag_QR=True,
            nfe_t=nfe,
@@ -70,8 +73,8 @@ e.recipe_optimization()
 e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
 e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
 e.generate_state_index_dictionary()
-e.create_nmpc2() # with tracking-type regularization
-e.load_reference_trajectories(0)
+e.create_nmpc() # with tracking-type regularization
+e.load_reference_trajectories()
 
 k = 1  
 
@@ -85,23 +88,22 @@ curr_pstate = {}
 #try:
 for i in range(1,nfe):
     print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
-    nfe_new = nfe - i
     e.create_mhe()
     if i == 1:
-        e.plant_simulation(e.store_results(e.recipe_optimization_model),disturbances=v_disturbances,first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
-        e.set_prediction(e.store_results(e.recipe_optimization_model))
+        e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+        e.set_measurement_prediction(e.store_results(e.recipe_optimization_model))
         e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov) #adjusts the mhe problem according to new available measurements
-        e.cycle_nmpc(e.store_results(e.recipe_optimization_model),nfe_new)
+        e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
-        e.plant_simulation(e.store_results(e.olnmpc),disturbances=v_disturbances,disturbance_src="parameter_noise",parameter_disturbance=v_param)
-        e.set_prediction(e.store_results(e.forward_simulation_model))
+        e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
+        e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov) 
-        e.cycle_nmpc(e.store_results(e.olnmpc),nfe_new)   
+        e.cycle_nmpc(e.store_results(e.olnmpc))   
     
     # solve the advanced step problems
     e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
 
-    e.load_reference_trajectories(i) # loads the reference trajectory in olnmpc problem (for regularization)
+    e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
     e.solve_olnmpc() # solves the olnmpc problem
     e.olnmpc.write_nl()
     

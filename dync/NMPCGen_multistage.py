@@ -59,6 +59,7 @@ class NmpcGen(DynGen):
         self.st = kwargs.pop('scenario_tree', dummy_tree)
         self.multistage = kwargs.pop('multistage', True)
         self.s_max = kwargs.pop('s_max', 1) # number of scenarios
+        self.s_used = self.s_max
         self.nr = kwargs.pop('robust_horizon', 1) # robust horizon
         
         # objective type
@@ -397,7 +398,7 @@ class NmpcGen(DynGen):
     def recipe_optimization(self):
         self.nfe_t_0 = self.nfe_t # set self.nfe_0 to keep track of the length of the reference trajectory
         self.generate_state_index_dictionary()
-        self.recipe_optimization_model =  self.d_mod(self.nfe_t,self.ncp_t,scenario_tree = self.st, s_max = self.s_max, nr = self.nr)#self.d_mod(self.nfe_t, self.ncp_t, scenario_tree = self.st)
+        self.recipe_optimization_model =  self.d_mod(self.nfe_t,self.ncp_t,scenario_tree = self.st, s_max = self.s_used, nr = self.nr)#self.d_mod(self.nfe_t, self.ncp_t, scenario_tree = self.st)
         self.recipe_optimization_model.initialize_element_by_element()
         self.recipe_optimization_model.create_bounds()
         self.recipe_optimization_model.create_output_relations()
@@ -490,7 +491,7 @@ class NmpcGen(DynGen):
                     continue
          
     def create_enmpc(self):
-        self.olnmpc = self.d_mod(self.nfe_t,self.ncp_t,scenario_tree = self.st, s_max = self.s_max, nr = self.nr)
+        self.olnmpc = self.d_mod(self.nfe_t,self.ncp_t,scenario_tree = self.st, s_max = self.s_used, nr = self.nr)
         self.olnmpc.name = "olnmpc (Open-Loop eNMPC)"
         self.olnmpc.create_bounds() 
         self.olnmpc.clear_aux_bounds()
@@ -1333,15 +1334,24 @@ class NmpcGen(DynGen):
         for s in range(2,self.s_max+1): # scenario 1 is reserved for the nomnal sscenario
             wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
             scenarios[s] = delta_p_wc[wc_scenario]
-            # remove all scenarios that are in epsilon-neighborhood of the just utilized scenario
-            while(True):
-                con_vio_dummy = {key: value for key, value in con_vio_copy.items() if np.linalg.norm(delta_p_wc[key]-delta_p_wc[wc_scenario]) >= epsilon}
-                if len(con_vio_dummy) < self.s_max + 1 - s:
-                    epsilon *= 0.8
-                else:
-                    con_vio_copy = deepcopy(con_vio_dummy)
-                    break
-            # what to do if con_vio_copy is empty?????????????/
+            # What to do if con_vio_copy is empty?
+            # A) remove all scenarios that are in epsilon-neighborhood of the just utilized scenario
+            #while(True):
+            #    con_vio_dummy = {key: value for key, value in con_vio_copy.items() if np.linalg.norm(delta_p_wc[key]-delta_p_wc[wc_scenario]) >= epsilon}
+            #    if len(con_vio_dummy) < self.s_max + 1 - s:
+            #        epsilon *= 0.8
+            #    else:
+            #        con_vio_copy = deepcopy(con_vio_dummy)
+            #        break
+            
+            # b) drop scenarios if set gets empty
+            con_vio_copy = {key: value for key, value in con_vio_copy.items() if np.linalg.norm(delta_p_wc[key]-delta_p_wc[wc_scenario]) >= epsilon}
+            if len(con_vio_copy) == 0:
+                break
+        self.s_used = s
+        self.nmpc_trajectory[self.iterations, 's_max'] = s
+            
+            
         
         # truncate scenarios that are unreasonable
         
@@ -1361,13 +1371,13 @@ class NmpcGen(DynGen):
         # tailored to 2 stage stochastic programming currently
         for i in range(1,self.nfe_t+1):
             if i == 1:
-                for s in range(1,self.s_max**i+1):
+                for s in range(1,self.s_used**i+1):
                     if s == 1:
                         self.st[(i,s)] = (i-1,int(np.ceil(s/float(self.s_max))),True,{(p,key) : 1.0 for p in self.p_noisy for key in self.p_noisy[p]})
                     else:
                         self.st[(i,s)] = (i-1,int(np.ceil(s/float(self.s_max))),False,{(p,key) : 1.0 + scenarios[s][cols_r[(p,key)]] for p in self.p_noisy for key in self.p_noisy[p]})
             else:
-                for s in range(1,self.s_max**self.nr+1):
+                for s in range(1,self.s_used**self.nr+1):
                     self.st[(i,s)] = (i-1,s,True,self.st[(i-1,s)][3])
             
             

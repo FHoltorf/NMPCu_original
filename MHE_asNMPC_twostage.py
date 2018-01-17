@@ -2,11 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Sep 29 21:51:51 2017
-
 @author: flemmingholtorf
 """
 #### 
-
 from __future__ import print_function
 from pyomo.environ import *
 # from nmpc_mhe.dync.MHEGen import MheGen
@@ -22,7 +20,7 @@ from scipy.stats import chi2
 from main.noise_characteristics import *
 
 # redirect system output to a file:
-#sys.stdout = open('consol_output','w')
+sys.stdout = open('consol_output','w')
 
 ###############################################################################
 ###                               Specifications

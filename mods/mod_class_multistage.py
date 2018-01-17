@@ -300,7 +300,10 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         
         def _init_W(self,s):#acW(self, t):
             if (1,s) in self.scenario_tree: 
-                return self.W[1,0,s] - self.W_ic
+                if s == 1:
+                    return self.W[1,0,s] - self.W_ic
+                else:
+                    return self.W[1,0,s] - self.W[1,0,1]
             else:
                 return Expression.Skip
             
@@ -347,7 +350,10 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         
         def _init_PO(self,s):#acW(self, t):
             if (1,s) in self.scenario_tree:
-                return self.PO[1,0,s] - self.PO_ic
+                if s == 1:
+                    return self.PO[1,0,s] - self.PO_ic
+                else:
+                    return self.PO[1,0,s] - self.PO[1,0,1]
             else:
                 return Expression.Skip
             
@@ -395,7 +401,10 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         
         def _init_PO_fed(self,s):#acW(self, t):
             if (1,s) in self.scenario_tree:
-                return self.PO_fed[1,0,s] - self.PO_fed_ic
+                if s == 1:
+                    return self.PO_fed[1,0,s] - self.PO_fed_ic
+                else:
+                    return self.PO_fed[1,0,s] - self.PO_fed[1,0,1]
             else:
                 return Expression.Skip
             
@@ -515,7 +524,10 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         
         def _init_MX(self,o,s):#acMX(self, t):
             if (1,s) in self.scenario_tree:
-                return self.MX[1,0,o,s] - self.MX_ic[o]
+                if s == 1:
+                    return self.MX[1,0,o,s] - self.MX_ic[o]
+                else:
+                    return self.MX[1,0,o,s] - self.MX[1,0,o,1]
             else:
                 return Expression.Skip
             
@@ -569,7 +581,10 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         
         def _init_Y(self,s):#acY(self, t):
             if (1,s) in self.scenario_tree:
-                return self.Y[1,0,s] - self.Y_ic
+                if s == 1:
+                    return self.Y[1,0,s] - self.Y_ic
+                else:
+                    return self.Y[1,0,s] - self.Y[1,0,1]
             else:
                 return Expression.Skip
             
@@ -617,7 +632,10 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         
         def _init_MY(self,s):#acMY(self, t):
             if (1,s) in self.scenario_tree:
-                return self.MY[1,0,s] - self.MY_ic
+                if s == 1:
+                    return self.MY[1,0,s] - self.MY_ic
+                else:
+                    return self.MY[1,0,s] - self.MY[1,0,1]
             else:
                 return Expression.Skip
         
