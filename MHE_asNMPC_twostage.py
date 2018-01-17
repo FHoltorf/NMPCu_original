@@ -20,7 +20,7 @@ from scipy.stats import chi2
 from main.noise_characteristics import *
 
 # redirect system output to a file:
-sys.stdout = open('consol_output','w')
+#sys.stdout = open('consol_output','w')
 
 ###############################################################################
 ###                               Specifications
