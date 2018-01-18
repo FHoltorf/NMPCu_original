@@ -67,6 +67,7 @@ class NmpcGen(DynGen):
         self.storage_model = object()
         self.initial_values = {}
         self.nominal_parameter_values = {}
+        self.delta_u = False
 
         
         # plant simulation model in order to distinguish between noise and disturbances
@@ -647,11 +648,19 @@ class NmpcGen(DynGen):
         self.olnmpc.Q_nmpc = Param(self.olnmpc.xmpcS_nmpc, initialize=1.0, mutable=True)  
         self.olnmpc.R_nmpc = Param(self.olnmpc.umpcS_nmpc, initialize=1.0, mutable=True) 
         # C: Weights for the different finite elements (time dependence) (for x (Q) and u (R))
-        self.olnmpc.Q_w_nmpc = Param(self.olnmpc.fe_t, initialize=1.0, mutable=True) # 1e-4
+        self.olnmpc.Q_w_nmpc = Param(self.olnmpc.fe_t, initialize=0.0, mutable=True) # 1e-4
         self.olnmpc.R_w_nmpc = Param(self.olnmpc.fe_t, initialize=0.0, mutable=True) # 1e2
         
-        # generate the expressions for the objective function
+        self.olnmpc.K_w_nmpc = Param(self.olnmpc.fe_t, initialize=1.0, mutable=True)
         
+        # small control steps
+        expression = 0.0
+        if self.delta_u:
+            for u in self.u:    
+                control = getattr(self.olnmpc, u)
+                expression += self.olnmpc.K_w_nmpc[1]*(self.nmpc_trajectory[self.iterations,u] - control[1])**2.0 + sum(self.olnmpc.K_w_nmpc[fe]*(control[fe]-control[fe-1])**2.0 for fe in range(2,self.nfe_t + 1))
+        # generate the expressions for the objective function
+        self.olnmpc.uK_expr_nmpc = Expression(expr = expression)
         # A: sum over state tracking terms
         self.olnmpc.xQ_expr_nmpc = Expression(expr=sum(
         sum(self.olnmpc.Q_w_nmpc[fe] *
@@ -669,9 +678,9 @@ class NmpcGen(DynGen):
         
         # declare/activate tracking obj function
         if self.multimodel or self.linapprox: # for those two model types additionally scenarios need to be accounted for
-            self.olnmpc.objfun_nmpc = Objective(expr = (self.olnmpc.tf + self.olnmpc.rho*sum(sum(self.olnmpc.eps[i,s] for i in self.olnmpc.epc) for s in self.olnmpc.s)+self.olnmpc.xQ_expr_nmpc + self.olnmpc.xR_expr_nmpc))        
+            self.olnmpc.objfun_nmpc = Objective(expr = (self.olnmpc.tf + self.olnmpc.rho*sum(sum(self.olnmpc.eps[i,s] for i in self.olnmpc.epc) for s in self.olnmpc.s)+self.olnmpc.xQ_expr_nmpc + self.olnmpc.xR_expr_nmpc + self.olnmpc.uK_expr_nmpc))        
         else:
-            self.olnmpc.objfun_nmpc = Objective(expr = (self.olnmpc.tf + self.olnmpc.rho*sum(self.olnmpc.eps[i] for i in self.olnmpc.epc)+self.olnmpc.xQ_expr_nmpc + self.olnmpc.xR_expr_nmpc))
+            self.olnmpc.objfun_nmpc = Objective(expr = (self.olnmpc.tf + self.olnmpc.rho*sum(self.olnmpc.eps[i] for i in self.olnmpc.epc)+self.olnmpc.xQ_expr_nmpc + self.olnmpc.xR_expr_nmpc + self.olnmpc.uK_expr_nmpc))
         
     def load_reference_trajectories(self):
         # assign values of the reference trajectory to parameters 

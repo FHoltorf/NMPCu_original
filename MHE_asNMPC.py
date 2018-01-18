@@ -38,10 +38,10 @@ u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
 
 # measured variables
-#y = {"PO", "Y", "W", "MY", "MX", "MW","m_tot"}
-#y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
-y = {"heat_removal","m_tot","MW","PO"}
-y_vars = {"heat_removal":[()],"m_tot":[()],"MW":[()],"PO":[()]}
+y = {"heat_removal","PO", "Y", "W", "MY", "MX", "MW","m_tot"}
+y_vars = {"heat_removal":[()],"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
+#y = {"heat_removal","m_tot","MW","PO"}
+#y_vars = {"heat_removal":[()],"m_tot":[()],"MW":[()],"PO":[()]}
 
 nfe = 24
 

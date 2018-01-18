@@ -87,7 +87,7 @@ e = MheGen(d_mod=SemiBatchPolymerization_twostage,
            s_max = sr,
            noisy_inputs = False,
            noisy_params = True,
-           adapt_params = True,
+           adapt_params = False,
            update_scenario_tree = False,
            confidence_threshold = 0.2,
            robustness_threshold = 0.05,
@@ -145,7 +145,7 @@ for i in range(1,nfe):
 
     # solve mhe problem
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-    e.compute_confidence_ellipsoid()
+    #e.compute_confidence_ellipsoid()
 
     # update state estimate 
     e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True

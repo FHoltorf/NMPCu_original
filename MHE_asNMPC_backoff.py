@@ -20,7 +20,7 @@ import numpy.linalg as linalg
 from scipy.stats import chi2
 from copy import deepcopy
 #redirect system output to a file:
-#sys.stdout = open('consol_output.txt','w')
+sys.stdout = open('consol_output.txt','w')
 
 ###############################################################################
 ###                               Specifications
@@ -53,10 +53,10 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            p_noisy=p_noisy,
            u=u,
            noisy_inputs = False,
-           noisy_params = True,
-           adapt_params = True,
-           update_uncertainty_set = True,
-           alpha = ({('A','p'):0.2,('A','i'):0.2},'adapted'),
+           noisy_params = False,
+           adapt_params = False,
+           update_uncertainty_set = False,
+           alpha = ({('A','p'):0.2,('A','i'):0.2}),
            confidence_threshold = 0.2,
            u_bounds=u_bounds,
            diag_QR=True,
@@ -64,7 +64,7 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            del_ics=False,
            sens=None,
            path_constraints=pc)
-
+e.delta_u = True
 ###############################################################################
 ###                                     NMPC
 ###############################################################################
@@ -114,8 +114,8 @@ for i in range(1,nfe):
     e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)
     
     # solve mhe problem
-    previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-    e.compute_confidence_ellipsoid()
+    previous_mhe = e.solve_mhe(fix_noise=False) # solves the mhe problem
+    #e.compute_confidence_ellipsoid()
         
     # update state estimate 
     e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True
