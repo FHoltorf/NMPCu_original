@@ -50,17 +50,16 @@ class mod(ConcreteModel):
         self.t = Set(initialize=[i for i in range(self.N+2)]) # stages 0 to N+1
             
         self.L = Var(self.fe_t, initialize=1.0)
-        self.R = Var(self.fe_t, initialize=1.0)
-        self.M0 = Var(self.fe_t, self.cp, initialize=1.0)
-        self.dM0_dt = Var(self.fe_t, self.cp, initialize=1.0)
-        self.y0 = Var(self.fe_t, self.cp, initialize=1.0)
-        self.x = Var(self.fe_t, self.cp, self.t, initialize = 1.0)
-        self.dx_dt = Var(self.fe_t, self.cp, self.t, initialize = 1.0)
-        self.y = Var(self.fe_t, self.cp, self.t, initialize = 0.0)
-        self.MD = Var(self.fe_t, self.cp, initialize=1.0)
-        self.dMD_dt = Var(self.fe_t, self.cp, initialize=1.0)
-        self.xD = Var(self.fe_t, self.cp, initialize=1.0)
-        self.dxD_dt = Var(self.fe_t, self.cp, initialize=1.0)
+        self.R = Var(self.fe_t, initialize=1.0, bounds=(0.0,15.0))
+        self.M0 = Var(self.fe_t, self.cp, initialize=100.0, bounds=(0.0,1e3))
+        self.dM0_dt = Var(self.fe_t, self.cp, initialize=-0.1)
+        self.x = Var(self.fe_t, self.cp, self.t, initialize = 1.0, bounds=(0.0,1.0))
+        self.dx_dt = Var(self.fe_t, self.cp, self.t, initialize = 0.0)
+        self.y = Var(self.fe_t, self.cp, self.t, initialize = 0.5)
+        self.MD = Var(self.fe_t, self.cp, initialize=1.0, bounds=(0.0,1e3))
+        self.dMD_dt = Var(self.fe_t, self.cp, initialize=0.1)
+        self.xD = Var(self.fe_t, self.cp, initialize=1.0, bounds=(0.0,1.0))
+        self.dxD_dt = Var(self.fe_t, self.cp, initialize=0.01)
         
         # constant relative volatility alpha
         self.alpha = Param(initialize=6.0)
@@ -76,7 +75,7 @@ class mod(ConcreteModel):
         self.x_ic[0] = 0.5
         self.M0_ic = 100.0
         self.MD_ic = 0.1
-        self.xD_ic = 0.01
+        self.xD_ic = 1.0
         
 ###############################################################################
         # system dynamics
@@ -94,7 +93,7 @@ class mod(ConcreteModel):
         def _collocation_M0(self,i,j):  
             if j > 0:
                 return self.dM0_dt[i, j] == \
-                       self.delta_t*sum(self.ldot_t[j, k] * self.M0[i, k] for k in self.cp)
+                       1/self.delta_t*sum(self.ldot_t[j, k] * self.M0[i, k] for k in self.cp)
             else:
                 return Constraint.Skip
                 
@@ -132,7 +131,7 @@ class mod(ConcreteModel):
         def _collocation_x(self,i,j,t):  
             if j > 0:
                 return self.dx_dt[i, j, t] == \
-                       self.delta_t*sum(self.ldot_t[j, k] * self.x[i, k, t] for k in self.cp)
+                       1/self.delta_t*sum(self.ldot_t[j, k] * self.x[i, k, t] for k in self.cp)
             else:
                 return Constraint.Skip
                 
@@ -167,7 +166,7 @@ class mod(ConcreteModel):
         def _collocation_MD(self,i,j):  
             if j > 0:
                 return self.dMD_dt[i, j] == \
-                       self.delta_t*sum(self.ldot_t[j, k] * self.MD[i, k] for k in self.cp)
+                       1/self.delta_t*sum(self.ldot_t[j, k] * self.MD[i, k] for k in self.cp)
             else:
                 return Constraint.Skip
                 
@@ -200,7 +199,7 @@ class mod(ConcreteModel):
         def _collocation_xD(self,i,j):  
             if j > 0:
                 return self.dxD_dt[i, j] == \
-                       self.delta_t*sum(self.ldot_t[j, k] * self.xD[i, k] for k in self.cp)
+                       1/self.delta_t*sum(self.ldot_t[j, k] * self.xD[i, k] for k in self.cp)
             else:
                 return Constraint.Skip
                 
@@ -239,7 +238,14 @@ class mod(ConcreteModel):
         def _epc_purity(self):
             return 0.99 - self.xD[self.nfe,self.ncp] <= 0.0
         
-
-m = mod(20,3)
+        self.epc_purity = Constraint(rule=_epc_purity)
+        
+        def _eobj(self):
+            return -self.MD[self.nfe,self.ncp]
+        
+        self.eobj = Objective(rule=_eobj)
+ip = SolverFactory('ipopt')
+m = mod(30,3)
+ip.solve(m, tee = True)
 
             
