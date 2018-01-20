@@ -138,7 +138,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.T_safety = Param(initialize=190.0) # [°C] maximum allowed temperature after adiabatic temperature rise
         self.molecular_weight = Param(initialize=949.5, mutable=True) # 3027.74 # [g/mol] or [kg/kmol] target molecular weights
         self.unsat_value = Param(initialize=0.032) #0.032 # unsaturation value
-        self.unreacted_PO = Param(initialize=120.0) #120.0 # [PPM] unreacted PO
+        self.unreacted_PO = Param(initialize=2000.0) #120.0 # [PPM] unreacted PO
         self.rxr_volume = Param(initialize=41.57) # [m^3] volume of the reactor
         self.rxr_pressure = Param(initialize=253) # [kPa] initial pressure
         self.rxr_temperature = Param(initialize=122.9) # [°C] initial temperature 
@@ -729,7 +729,7 @@ class SemiBatchPolymerization(ConcreteModel):
         #        (selfolecular_weight - mw_PG)/mw_PO/num_OH*MX('1',k,q) =l= MX('2',k,q);
         
         def _epc_mw_ub(self):
-            return 0.0 == self.MX[nfe,ncp,1]*self.MX1_scale - (50+self.molecular_weight - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[nfe,ncp,0]*self.MX0_scale - self.eps[4] + self.s_mw_ub
+            return 0.0 == self.MX[nfe,ncp,1]*self.MX1_scale - (10+self.molecular_weight - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[nfe,ncp,0]*self.MX0_scale - self.eps[4] + self.s_mw_ub
         
         self.epc_mw_ub = Constraint(rule =_epc_mw_ub)
         
@@ -1143,10 +1143,11 @@ class SemiBatchPolymerization(ConcreteModel):
 #m.initialize_element_by_element()
 #m.create_output_relations()
 #m.create_bounds()
-##m.tf.setlb(None)
-##m.tf.setub(None)
+#m.tf.setlb(None)
+#m.tf.setub(None)
 #m.clear_aux_bounds()
 #results = Solver.solve(m, tee=True)
+
 #prev_res = m.save_results(results)
 ##m.plot_profiles([m.W, m.F, m.T, m.X, m.Tad, m.heat_removal])
 ##m.print_file('Optimal_Control_Profile')

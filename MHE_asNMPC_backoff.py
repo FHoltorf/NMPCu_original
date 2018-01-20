@@ -20,7 +20,7 @@ import numpy.linalg as linalg
 from scipy.stats import chi2
 from copy import deepcopy
 #redirect system output to a file:
-sys.stdout = open('consol_output.txt','w')
+#sys.stdout = open('consol_output.txt','w')
 
 ###############################################################################
 ###                               Specifications
@@ -102,7 +102,7 @@ for i in range(1,nfe):
     
     # solve the advanced step problems
     e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
-    
+    e.set_regularization_weights(K_w = 1.0, Q_w=0.0, R_w=0.0)
     e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
     e.solve_olrnmpc(cons=cons,eps=1e-1) # solves the olnmpc problem
     
@@ -293,24 +293,80 @@ plt.figure(l)
 confidence = chi2.isf(1-0.95,2) # 0.05**2
 dimension = 2 # dimension n of the n x n matrix
 rows = {}
-for r in range(1,k):
-    A_dict = e.mhe_confidence_ellipsoids[r]
-    center = [0,0]
-    for m in range(dimension):
-        rows[m] = np.array([A_dict[(m,i)] for i in range(dimension)])
-    A = 1/confidence*np.array([np.array(rows[i]) for i in range(dimension)])
-    center = np.array([0]*dimension)
-    U, s, rotation = linalg.svd(A) # singular value decomposition 
-    radii = 1/np.sqrt(s) # radii
-    
-    # transform in polar coordinates for simple plot
-    theta = np.linspace(0.0, 2.0 * np.pi, 100) # 
-    x = radii[0] * np.sin(theta) #
-    y = radii[1] * np.cos(theta) #
-    for i in range(len(x)):
-        [x[i],y[i]] = np.dot([x[i],y[i]], rotation) + center
-    plt.plot(x,y, label = str(r))
-    
-plt.xlabel(r'$\Delta A_i$')
-plt.ylabel(r'$\Delta A_p$')
+try:
+    for r in range(1,k):
+        A_dict = e.mhe_confidence_ellipsoids[r]
+        center = [0,0]
+        for m in range(dimension):
+            rows[m] = np.array([A_dict[(m,i)] for i in range(dimension)])
+        A = 1/confidence*np.array([np.array(rows[i]) for i in range(dimension)])
+        center = np.array([0]*dimension)
+        U, s, rotation = linalg.svd(A) # singular value decomposition 
+        radii = 1/np.sqrt(s) # radii
+        
+        # transform in polar coordinates for simple plot
+        theta = np.linspace(0.0, 2.0 * np.pi, 100) # 
+        x = radii[0] * np.sin(theta) #
+        y = radii[1] * np.cos(theta) #
+        for i in range(len(x)):
+            [x[i],y[i]] = np.dot([x[i],y[i]], rotation) + center
+        plt.plot(x,y, label = str(r))
+        
+    plt.xlabel(r'$\Delta A_i$')
+    plt.ylabel(r'$\Delta A_p$')
+except KeyError:
+    pass
 
+###############################################################################
+###         Plotting path constraints
+###############################################################################
+
+l += 1
+heat_removal = {}
+t = {}
+Tad = {}
+path_constraints = {}
+path_constraints[0] = e.pc_trajectory
+for i in range(1): # loop over all runs
+    if path_constraints[i] =='error':
+        continue
+    heat_removal[i] = []
+    t[i] = []
+    Tad[i] = []
+    for fe in range(1,25):
+        for cp in range(1,4):        
+            heat_removal[i].append(path_constraints[i]['heat_removal',(fe,(cp,))])
+            Tad[i].append(path_constraints[i]['Tad',(fe,(cp,))])
+            if fe > 1:
+                t[i].append(t[i][-cp]+path_constraints[i]['tf',(fe,cp)])
+            else:
+                t[i].append(path_constraints[i]['tf',(fe,cp)])
+    
+    
+max_tf = max(t[0])   
+plt.figure(l)
+for i in Tad:
+    plt.plot(t[i],Tad[i], color='grey')
+plt.plot([0,max_tf],[4.6315,4.6315], color='red', linestyle='dashed')
+plt.xlabel('t [min]')
+plt.ylabel('Tad')
+    
+l += 1
+plt.figure(l)
+for i in heat_removal:
+    plt.plot(t[i],heat_removal[i], color='grey')
+plt.plot([0,max_tf],[1.43403,1.43403], color='red', linestyle='dashed')
+plt.xlabel('t [min]')
+plt.ylabel('heat_removal')
+
+
+print('MULTISTAGE NMPC')
+print('OPTIONS:')
+print('measured vars ', e.y)
+print('state vars ', e.states)
+print('pars estimated online ', e.noisy_params)
+print('pars adapted ', e.adapt_params)
+print('update ST ', e.update_scenario_tree)
+print('confidence threshold ', e.confidence_threshold)
+print('robustness threshold ', e.robustness_threshold)
+print('estimate_acceptance ', e.estimate_acceptance)

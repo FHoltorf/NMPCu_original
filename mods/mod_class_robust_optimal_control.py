@@ -137,7 +137,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.T_safety = Param(initialize=190.0) # [°C] maximum allowed temperature after adiabatic temperature rise
         self.molecular_weight = Param(initialize=949.5, mutable=True) # 3027.74 # [g/mol] or [kg/kmol] target molecular weights
         self.unsat_value = Param(initialize=0.032) #0.032 # unsaturation value
-        self.unreacted_PO = Param(initialize=120.0) #120.0 # [PPM] unreacted PO
+        self.unreacted_PO = Param(initialize=2000.0) #120.0 # [PPM] unreacted PO
         self.rxr_volume = Param(initialize=41.57) # [m^3] volume of the reactor
         self.rxr_pressure = Param(initialize=253) # [kPa] initial pressure
         self.rxr_temperature = Param(initialize=122.9) # [°C] initial temperature 

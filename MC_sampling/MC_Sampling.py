@@ -13,16 +13,16 @@ Care if Hrxn uncertain --> meaningfulness of heat_removal values has to consider
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
-from main.MC_sampling.run_MHE_asNMPC import *
+#from main.MC_sampling.run_MHE_asNMPC import *
 #from main.MC_sampling.run_MHE_asNMPC_online_estimation import *
-#from main.MC_sampling.run_MHE_asNMPC_multistage import *
+from main.MC_sampling.run_MHE_asNMPC_multistage import *
 #from main.MC_sampling.run_MHE_asNMPC_multimodel import *
 #from main.MC_sampling.run_MHE_asNMPC_backoff import *
 
 # inputs
-sample_size = 1
+sample_size = 50
 # specifiy directory where to save the resulting files
-path = 'results/standard/' 
+path = 'results/' 
 # colors
 color = ['green','red','blue']
 tf = {}

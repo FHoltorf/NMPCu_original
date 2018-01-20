@@ -87,18 +87,19 @@ e = MheGen(d_mod=SemiBatchPolymerization_twostage,
            s_max = sr,
            noisy_inputs = False,
            noisy_params = True,
-           adapt_params = False,
+           adapt_params = True,
            update_scenario_tree = False,
            confidence_threshold = 0.2,
            robustness_threshold = 0.05,
            estimate_exceptance = 10000,
-           obj_type='economic',
+           obj_type='tracking',
            nfe_t=nfe,
            sens=None,
            diag_QR=True,
            del_ics=False,
            path_constraints=pc)
 
+e.delta_u = True
 
 ###############################################################################
 ###                                     NMPC
@@ -107,7 +108,8 @@ e.recipe_optimization()
 e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
 e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
 e.generate_state_index_dictionary()
-e.create_enmpc() # with tracking-type regularization
+e.create_nmpc() # with tracking-type regularization
+e.load_reference_trajectories()
 e.create_mhe()
 
 k = 1 
@@ -137,6 +139,8 @@ for i in range(1,nfe):
         e.cycle_nmpc(e.store_results(e.olnmpc))   
 
     # solve the advanced step problem
+    e.load_reference_trajectories()
+    e.set_regularization_weights(K_w = 1.0, Q_w = 0.0, R_w = 0.0)
     e.solve_olnmpc() # solves the olnmpc problem
     e.create_suffixes_nmpc()
     e.sens_k_aug_nmpc()
@@ -145,7 +149,7 @@ for i in range(1,nfe):
 
     # solve mhe problem
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-    #e.compute_confidence_ellipsoid()
+    e.compute_confidence_ellipsoid()
 
     # update state estimate 
     e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True
@@ -199,7 +203,7 @@ t_traj_nmpc = np.array([e.nmpc_trajectory[i,'tf'] for i in range(1,k)])
 t_traj_sim = np.array([e.nmpc_trajectory[i,'tf'] for i in range(1,k+1)])
 plt.figure(1)
 
-t = e.get_tf()
+t = e.get_tf(1)
 #
 l = 0
 
@@ -361,3 +365,15 @@ for p in range(dimension):
     plt.plot([0,x],[0,y],color='red')
 plt.xlabel(r'$\Delta A_i$')
 plt.ylabel(r'$\Delta A_p$')
+
+
+print('MULTISTAGE NMPC')
+print('OPTIONS:')
+print('measured vars ', e.y)
+print('state vars ', e.states)
+print('pars estimated online ', e.noisy_params)
+print('pars adapted ', e.adapt_params)
+print('update ST ', e.update_scenario_tree)
+print('confidence threshold ', e.confidence_threshold)
+print('robustness threshold ', e.robustness_threshold)
+print('estimate_acceptance ', e.estimate_acceptance)

@@ -6,8 +6,8 @@ Created on Wed Nov  1 13:49:10 2017
 @author: flemmingholtorf
 """
 # relative standard deviation that is associated with disturbances
-disturbance_error = 0.05
-measurement_error = 0.05
+disturbance_error = 0.10
+measurement_error = 0.10
 disturbance_error_T = 0.0
 disturbance_error_F = 0.0
 
@@ -24,7 +24,7 @@ qcov[("PO_fed",()), ("PO_fed",())] = 0.0
 
 # process disturbances
 v_disturbances = {}
-v_disturbances[("PO",())] = disturbance_error
+v_disturbances[("PO",())] = disturbance_error*2
 v_disturbances[("MX",(0,))] = disturbance_error
 v_disturbances[("MX",(1,))] = disturbance_error
 v_disturbances[("X",())] = disturbance_error
@@ -88,8 +88,8 @@ v_param[('A',('i',))] = [0.1,100]
 v_param[('A',('p',))] = [0.1,100]
 v_param[('A',('t',))] = [0.0,200]
 v_param[('Ea',('a',))] = [0.0,200] 
-v_param[('Ea',('i',))] = [0.0,200]
-v_param[('Ea',('p',))] = [0.0,200]
+v_param[('Ea',('i',))] = [0.0,200]  # have such strong impact that there is no way of makeing these uncertain
+v_param[('Ea',('p',))] = [0.0,200]  # have such strong impact that there is no way of making these uncertain
 v_param[('Ea',('t',))] = [0.0,200]
 v_param[('Hrxn',('a',))] = [0.0,200] 
 v_param[('Hrxn',('i',))] = [0.0,200]

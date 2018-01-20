@@ -29,8 +29,9 @@ def run():
     u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
     
     # measured variables
-    y = ["heat_removal","m_tot","MW"] 
-    y_vars = {"heat_removal":[()],"m_tot":[()],"MW":[()]}
+    y = {"heat_removal","PO", "Y", "W", "MY", "MX", "MW","m_tot"}
+    y_vars = {"heat_removal":[()],"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
+
     #y = {"PO", "Y", "W", "MY", "MX", "MW","m_tot"}
     #y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
     
@@ -75,22 +76,23 @@ def run():
                robust_horizon = nr,
                s_max = sr,
                noisy_inputs = False,
-               noisy_params = True,
-               adapt_params = True,
-               update_scenario_tree = True,
+               noisy_params = False,
+               adapt_params = False,
+               update_scenario_tree = False,
                confidence_threshold = 0.2,
                robustness_threshold = 0.05,
-               obj_type='economic',
+               obj_type='tracking',
                nfe_t=nfe,
                sens=None,
                diag_QR=True,
                del_ics=False,
                path_constraints=pc)
+    e.delta_u = False
     e.recipe_optimization()
     e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
     e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
     e.generate_state_index_dictionary()
-    e.create_enmpc() # with tracking-type regularization
+    e.create_nmpc() # with tracking-type regularization
     
     e.create_mhe()
     
@@ -98,21 +100,22 @@ def run():
     for i in range(1,nfe):
         print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
         e.create_mhe()
-        nfe_new = nfe - i
         if i == 1:
-            e.plant_simulation(e.store_results(e.recipe_optimization_model),disturbances=v_disturbances,first_call=True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
-            e.set_prediction(e.store_results(e.recipe_optimization_model))
+            e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call=True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+            e.set_measurement_prediction(e.store_results(e.recipe_optimization_model))
             e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov, first_call=True) #adjusts the mhe problem according to new available measurements
-            e.cycle_nmpc(e.store_results(e.recipe_optimization_model),nfe_new)
+            e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
+            e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
         else:
-            e.plant_simulation(e.store_results(e.olnmpc),disturbances=v_disturbances,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
-            e.set_prediction(e.store_results(e.forward_simulation_model))
+            e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+            e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
             e.cycle_mhe(previous_mhe,mcov,qcov,ucov) 
-            e.cycle_nmpc(e.store_results(e.olnmpc),nfe_new)   
+            e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
+            e.cycle_nmpc(e.store_results(e.olnmpc))   
     
         # solve the advanced step problems
-        e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
-    
+        e.load_reference_trajectories()
+        e.set_regularization_weights(K_w = 0.0, Q_w = 1.0, R_w = 1.0)
         e.solve_olnmpc() # solves the olnmpc problem
     
         e.create_suffixes_nmpc()
@@ -121,9 +124,8 @@ def run():
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
     
         # solve mhe problem
-        e.solve_mhe(fix_noise=True) # solves the mhe problem
-        previous_mhe = e.store_results(e.lsmhe)
-        e.compute_confidence_ellipsoid()
+        previous_mhe=e.solve_mhe(fix_noise=False) # solves the mhe problem
+        #e.compute_confidence_ellipsoid()
     
         # update state estimate 
         e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True

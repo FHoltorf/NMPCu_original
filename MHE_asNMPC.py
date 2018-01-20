@@ -32,17 +32,13 @@ from copy import deepcopy
 states = ["PO","MX","MY","Y","W","PO_fed"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","PO_fed"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)]}
-#p_noisy = {"A":['p','i']}
 p_noisy = {"A":['p','i']}
 u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
 
 # measured variables
-y = {"heat_removal","PO", "Y", "W", "MY", "MX", "MW","m_tot"}
+y = {"heat_removal","Y","PO", "W", "MY", "MX", "MW","m_tot"}
 y_vars = {"heat_removal":[()],"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
-#y = {"heat_removal","m_tot","MW","PO"}
-#y_vars = {"heat_removal":[()],"m_tot":[()],"MW":[()],"PO":[()]}
-
 nfe = 24
 
 pc = ['Tad','heat_removal']
@@ -56,7 +52,7 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            p_noisy=p_noisy,
            u=u,
            noisy_inputs = False,
-           noisy_params = False,
+           noisy_params = True,
            adapt_params = False,
            u_bounds=u_bounds,
            diag_QR=True,
@@ -65,7 +61,7 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            sens=None,
            path_constraints=pc)
 
-
+e.delta_u = True
 ###############################################################################
 ###                                     NMPC
 ###############################################################################
@@ -104,6 +100,7 @@ for i in range(1,nfe):
     e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
 
     e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
+    e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
     e.solve_olnmpc() # solves the olnmpc problem
     e.olnmpc.write_nl()
     
@@ -114,8 +111,16 @@ for i in range(1,nfe):
     # here measurement becomes available
     e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
     
-    # solve mhe problem
-    e.solve_mhe() # solves the mhe problem
+    #solve mhe problem
+    for z in range(i):
+        e.lsmhe.wk_mhe[z,1].fix() # MX0
+        e.lsmhe.wk_mhe[z,2].fix() # MX1
+        e.lsmhe.wk_mhe[z,6].fix() #PO_fed 
+        e.lsmhe.wk_mhe[z,0].fix() # PO
+        e.lsmhe.wk_mhe[z,3].fix() #MY
+        e.lsmhe.wk_mhe[z,5].fix() #W
+        e.lsmhe.wk_mhe[z,4].fix() #Y
+    e.solve_mhe(fix_noise=False) # solves the mhe problem
     previous_mhe = e.store_results(e.lsmhe)
     #e.compute_confidence_ellipsoid()
     
@@ -274,5 +279,55 @@ l += 1
 plt.figure(l)
 
 ###############################################################################
-###         Plotting 1st Order Approximation of Confidence Region 
+###         Plotting path constraints
 ###############################################################################
+
+l += 1
+heat_removal = {}
+t = {}
+Tad = {}
+path_constraints = {}
+path_constraints[0] = e.pc_trajectory
+for i in range(1): # loop over all runs
+    if path_constraints[i] =='error':
+        continue
+    heat_removal[i] = []
+    t[i] = []
+    Tad[i] = []
+    for fe in range(1,25):
+        for cp in range(1,4):        
+            heat_removal[i].append(path_constraints[i]['heat_removal',(fe,(cp,))])
+            Tad[i].append(path_constraints[i]['Tad',(fe,(cp,))])
+            if fe > 1:
+                t[i].append(t[i][-cp]+path_constraints[i]['tf',(fe,cp)])
+            else:
+                t[i].append(path_constraints[i]['tf',(fe,cp)])
+    
+    
+max_tf = max(t[0])   
+plt.figure(l)
+for i in Tad:
+    plt.plot(t[i],Tad[i], color='grey')
+plt.plot([0,max_tf],[4.6315,4.6315], color='red', linestyle='dashed')
+plt.xlabel('t [min]')
+plt.ylabel('Tad')
+    
+l += 1
+plt.figure(l)
+for i in heat_removal:
+    plt.plot(t[i],heat_removal[i], color='grey')
+plt.plot([0,max_tf],[1.43403,1.43403], color='red', linestyle='dashed')
+plt.xlabel('t [min]')
+plt.ylabel('heat_removal')
+
+
+print('MULTISTAGE NMPC')
+print('OPTIONS:')
+print('measured vars ', e.y)
+print('state vars ', e.states)
+print('pars estimated online ', e.noisy_params)
+print('pars adapted ', e.adapt_params)
+print('update ST ', e.update_scenario_tree)
+print('confidence threshold ', e.confidence_threshold)
+print('robustness threshold ', e.robustness_threshold)
+print('estimate_acceptance ', e.estimate_acceptance)

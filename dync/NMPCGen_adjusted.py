@@ -507,6 +507,7 @@ class NmpcGen(DynGen):
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["max_iter"] = 5000
+        
         results = ip.solve(self.recipe_optimization_model, tee=True, symbolic_solver_labels=True, report_timing=True)
         if not(str(results.solver.status) == 'ok' and str(results.solver.termination_condition)) == 'optimal':
             print('Recipe Optimization failed!')
@@ -638,7 +639,7 @@ class NmpcGen(DynGen):
                     k += 1
         
         # Parameter Sets that help to index the different states/controls for 
-        # tracking terms according to xmpc_l/umpc_l
+        # tracking terms according to xmpc_l/umpc_l + regularization for control steps delta_u
         self.olnmpc.xmpcS_nmpc = Set(initialize=[i for i in range(0, len(self.xmpc_l[1]))])
         self.olnmpc.umpcS_nmpc = Set(initialize=[i for i in range(0, len(self.umpc_l[1]))])
         # A: The reference trajectory
@@ -648,17 +649,17 @@ class NmpcGen(DynGen):
         self.olnmpc.Q_nmpc = Param(self.olnmpc.xmpcS_nmpc, initialize=1.0, mutable=True)  
         self.olnmpc.R_nmpc = Param(self.olnmpc.umpcS_nmpc, initialize=1.0, mutable=True) 
         # C: Weights for the different finite elements (time dependence) (for x (Q) and u (R))
-        self.olnmpc.Q_w_nmpc = Param(self.olnmpc.fe_t, initialize=0.0, mutable=True) # 1e-4
-        self.olnmpc.R_w_nmpc = Param(self.olnmpc.fe_t, initialize=0.0, mutable=True) # 1e2
+        self.olnmpc.Q_w_nmpc = Param(self.olnmpc.fe_t, initialize=0.0, mutable=True) 
+        self.olnmpc.R_w_nmpc = Param(self.olnmpc.fe_t, initialize=0.0, mutable=True) 
+        self.olnmpc.K_w_nmpc = Param(self.olnmpc.fe_t, initialize=0.0, mutable=True)
         
-        self.olnmpc.K_w_nmpc = Param(self.olnmpc.fe_t, initialize=1.0, mutable=True)
-        
-        # small control steps
+        # control step regularization
         expression = 0.0
         if self.delta_u:
             for u in self.u:    
                 control = getattr(self.olnmpc, u)
                 expression += self.olnmpc.K_w_nmpc[1]*(self.nmpc_trajectory[self.iterations,u] - control[1])**2.0 + sum(self.olnmpc.K_w_nmpc[fe]*(control[fe]-control[fe-1])**2.0 for fe in range(2,self.nfe_t + 1))
+        
         # generate the expressions for the objective function
         self.olnmpc.uK_expr_nmpc = Expression(expr = expression)
         # A: sum over state tracking terms
@@ -682,6 +683,13 @@ class NmpcGen(DynGen):
         else:
             self.olnmpc.objfun_nmpc = Objective(expr = (self.olnmpc.tf + self.olnmpc.rho*sum(self.olnmpc.eps[i] for i in self.olnmpc.epc)+self.olnmpc.xQ_expr_nmpc + self.olnmpc.xR_expr_nmpc + self.olnmpc.uK_expr_nmpc))
         
+    def set_regularization_weights(self, Q_w = 1.0, R_w = 1.0, K_w = 1.0 ):
+        for i in self.olnmpc.fe_t:
+            self.olnmpc.Q_w_nmpc[i] = Q_w
+            self.olnmpc.R_w_nmpc[i] = R_w
+            self.olnmpc.K_w_nmpc[i] = K_w
+            
+        
     def load_reference_trajectories(self):
         # assign values of the reference trajectory to parameters 
         # self.olnmpc.xmpc_ref_nmpc and self.umpc_ref_nmpc
@@ -689,40 +697,34 @@ class NmpcGen(DynGen):
         # reference trajectory used to assign delta
         # tracking terms shifted by every iteration (therefore self.iterations+1)
         # first time this should be called is for i = 1 
-        # --> only tracking terms for k >= 2 relevant
+        # --> only tracking terms for iterations >= 2 relevant since first 
+        #     control input is determined based on recipe-optimization
         for x in self.states:
             for j in self.state_vars[x]:
                 for fe in range(1, self.nfe_t+1):
                     try:
                         self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j]
-                        try:
-                            self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j] + 0.01)**2
-                        except ZeroDivisionError:
-                            self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
+                        #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j] + 0.01)**2
+                        self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
                     except KeyError:
                         self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j]
-                        try:
-                            self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j] + 0.01)**2
-                        except ZeroDivisionError:
-                            self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
+                        #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j] + 0.01)**2
+                        self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
+                            
         
         for u in self.u:
             #control = getattr(self.olnmpc, u)
             for fe in range(1, self.nfe_t+1):
                 try:
                     self.olnmpc.umpc_ref_nmpc[fe,self.umpc_key[u]] = self.reference_control_trajectory[u,fe+self.iterations]
-                    try:
-                        self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(self.reference_control_trajectory[u,fe+self.iterations] + 0.01)**2
-                        #self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(control[1].ub-control[1].lb)**2
-                    except ZeroDivisionError:
-                        self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0
+                    #self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(self.reference_control_trajectory[u,fe+self.iterations] + 0.01)**2
+                    #self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(control[1].ub-control[1].lb)**2
+                    self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0
                 except KeyError:
                     self.olnmpc.umpc_ref_nmpc[fe,self.umpc_key[u]] = self.reference_control_trajectory[u,self.nfe_t_0]
-                    try:
-                        self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(self.reference_control_trajectory[u,self.nfe_t_0] + 0.01)**2
-                        #self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(control[1].ub-control[1].lb)**2
-                    except ZeroDivisionError:
-                        self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0
+                    #self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(self.reference_control_trajectory[u,self.nfe_t_0] + 0.01)**2
+                    #self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(control[1].ub-control[1].lb)**2
+                    self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0
         
         
     def store_results(self,m):
