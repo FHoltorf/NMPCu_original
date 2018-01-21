@@ -192,7 +192,7 @@ class NmpcGen(DynGen):
             self.recipe_optimization_model.equalize_u(direction="u_to_r")
             # run the simulation
             ip = SolverFactory("asl:ipopt")
-            ip.options["halt_on_ampl_error"] = "yes"
+            ip.options["halt_on_ampl_error"] = "no"
             ip.options["print_user_options"] = "yes"
             ip.options["linear_solver"] = "ma57"
             ip.options["tol"] = 1e-8
@@ -335,20 +335,20 @@ class NmpcGen(DynGen):
         # 1 element model for forward simulation
         self.plant_simulation_model.tf = result['tf', None]
         self.plant_simulation_model.tf.fixed = True
-                
+        
         # FIX(!!) the controls, path constraints are deactivated by default
         for u in self.u:
             control = getattr(self.plant_simulation_model,u)
             control[1].value = result[u,1]*(1.0+input_noise[u])
             control[1].fixed = True
             self.plant_simulation_model.equalize_u(direction="u_to_r")
-               
+    
         # probably redundant
         self.plant_simulation_model.clear_aux_bounds()
         
         # solve statement
         ip = SolverFactory("asl:ipopt")
-        ip.options["halt_on_ampl_error"] = "yes"
+        ip.options["halt_on_ampl_error"] = "no"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
@@ -428,7 +428,6 @@ class NmpcGen(DynGen):
                 p[index[1]].value = self.curr_epars[index]
 
         # general initialization
-        # not super sophisticated but works
         for var in self.olnmpc.component_objects(Var, active=True):
             xvar = getattr(self.forward_simulation_model, var.name)
             for key in var.index_set():
@@ -469,7 +468,7 @@ class NmpcGen(DynGen):
         self.forward_simulation_model.clear_aux_bounds()
         # solve statement
         ip = SolverFactory("asl:ipopt")
-        ip.options["halt_on_ampl_error"] = "yes"
+        ip.options["halt_on_ampl_error"] = "no"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
@@ -503,7 +502,7 @@ class NmpcGen(DynGen):
         self.recipe_optimization_model.clear_aux_bounds()
         #self.recipe_optimization_model.aux.fixed = True
         ip = SolverFactory("asl:ipopt")
-        ip.options["halt_on_ampl_error"] = "yes"
+        ip.options["halt_on_ampl_error"] = "no"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["max_iter"] = 5000
@@ -923,7 +922,7 @@ class NmpcGen(DynGen):
         
         # 7. solve the problem
         ip = SolverFactory("asl:ipopt")
-        ip.options["halt_on_ampl_error"] = "yes"
+        ip.options["halt_on_ampl_error"] = "no"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
@@ -959,7 +958,7 @@ class NmpcGen(DynGen):
         print("solve_olnmpc")
         print('#'*20 + ' ' + str(self.iterations) + ' ' + '#'*20)
         ip = SolverFactory("asl:ipopt")
-        ip.options["halt_on_ampl_error"] = "yes"
+        ip.options["halt_on_ampl_error"] = "no"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
@@ -1024,7 +1023,7 @@ class NmpcGen(DynGen):
         eps = kwargs.pop('eps',0.0)
         
         ip = SolverFactory('asl:ipopt')
-        ip.options["halt_on_ampl_error"] = "yes"
+        ip.options["halt_on_ampl_error"] = "no"
         ip.options["max_iter"] = 5000
         ip.options["tol"] = 1e-8
         ip.options["linear_solver"] = "ma57"
@@ -1475,7 +1474,7 @@ class NmpcGen(DynGen):
         sIP = SolverFactory('ipopt_sens', solver_io = 'nl')
         sIP.options['run_sens'] = 'yes'
         sIP.options['tol'] = 1e-8
-        sIP.options["halt_on_ampl_error"] = "yes"
+        sip.options["halt_on_ampl_error"] = "no"
         sIP.options["print_user_options"] = "yes"
         sIP.options["linear_solver"] = "ma57"
         results = sIP.solve(self.olnmpc, tee = True)

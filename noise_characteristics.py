@@ -97,7 +97,7 @@ v_param[('Hrxn',('p',))] = [0.0,200]
 v_param[('Hrxn',('t',))] = [0.0,200]
 v_param[('Hrxn_aux',('a',))] = [0.0,200] 
 v_param[('Hrxn_aux',('i',))] = [0.0,200]
-v_param[('Hrxn_aux',('p',))] = [0.0,200]
+v_param[('Hrxn_aux',('p',))] = [0.1,200]
 v_param[('Hrxn_aux',('t',))] = [0.0,200]
 
         

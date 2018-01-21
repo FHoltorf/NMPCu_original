@@ -283,10 +283,10 @@ class NmpcGen(DynGen):
             self.plant_trajectory[self.iterations,u] = control[1,1].value #(control valid between 0 and tf)
         for x in self.states:
             xvar = getattr(self.plant_simulation_model, x)
-            for j in self.x_vars[x]:
-                    self.plant_trajectory[self.iterations,(x,j)] = xvar[(1,3)+j+(1,)].value 
+            for j in self.state_vars[x]:
+                    self.plant_trajectory[self.iterations,(x,j[:-1])] = xvar[(1,3)+j].value 
                     # setting the current real value w/o measurement noise
-                    self.curr_rstate[(x,j)] = xvar[(1,3)+j+(1,)].value 
+                    self.curr_rstate[(x,j)] = xvar[(1,3)+j].value 
                     
         # to monitor path constraints if supplied:
         if self.path_constraints != []:

@@ -135,10 +135,10 @@ class SemiBatchPolymerization(ConcreteModel):
         self.n_PG = Param(initialize=self.m_PG/self.mw_PG) # [kmol] mole of PG;
         
         # reactor and product specs
-        self.T_safety = Param(initialize=190.0) # [°C] maximum allowed temperature after adiabatic temperature rise
+        self.T_safety = Param(initialize=170.0) #190 [°C] maximum allowed temperature after adiabatic temperature rise
         self.molecular_weight = Param(initialize=949.5, mutable=True) # 3027.74 # [g/mol] or [kg/kmol] target molecular weights
         self.unsat_value = Param(initialize=0.032) #0.032 # unsaturation value
-        self.unreacted_PO = Param(initialize=2000.0) #120.0 # [PPM] unreacted PO
+        self.unreacted_PO = Param(initialize=120.0) #120.0 # [PPM] unreacted PO
         self.rxr_volume = Param(initialize=41.57) # [m^3] volume of the reactor
         self.rxr_pressure = Param(initialize=253) # [kPa] initial pressure
         self.rxr_temperature = Param(initialize=122.9) # [°C] initial temperature 
@@ -665,7 +665,7 @@ class SemiBatchPolymerization(ConcreteModel):
             if j == 0:
                 return Constraint.Skip
             else:
-                return 0.0 == ((((self.kr[i,j,'i']-self.kr[i,j,'p'])*(self.G[i,j]*self.G_scale + self.U[i,j]*self.U_scale) + (self.kr[i,j,'p'] + self.kr[i,j,'t'])*self.n_KOH + self.kr[i,j,'a']*self.W[i,j])*self.PO[i,j]*self.PO_scale*self.Vi[i,j]*self.Vi_scale) + self.dW_dt[i,j] - (self.heat_removal[i,j]/self.Hrxn_aux['p'] + self.F[i]*self.monomer_cooling[i,j]*self.monomer_cooling_scale)*self.tf*self.fe_dist[i])
+                return 0.0 == ((((self.kr[i,j,'i']-self.kr[i,j,'p'])*(self.G[i,j]*self.G_scale + self.U[i,j]*self.U_scale) + (self.kr[i,j,'p'] + self.kr[i,j,'t'])*self.n_KOH + self.kr[i,j,'a']*self.W[i,j])*self.PO[i,j]*self.PO_scale*self.Vi[i,j]*self.Vi_scale) + self.dW_dt[i,j]*self.W_scale - (self.heat_removal[i,j]/self.Hrxn_aux['p'] + self.F[i]*self.monomer_cooling[i,j]*self.monomer_cooling_scale)*self.tf*self.fe_dist[i])
         
         self.pc_heat_removal_b = Constraint(self.fe_t, self.cp, rule=_pc_heat_removal_b)      
         #process_constraint_heat_removal_b(k,q)$(ak(k))..
