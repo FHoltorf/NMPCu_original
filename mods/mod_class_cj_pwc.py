@@ -91,10 +91,12 @@ class SemiBatchPolymerization(ConcreteModel):
         self.fe_t = Set(initialize=[i for i in range(1,nfe+1)])
         self.cp = Set(initialize=[i for i in range(ncp+1)])
         self.epc = Set(initialize=[i for i in range(1,5)])
-        
+        self.pc = Set(initialize=[i for i in range(1,4)])
+ 
         # parameters for l1-relaxation of endpoint-constraints
         self.eps = Var(self.epc, initialize=0, bounds=(0,None))
         self.eps.fix()
+        self.eps_pc = Var(self.fe_t, self.cp, self.pc, initialize=0.0, bounds=(0,None))
         self.rho = Param(initialize=1e3, mutable=True)
         
         # auxilliary parameter to enable non-uniform finite element distribution
@@ -231,6 +233,8 @@ class SemiBatchPolymerization(ConcreteModel):
         # define slack variables
             # path constraints
         self.s_temp_b = Var(self.fe_t, self.cp, initialize = 0, bounds=(0,None))
+        self.s_T_max = Var(self.fe_t, self.cp, initialize= 0, bounds=(0,None))
+        self.s_T_min = Var(self.fe_t, self.cp, initialize= 0, bounds=(0,None))
         self.s_heat_removal_a = Var(self.fe_t, self.cp, initialize = 0, bounds=(0,None))
             # endpoint constraints
         self.s_mw = Var(initialize=0, bounds=(0,None))
@@ -702,15 +706,32 @@ class SemiBatchPolymerization(ConcreteModel):
         #        m(k,q)*(int_Tad(k,q) - int_T(k,q)) =e= Hrxn('p')*PO(k,q);
         
         def _pc_temp_b(self,i,j):
-            if j == 0:
-                return Constraint.Skip
+            if j > 0:
+                return 0.0 == (self.T_safety + self.Tb) - self.Tad[i,j]*self.Tad_scale - self.s_temp_b[i,j] + self.eps_pc[i,j,1]
             else:
+                return Constraint.Skip
                 #return 0.0 <= (self.T_safety + self.Tb) - self.Tad[i,j]*self.Tad_scale + self.eps
-                return 0.0 == (self.T_safety + self.Tb) - self.Tad[i,j]*self.Tad_scale - self.s_temp_b[i,j] #+ self.eps 
-            
+                
         self.pc_temp_b = Constraint(self.fe_t, self.cp, rule = _pc_temp_b)   
         #process_constraint_temp_b(k,q)$(ak(k))..
         #        Tad(k,q) =l= T_safety + Tb;
+        
+        
+        def _pc_T_max(self,i,j):
+            if j > 0:
+                return 0.0 == (self.T_safety + self.Tb) - self.T[i,j]*self.T_scale - self.s_T_max[i,j] + self.eps_pc[i,j,2]
+            else:
+                return Constraint.Skip
+            
+        self.pc_T_max = Constraint(self.fe_t, self.cp, rule = _pc_T_max)
+        
+        def _pc_T_min(self,i,j):
+            if j > 0:
+                return 0.0 == self.T[i,j]*self.T_scale  - (100.0 + self.Tb)  - self.s_T_min[i,j] + self.eps_pc[i,j,3]
+            else:
+                return Constraint.Skip
+        
+        self.pc_T_min = Constraint(self.fe_t, self.cp, rule = _pc_T_min)
         
         def _pc_heat_removal_c(self,i,j):
             if j == 0:
@@ -781,7 +802,7 @@ class SemiBatchPolymerization(ConcreteModel):
         
         # objective
         def _obj(self):
-            return self.tf + self.rho*sum(self.eps[i] for i in self.epc)#*nfe
+            return self.tf + self.rho*(sum(self.eps[i] for i in self.epc) + sum(sum(sum(self.eps_pc[i,j,k] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc)) #*nfe
         self.eobj = Objective(rule=_obj,sense=minimize)
         
         #Suffixes
@@ -802,10 +823,15 @@ class SemiBatchPolymerization(ConcreteModel):
         #self.A['i'].unfix()
         #self.A['p'].unfix()
     def create_output_relations(self):
-        self.add_component('MW', Var(self.fe_t,self.cp, bounds=(0,None)))
-        self.add_component('MW_c', Constraint(self.fe_t, self.cp))            
+        self.add_component('MW', Var(self.fe_t,self.cp, initialize=0, bounds=(0,None)))
+        self.add_component('MW_c', Constraint(self.fe_t, self.cp))     
         self.MW_c.rule = lambda self, i, j: 0.0 == self.MX[i,j,1]*self.MX1_scale - (self.MW[i,j]*self.MW_scale - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[i,j,0]*self.MX0_scale if j > 0 else Constraint.Skip
-        self.MW_c.reconstruct()
+        #for (i,j) in self.MW.index_set():
+        #    if j > 0:
+        #        self.MW[i,j].value = (self.MX[i,j,1].value/self.MX[i,j,0].value*self.MX1_scale/self.MX0_scale * self.mw_PO*self.num_OH + self.mw_PG)/self.MW_scale
+        #    else:
+        #        continue
+        #self.MW_c.reconstruct()
         #for i in self.MX.index_set():
             #self.MX[i].setlb(1.0)
         #self.MW_c.deactivate()
@@ -840,7 +866,8 @@ class SemiBatchPolymerization(ConcreteModel):
     def deactivate_pc(self):
 #        self.pc_heat_removal_a.deactivate()
         self.pc_temp_b.deactivate()   
-
+        self.pc_T_max.deactivate()
+        self.pc_T_min.deactivate()
 
     def clear_bounds(self):
         for var in self.component_objects(Var, active=True):
@@ -848,7 +875,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 var[key].setlb(None)
                 var[key].setub(None)
 
-        variables = ['s_temp_b','s_heat_removal_a','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps']
+        variables = ['s_temp_b','s_T_min','s_T_max','s_heat_removal_a','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','eps_pc']
         for varname in variables:
             var = getattr(self,varname)
             for key in var.index_set():
@@ -862,7 +889,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 var[key].setub(None)
     
     def clear_aux_bounds(self):
-        keep_bounds = ['s_temp_b','s_heat_removal_a','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','T','F','u1','u2','tf','T_cw'] 
+        keep_bounds = ['s_temp_b','s_T_min','s_T_max','s_heat_removal_a','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','eps_pc','F','u1','u2','tf','T_cw','T'] 
         for var in self.component_objects(Var, active=True):
             if var.name in keep_bounds:
                 continue
@@ -875,7 +902,7 @@ class SemiBatchPolymerization(ConcreteModel):
         #self.tf.setlb(3*60/self.nfe)
         self.tf.setlb(min(10.0,10.0*24.0/self.nfe))
         #self.tf.setub(14*60/self.nfe)
-        self.tf.setub(min(50.0,50.0*24/self.nfe))#14*60/24)
+        self.tf.setub(min(20.0,20.0*24/self.nfe))#14*60/24)
         for i in self.fe_t:
             self.T_cw[i].setlb((50 + self.Tb)/self.T_scale)
             self.u1[i].setlb((50+self.Tb)/self.T_scale)
@@ -886,8 +913,8 @@ class SemiBatchPolymerization(ConcreteModel):
             self.F[i].setub(3.0)
             self.u2[i].setub(3.0)
             for j in self.cp:
-                self.T[i,j].setlb((100 + self.Tb)/self.T_scale)
-                self.T[i,j].setub((170 + self.Tb)/self.T_scale)
+                self.T[i,j].setlb((80 + self.Tb)/self.T_scale) # loose bounds to robustify convergence
+                self.T[i,j].setub((200 + self.Tb)/self.T_scale) # loose bounds to robustify convergence
                 self.int_T[i,j].setlb((1.1*(100+self.Tb) + 2.72*(100+self.Tb)**2/2000)/self.int_T_scale)
                 self.int_T[i,j].setub((1.1*(170+self.Tb) + 2.72*(170+self.Tb)**2/2000)/self.int_T_scale)
                 self.Vi[i,j].setlb(0.9/self.Vi_scale*(1e3)/((self.m_KOH + self.m_PG + self.m_PO + self.m_H2O)*(1 + 0.0007576*((170+self.Tb)-298.15))))
@@ -920,9 +947,10 @@ class SemiBatchPolymerization(ConcreteModel):
         print('initializing element by element ...')
         m_aux = SemiBatchPolymerization(1,self.ncp)
         m_aux.eobj.deactivate()
-        m_aux.deactivate_epc()        
+        m_aux.deactivate_epc()
 #        m_aux.pc_heat_removal_a.deactivate()
         m_aux.pc_temp_b.deactivate()
+        m_aux.pc_T_min.deactivate()
         m_aux.F[1] = 1.0
         m_aux.T_cw[1] = (70.0+self.Tb.value)/self.T_scale
         m_aux.tf = min(8.0*24.0/self.nfe,8.0)
@@ -1179,22 +1207,25 @@ class SemiBatchPolymerization(ConcreteModel):
 
 
 
-Solver = SolverFactory('ipopt')
-Solver.options["halt_on_ampl_error"] = "yes"
-Solver.options["max_iter"] = 5000
-Solver.options["tol"] = 1e-8
-Solver.options["linear_solver"] = "ma57"
-f = open("ipopt.opt", "w")
-f.write("print_info_string yes")
-f.close()
-
-
+#Solver = SolverFactory('ipopt')
+#Solver.options["halt_on_ampl_error"] = "yes"
+#Solver.options["max_iter"] = 5000
+#Solver.options["tol"] = 1e-8
+#Solver.options["linear_solver"] = "ma57"
+#f = open("ipopt.opt", "w")
+#f.write("print_info_string yes")
+#f.close()
 #e = SemiBatchPolymerization(24,3)
 #m = e.initialize_element_by_element()
 #e.create_bounds()
+#e.create_output_relations()
 #e.clear_aux_bounds()
 #Solver.solve(e,tee=True)
 #e.plot_profiles([e.T,e.F,e.T_cw,e.PO,e.Tad])
+
+
+
+
 #m.create_bounds()
 #m.clear_aux_bounds()
 #

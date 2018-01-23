@@ -12,6 +12,8 @@ import numpy.linalg as linalg
 from pyomo.core import *
 from pyomo.environ import *
 import numpy as np
+import pickle
+from copy import deepcopy
 
 ip = SolverFactory('ipopt')
 ip.options["linear_solver"] = "ma57"
@@ -44,11 +46,11 @@ for p in p_noisy:
             i += 1
             
 i = 1
-states = {"PO":[()], "Y":[()], "W":[()], "MY":[()], "MX":[(0,),(1,)]} #, "PO_fed":[()] removed since not subject to disturbances
+states = {"PO":[()], "Y":[()]}#, "W":[()], "MY":[()], "MX":[(0,),(1,)]} #, "PO_fed":[()] removed since not subject to disturbances
 
 reverse_dict_cons = {}
 for x in states:
-    xvar = getattr(m,'d'+x+'_dt')
+    xvar = getattr(m,x)
     for index in xvar.index_set():
         if not(xvar[index].stale) and index[1] == 3:
             m.var_order.set_value(xvar[index], i)
@@ -84,7 +86,7 @@ for key in dfdp:
 
 #########################
 # matrix dfdp[t]
-row_order = {0:("MX",(1,))} #1:("Y",()), 4:("MX",(0,)), # 2:("W",()), #, 3:("MX",(1,)) # 0:("PO",()),
+row_order = {0:("Y",()),1:("PO",())} #1:("Y",()), 4:("MX",(0,)), # 2:("W",()), #, 3:("MX",(1,)) # 0:("PO",()),
 _dfdp = {}
 n_x = len(row_order)
 n_p = 2
@@ -100,7 +102,7 @@ for t in range(24):
             _dfdp[t][i][j] = dfdp[(x,p)]
             
 # covariance matrix of parameters
-_Vp = np.array([[0.1**2, 0.0],[0.0,0.1**2]])
+_Vp = np.array([[0.2**2, 0.0],[0.0,0.2**2]])
 _Q = {}
 _Q_inv = {}
 for t in range(24):
@@ -110,13 +112,16 @@ for t in range(24):
         
 qcov = {}
 for t in range(24):
+    aux = {}
     for i in range(n_x):
         for j in range(n_x):
             if t > 0:
-                qcov[t,row_order[i],row_order[j]] = _Q_inv[t][i][j]
+                aux[row_order[i],row_order[j]] = _Q_inv[t][i][j]
+    qcov[t] = deepcopy(aux)
 
-             
-    
+f = open('qcov.pckl','wb')
+pickle.dump(qcov, f)
+f.close()
 
     
 

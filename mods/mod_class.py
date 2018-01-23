@@ -834,7 +834,7 @@ class SemiBatchPolymerization(ConcreteModel):
         #self.tf.setlb(3*60/self.nfe)
         self.tf.setlb(min(10.0,10.0*24.0/self.nfe))
         #self.tf.setub(14*60/self.nfe)
-        self.tf.setub(min(50.0,50.0*24/self.nfe))#14*60/24)
+        self.tf.setub(min(25.0,25.0*24/self.nfe))#14*60/24)
         for i in self.fe_t:
             self.T[i].setlb((100 + self.Tb)/self.T_scale)
             self.u1[i].setlb((100+self.Tb)/self.T_scale)

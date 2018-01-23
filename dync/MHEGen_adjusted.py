@@ -445,7 +445,7 @@ class MheGen(NmpcGen):
         ip.options["max_iter"] = 3000
         with open("ipopt.opt", "w") as f:
             f.write("print_info_string yes")
-            f.close()
+        f.close()
 
         result = ip.solve(self.lsmhe, tee=True)
         aux = value(self.lsmhe.obfun_mhe)
@@ -470,7 +470,7 @@ class MheGen(NmpcGen):
         elif nmpc_as: # only nmpc uses advanced step scheme
             ivs = self.curr_pstate
         else: # nothing uses advanced step scheme
-            ivs = self.initial_values
+            ivs = self.intitial_values
             
         for x in self.states:
             xic = getattr(self.olnmpc, x+'_ic')
@@ -771,14 +771,11 @@ class MheGen(NmpcGen):
                 vni_m = aux_key[0]
                 v_i = self.yk_key[aux_key[0]]
                 v_j = self.yk_key[aux_key[1]]
-                for _t in range(1,self.nfe_mhe+1):
+                for t in range(1,self.nfe_mhe+1):
                     if self.diag_Q_R:                
-                        try:
-                            rtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.measurement[_t][vni_m] + 0.001)**2
-                        except ZeroDivisionError:
-                            rtarget[_t,v_i] = 1 
+                        rtarget[t, v_i] = 1 / (cov_dict[vni, vnj]*self.measurement[t][vni_m] + 0.001)**2
                     else:
-                        rtarget[_t, v_i, v_j] = cov_dict[vni, vnj]
+                        rtarget[t, v_i, v_j] = 1 / (cov_dict[vni, vnj]*self.measurement[t][vni_m] + 0.001)**2 ## fixx
             else:
                 continue
 
@@ -792,7 +789,7 @@ class MheGen(NmpcGen):
         # disturbances
         qtarget = getattr(self.lsmhe, "Q_mhe")
         w = getattr(self.lsmhe, 'wk_mhe')
-        for key in cov_dict:
+        for key in cov_dict[0]:
             if self.multimodel or self.linapprox:
                 aux_key = ((key[0][0], key[0][1] + (1,)),(key[1][0], key[1][1] + (1,)))
             else:
@@ -805,54 +802,41 @@ class MheGen(NmpcGen):
                 v_i = self.xkN_key[aux_key[0]]
                 v_j = self.xkN_key[aux_key[1]]
                 xic = getattr(self.lsmhe, vni[0] + "_ic")
-                try:
+                # noise in initial guess
+                if self.diag_Q_R:
                     if xic_key == ():
-                        qtarget[0, v_i] = 1 / (cov_dict[vni, vnj]*xic.value + 0.001)**2 # .00001
+                        qtarget[0, v_i] = 1 / (cov_dict[0][vni, vnj]*xic.value + 0.001)**2 # .00001
                     else:
-                        qtarget[0, v_i] = 1 / (cov_dict[vni, vnj]*xic[xic_key].value + 0.001)**2 # .0001
-                    
-                    if set_bounds:
-                        if cov_dict[vni, vnj] != 0:
-                            if xic_key == (): 
-                                confidence = 3*cov_dict[vni, vnj]*xic.value
-                            else:
-                                confidence = 3*cov_dict[vni, vnj]*xic[xic_key].value
-                        else:
-                            if xic_key == ():     
-                                confidence = 0.5*xic.value
-                            else:
-                                confidence = 0.5*xic[xic_key].value
-                        w[0,v_i].setlb(-confidence)
-                        w[0,v_i].setub(confidence)
-                        
-                        if w[0,v_i].lb == w[0,v_i].ub:
-                            w[0,v_i].fix()
-                            
-                        
-                except ZeroDivisionError:
-                    qtarget[0, v_i] = 1 
-                    # t > 1 is systematic:
-                for _t in range(1,self.nfe_mhe):
-                    if self.diag_Q_R:
-                        try:
-                            qtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.nmpc_trajectory[_t,vni_traj] + .001)**2 
-                        except ZeroDivisionError:
-                            qtarget[_t, v_i] = 1
-                    else:
-                        qtarget[_t, v_i, v_j] = cov_dict[vni, vnj]
-                    
-                    # bound disturbances to help solution
-                    if set_bounds:                        
-                        if cov_dict[vni, vnj] != 0.0:
-                            confidence = 10*cov_dict[vni,vnj]*self.nmpc_trajectory[_t,vni_traj]
-                        else:
-                            confidence = abs(10*self.nmpc_trajectory[_t,vni_traj])
+                        qtarget[0, v_i] = 1 / (cov_dict[0][vni, vnj]*xic[xic_key].value + 0.001)**2 # .0001
+                else:
+                    qtarget[0, v_i, v_j] = cov_dict[0][vni, vnj]
 
-                        w[_t,v_i].setlb(-confidence)
-                        w[_t,v_i].setub(confidence)
-                        
-                        if abs(w[_t,v_i].lb - w[_t,v_i].ub) < 1e-5:
-                            w[_t,v_i].fix()
+                if set_bounds:
+                    if cov_dict[0][vni, vnj] != 0.0:
+                        if xic_key == (): 
+                            confidence = 3*cov_dict[0][vni, vnj]*xic.value
+                        else:
+                            confidence = 3*cov_dict[0][vni, vnj]*xic[xic_key].value
+                        w[0,v_i].setlb(-confidence)
+                        w[0,v_i].setub(confidence)   
+                    else:
+                        w[0,v_i].fix() 
+                             
+                for t in range(1,self.nfe_mhe):
+                    if self.diag_Q_R:
+                        qtarget[t, v_i] = 1 / (cov_dict[t][vni, vnj]*self.nmpc_trajectory[t,vni_traj] + .001)**2 
+                    else:
+                        qtarget[t, v_i, v_j] = cov_dict[t][vni, vnj]
+                    # bound disturbances to help solution
+                    #if set_bounds:                        
+                    #    if cov_dict[t][vni, vnj] != 0.0:
+                    #        confidence = 10*cov_dict[t][vni,vnj]*self.nmpc_trajectory[t,vni_traj]
+                    #    else:
+                    #        confidence = abs(10*self.nmpc_trajectory[t,vni_traj])
+                    #    w[t,v_i].setlb(-confidence)
+                    #    w[t,v_i].setub(confidence)
+                    #    if abs(w[t,v_i].lb - w[t,v_i].ub) < 1e-5:
+                    #        w[t,v_i].fix()
             else:
                 print(key[0], ' is not a state variable')
 
@@ -863,16 +847,11 @@ class MheGen(NmpcGen):
         Returns:
             None
         """
-       
         utarget = getattr(self.lsmhe, "U_mhe")
         for key in cov_dict:
             u = key[0]
             for t in range(1,self.nfe_mhe+1):
-                try:
-                    utarget[t, u] = 1 / (cov_dict[key]*self.nmpc_trajectory[t,u] + .001)**2
-                except ZeroDivisionError:
-                    utarget[t, u] = 1.0
-                #qtarget[_t, vni] = 1 / cov_dict[key]
+                utarget[t, u] = 1 / (cov_dict[key]*self.nmpc_trajectory[t,u] + .001)**2
 
     def shift_mhe(self):
         """Shifts current initial guesses of variables for the mhe problem"""

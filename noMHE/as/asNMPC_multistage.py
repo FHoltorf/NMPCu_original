@@ -9,11 +9,12 @@ Created on Fri Sep 29 21:51:51 2017
 
 from __future__ import print_function
 from pyomo.environ import *
+# from nmpc_mhe.dync.MHEGen import MheGen
 from main.dync.MHEGen_multistage import MheGen
 from main.mods.mod_class import *
 from main.mods.mod_class_multistage import *
 import sys
-import itertools, sys, csv
+import itertools, sys
 import numpy as np
 import matplotlib.pyplot as plt
 import numpy.linalg as linalg
@@ -35,13 +36,6 @@ p_noisy = {"A":['p','i']}
 u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
 
-# measured variables
-#y = ["heat_removal","m_tot","MW","PO"] 
-#y_vars = {"heat_removal":[()],"m_tot":[()],"MW":[()],"PO":[()]}
-y = {"heat_removal","PO", "Y", "W", "MY", "MX", "MW","m_tot"}
-y_vars = {"heat_removal":[()],"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
-
-
 pc = ['Tad','heat_removal']
 
 # scenario_tree
@@ -49,7 +43,7 @@ st = {} # scenario tree : {parent_node, scenario_number on current stage, base n
 s_max = 5
 nr = 1
 nfe = 24
-alpha = 0.2
+alpha = 0.3
 for i in range(1,nfe+1):
     if i < nr + 1:
         for s in range(1,s_max**i+1):
@@ -71,9 +65,7 @@ sr = s_max**nr
 
 e = MheGen(d_mod=SemiBatchPolymerization_multistage,
            d_mod_mhe=SemiBatchPolymerization,
-           y=y,
            x_noisy=x_noisy,
-           y_vars=y_vars,
            x_vars=x_vars,
            p_noisy=p_noisy,
            states=states,
@@ -99,14 +91,13 @@ e.delta_u = True
 ###############################################################################
 ###                                     NMPC
 ###############################################################################
-e.recipe_optimization(multimodel=True)
+e.recipe_optimization(multimodel=False)
 e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
 e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
 e.generate_state_index_dictionary()
 
 e.create_nmpc()
 e.load_reference_trajectories()
-e.create_mhe()
 
 k = 1 
 
@@ -121,41 +112,28 @@ curr_pstate = {}
  
 for i in range(1,nfe):
     print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
-    e.create_mhe()
     if i == 1:
         e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call=True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
-        e.set_measurement_prediction(e.store_results(e.recipe_optimization_model)) # only required for asMHE
-        e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov, first_call=True) #adjusts the mhe problem according to new available measurements
-        e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
         e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
-        e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_noise",parameter_disturbance = v_param)
-        e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
-        e.cycle_mhe(previous_mhe,mcov,qcov,ucov) # only required for asMHE
-        e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
+        e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_noise",parameter_disturbance = v_param) 
         e.cycle_nmpc(e.store_results(e.olnmpc))  
-
-
+    
+    # solve the advanced step problems
+    e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
     
     # solve the advanced step problem
     e.load_reference_trajectories()
-    e.set_regularization_weights(K_w = 1.0, Q_w = 0.0, R_w = 0.0)
+    e.set_regularization_weights(K_w = 0.0, Q_w = 0.0, R_w = 0.0)
     e.solve_olnmpc() # solves the olnmpc problem
+    
+    # preparation for nmpc
     e.create_suffixes_nmpc()
     e.sens_k_aug_nmpc()
     
-    e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
-
-    # solve mhe problem
-    previous_mhe = e.solve_mhe(fix_noise=False) # solves the mhe problem
-    #e.compute_confidence_ellipsoid()
-
-    # update state estimate 
-    e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True
-    
     # compute fast update for nmpc
-    state_offset[i], curr_pstate[i], curr_estate[i] = e.compute_offset_state(src_kind="estimated")
-    before[i], after[i], diff[i], applied[i] = e.sens_dot_nmpc()   
+    e.compute_offset_state(src_kind="real")
+    e.sens_dot_nmpc()   
 
     #sIpopt
     e.forward_simulation()
@@ -164,7 +142,6 @@ for i in range(1,nfe):
    
     #troubleshooting
     if  e.nmpc_trajectory[i,'solstat'] != ['ok','optimal'] or \
-        e.nmpc_trajectory[i,'solstat_mhe'] != ['ok','optimal'] or \
         e.plant_trajectory[i,'solstat'] != ['ok','optimal'] or \
         e.simulation_trajectory[i,'solstat'] != ['ok','optimal']:
         with open("000aaa.txt","w") as f:
@@ -183,8 +160,6 @@ for i in range(1,k):
     print('open-loop optimal control: ', end='')
     print(e.nmpc_trajectory[i,'solstat'],e.nmpc_trajectory[i,'obj_value'])
     print('constraint inf: ', e.nmpc_trajectory[i,'eps'])
-    print('mhe: ', end='')
-    print(e.nmpc_trajectory[i,'solstat_mhe'], e.nmpc_trajectory[i,'obj_value_mhe'])
     print('plant: ',end='')
     print(e.plant_trajectory[i,'solstat'])
 #    print('forward_simulation: ',end='')
@@ -276,78 +251,6 @@ for b in plots:
     
 e.plant_simulation_model.check_feasibility(display=True)
 
-
-##### check advanced step results
-state_offset_norm = []
-diff_norm = []
-
-for u in ['u1','u2']:    
-    x = []
-    for i in range(1,k):
-        x.append(diff[i][u])
-    l += 1
-    plt.figure(l)
-    plt.plot(x)
-
-for p in [('Y',(1,)),('PO',(1,)),('PO_fed',(1,)),('W',(1,))]:
-    x = []
-    y = [] 
-    z = []
-    for i in range(1,k):
-        #x.append(curr_pstate[i][p])
-        #y.append(curr_estate[i][p])
-        #z.append(curr_pstate[i][p] - state_offset[i][p])
-        z.append(state_offset[i][p])
-    l += 1
-    plt.figure(l)
-    #plt.plot(x, label = 'predicted')
-    #plt.plot(y, label = 'estimated')
-    plt.plot(z, label = 'estimated check')
-    plt.ylabel(p[0])
-    plt.legend()
-    
-
-# compute the confidence ellipsoids
-# delta_theta^T*Vi*delta_theta = sigma^2*chi2(n_dof,confidence_level)
-l += 1
-plt.figure(l)
-
-###############################################################################
-###         Plotting 1st Order Approximation of Confidence Region 
-###############################################################################
-try:
-    dimension = 2 # dimension n of the n x n matrix = #DoF
-    rhs_confidence = chi2.isf(1.0-0.95,dimension) # 0.1**2*5% measurment noise, 95% confidence level, dimension degrees of freedo
-    rows = {}
-    for r in range(1,k):
-        A_dict = e.mhe_confidence_ellipsoids[r]
-        center = [0,0]
-        for m in range(dimension):
-            rows[m] = np.array([A_dict[(m,i)] for i in range(dimension)])
-        A = 1/rhs_confidence*np.array([np.array(rows[i]) for i in range(dimension)])
-        center = np.array([0]*dimension)
-        U, s, V = linalg.svd(A) # singular value decomposition 
-        radii = 1/np.sqrt(s) # length of half axes, V rotation
-        
-        # transform in polar coordinates for simpler waz of plotting
-        theta = np.linspace(0.0, 2.0 * np.pi, 100) # angle = idenpendent variable
-        x = radii[0] * np.sin(theta) # x-coordinate
-        y = radii[1] * np.cos(theta) # y-coordinate
-        for i in range(len(x)):
-            [x[i],y[i]] = np.dot([x[i],y[i]], V) + center
-        plt.plot(x,y, label = str(r))
-    
-        
-        # plot half axis
-    for p in range(dimension):
-        x = radii[p]*U[p][0]
-        y = radii[p]*U[p][1]
-        plt.plot([0,x],[0,y],color='red')
-    plt.xlabel(r'$\Delta A_i$')
-    plt.ylabel(r'$\Delta A_p$')
-except KeyError:
-    pass
-
 ###############################################################################
 ###         Plotting path constraints
 ###############################################################################
@@ -378,7 +281,7 @@ max_tf = max(t[0])
 plt.figure(l)
 for i in Tad:
     plt.plot(t[i],Tad[i], color='grey')
-plt.plot([0,max_tf],[4.6315,4.6315], color='red', linestyle='dashed')
+plt.plot([0,max_tf],[4.4315,4.4315], color='red', linestyle='dashed')
 plt.xlabel('t [min]')
 plt.ylabel('Tad')
     

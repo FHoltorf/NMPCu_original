@@ -254,11 +254,15 @@ class NmpcGen(DynGen):
             for p in parameter_disturbance:
                 disturbed_parameter = getattr(self.plant_simulation_model, p[0])
                 if first_call:
-                    self.nominal_parameter_values[p] = disturbed_parameter[p[1]].value
-                
+                    if p[1] != ():
+                        self.nominal_parameter_values[p] = disturbed_parameter[p[1]].value
+                    else:
+                        self.nominal_parameter_values[p] = disturbed_parameter.value
                 if (self.iterations-1)%parameter_disturbance[p][1] == 0:
-                    disturbed_parameter[p[1]].value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0]))                 
-                    
+                    if p[1] != ():
+                        disturbed_parameter[p[1]].value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0]))                 
+                    else:
+                        disturbed_parameter.value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0])) 
             for x in self.states:
                 for j in self.state_vars[x]:
                     state_noise[(x,j)] = 0.0
@@ -737,6 +741,16 @@ class NmpcGen(DynGen):
                 except KeyError:
                     continue
         return output       
+    
+    def cycle_ics(self):
+        for x in self.states:
+            xic = getattr(self.olnmpc, x+'_ic')
+            for j in self.state_vars[x]:
+                if not(j == ()):
+                    xic[j].value = self.curr_rstate[(x,j)]
+                else:
+                    xic.value = self.curr_rstate[(x,j)]
+         
 
     def cycle_nmpc(self,initialguess):
         # cut-off one finite element
@@ -876,7 +890,8 @@ class NmpcGen(DynGen):
                 else:
                     expr = s[(1, 0) + j] == xic + self.noisy_model.w_pnoisy[self.xp_key[(x,j)]] 
                 self.noisy_model.ics_noisy.add(expr)
-                
+       
+
     def add_noise(self,var_dict):
         print("add_noise")
         # set the time horizon

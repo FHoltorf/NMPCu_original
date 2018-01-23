@@ -455,7 +455,7 @@ class MheGen(NmpcGen):
             ivs = self.initial_values
         elif nmpc_as: # only nmpc uses advanced step scheme
             ivs = self.curr_pstate
-        else: # nothing uses advanced step scheme
+        else: # nothing uses advanced step scheme/no measurement noise
             ivs = self.initial_values
             
         for x in self.states:

@@ -163,11 +163,16 @@ class NmpcGen(DynGen):
             for p in parameter_disturbance:
                 disturbed_parameter = getattr(self.plant_simulation_model, p[0])               
                 if first_call:
-                    self.nominal_parameter_values[p] = disturbed_parameter[p[1]].value
+                    if p[1] != ():
+                        self.nominal_parameter_values[p] = disturbed_parameter[p[1]].value
+                    else:
+                        self.nominal_parameter_values[p] = disturbed_parameter.value
                 
                 if (self.iterations-1)%parameter_disturbance[p][1] == 0:
-                    disturbed_parameter[p[1]].value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0]))                 
-            
+                    if p[1] != ():
+                        disturbed_parameter[p[1]].value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0]))                 
+                    else:
+                        disturbed_parameter.value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0]))
             for x in self.states:
                 for j in self.x_vars[x]:
                     state_noise[(x,j)] = 0.0
@@ -695,6 +700,16 @@ class NmpcGen(DynGen):
                 except KeyError:
                     continue
         return output       
+    
+    def cycle_ics(self):
+        for x in self.states:
+            xic = getattr(self.olnmpc, x+'_ic')
+            for j in self.state_vars[x]:
+                j_aux = j[:-1]
+                if not(j_aux == ()):
+                    xic[j_aux].value = self.curr_rstate[(x,j)]
+                else:
+                    xic.value = self.curr_rstate[(x,j)]
 
     def cycle_nmpc(self,initialguess):
         # cut-off one finite element
