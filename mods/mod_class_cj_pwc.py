@@ -582,7 +582,7 @@ class SemiBatchPolymerization(ConcreteModel):
         
         def _Q_out(self,i,j):
             if j > 0:
-                return self.Q_C[i,j] == self.kA*self.tf*self.fe_dist[i]*self.Hrxn_aux['p'] * (self.T[i,j]*self.T_scale - self.T_cw[i]*self.T_scale)
+                return self.Q_C[i,j] == self.kA*self.tf*self.fe_dist[i] * (self.T[i,j]*self.T_scale - self.T_cw[i]*self.T_scale)
             else:
                 return Constraint.Skip
         self.Q_out = Constraint(self.fe_t, self.cp, rule=_Q_out)

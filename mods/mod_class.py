@@ -91,10 +91,12 @@ class SemiBatchPolymerization(ConcreteModel):
         self.fe_t = Set(initialize=[i for i in range(1,nfe+1)])
         self.cp = Set(initialize=[i for i in range(ncp+1)])
         self.epc = Set(initialize=[i for i in range(1,5)])
+        self.pc = Set(initialize=[i for i in range(1,3)])
         
         # parameters for l1-relaxation of endpoint-constraints
         self.eps = Var(self.epc, initialize=0, bounds=(0,None))
         self.eps.fix()
+        self.eps_pc = Var(self.fe_t, self.cp, self.pc, initialize=0.0, bounds=(0,None))
         self.rho = Param(initialize=1e3, mutable=True)
         
         # auxilliary parameter to enable non-uniform finite element distribution
@@ -644,7 +646,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 return Constraint.Skip
             else:
                 #return 0.0 <= (self.T_safety + self.Tb) - self.Tad[i,j]*self.Tad_scale + self.eps
-                return 0.0 == (self.T_safety + self.Tb) - self.Tad[i,j]*self.Tad_scale - self.s_temp_b[i,j] #+ self.eps 
+                return 0.0 == (self.T_safety + self.Tb) - self.Tad[i,j]*self.Tad_scale - self.s_temp_b[i,j] + self.eps_pc[i,j,1] 
             
         self.pc_temp_b = Constraint(self.fe_t, self.cp, rule = _pc_temp_b)   
         #process_constraint_temp_b(k,q)$(ak(k))..
@@ -655,7 +657,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 return Constraint.Skip
             else:
                 #return 0.0 <= self.max_heat_removal + self.F[i]*self.monomer_cooling[i,j] - self.heat_removal [i,j] + self.eps
-                return 0.0 == (self.max_heat_removal - self.heat_removal [i,j] - self.s_heat_removal_a[i,j]) #+ self.eps
+                return 0.0 == self.max_heat_removal - self.heat_removal [i,j] - self.s_heat_removal_a[i,j] + self.eps_pc[i,j,2]
             
         self.pc_heat_removal_a = Constraint(self.fe_t, self.cp, rule=_pc_heat_removal_a)
         #process_constraint_heat_removal_a(k,q)$(ak(k))..
@@ -739,10 +741,16 @@ class SemiBatchPolymerization(ConcreteModel):
         self.u1_c = Constraint(self.fe_t, rule = lambda self, i: self.u1_e[i] == self.u1[i])
         self.u2_c = Constraint(self.fe_t, rule = lambda self, i: self.u2_e[i] == self.u2[i])
         
+        
+        #def _obj_e(self):
+        #    return self.tf + self.rho*(sum(self.eps[i] for i in self.epc) + sum(sum(sum(self.eps_pc[i,j,k] for i in self.fe_t) for j in self.cp) for k in self.pc))
+       
+        #self.obj_e = Expression(rule=_obj_e)
+        
         # objective
-        def _obj(self):
-            return self.tf + self.rho*sum(self.eps[i] for i in self.epc)#*nfe
-        self.eobj = Objective(rule=_obj,sense=minimize)
+        def _eobj(self):
+            return self.tf + self.rho*(sum(self.eps[i] for i in self.epc) + sum(sum(sum(self.eps_pc[i,j,k] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc))
+        self.eobj = Objective(rule=_eobj, sense=minimize)
         
         #Suffixes
         self.dual = Suffix(direction=Suffix.IMPORT_EXPORT)
@@ -807,7 +815,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 var[key].setlb(None)
                 var[key].setub(None)
 
-        variables = ['s_temp_b','s_heat_removal_a','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps']
+        variables = ['s_temp_b','s_heat_removal_a','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','eps_pc']
         for varname in variables:
             var = getattr(self,varname)
             for key in var.index_set():
@@ -821,7 +829,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 var[key].setub(None)
     
     def clear_aux_bounds(self):
-        keep_bounds = ['s_temp_b','s_heat_removal_a','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','T','F','u1','u2','tf'] 
+        keep_bounds = ['s_temp_b','s_heat_removal_a','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','eps_pc','T','F','u1','u2','tf'] 
         for var in self.component_objects(Var, active=True):
             if var.name in keep_bounds:
                 continue
@@ -1147,6 +1155,21 @@ class SemiBatchPolymerization(ConcreteModel):
 #m.tf.setub(None)
 #m.clear_aux_bounds()
 #results = Solver.solve(m, tee=True)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #prev_res = m.save_results(results)
 ##m.plot_profiles([m.W, m.F, m.T, m.X, m.Tad, m.heat_removal])

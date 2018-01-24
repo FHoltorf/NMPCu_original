@@ -192,13 +192,13 @@ class NmpcGen(DynGen):
             self.recipe_optimization_model.equalize_u(direction="u_to_r")
             # run the simulation
             ip = SolverFactory("asl:ipopt")
-            ip.options["halt_on_ampl_error"] = "no"
+            ip.options["halt_on_ampl_error"] = "yes"
             ip.options["print_user_options"] = "yes"
             ip.options["linear_solver"] = "ma57"
             ip.options["tol"] = 1e-8
             ip.options["max_iter"] = 3000
                 
-            out = ip.solve(self.recipe_optimization_model, tee=True)
+            out = ip.solve(self.recipe_optimization_model, tee=True, symbolic_solver_labels=True)
             if  [str(out.solver.status), str(out.solver.termination_condition)] == ['ok','optimal']:
                 converged = True
             else:
@@ -325,14 +325,18 @@ class NmpcGen(DynGen):
             for x in self.states:
                 xic = getattr(self.plant_simulation_model,x+'_ic')
                 x_var = getattr(self.plant_simulation_model,x)
+                if self.iterations > 1:
+                    x_olnmpc = getattr(self.olnmpc,x)
+                else:
+                    x_olnmpc = getattr(self.recipe_optimization_model,x)
                 for j in self.state_vars[x]:
                     if j == (): 
                         xic.value = x_var[(1,self.ncp_t)+j].value * (1.0 + state_noise[(x,j)])#+ noise # again tailored to RADAU nodes
                     else:
                         xic[j].value = x_var[(1,self.ncp_t)+j].value * (1.0 + state_noise[(x,j)])# + noise # again tailored to RADAU nodes
-                    # for initialization: take constant values + leave time invariant values as is!
+                    # for initialization: take element 1 from olnmpc
                     for k in range(0,self.ncp_t+1):
-                        x_var[(1,k)+j].value = x_var[(1,self.ncp_t)+j].value
+                        x_var[(1,k)+j].value = x_olnmpc[(1,k)+j].value
  
         # result is the previous olnmpc solution 
         #    --> therefore provides information about the sampling interval
@@ -349,20 +353,28 @@ class NmpcGen(DynGen):
     
         # probably redundant
         self.plant_simulation_model.clear_aux_bounds()
-        
+        #T_bar = 0.0
+        #for index in self.plant_simulation_model.T.index_set():
+        #    T_bar += self.plant_simulation_model.T[index].value
+        #T_bar *= 0.25
+        #for index in self.plant_simulation_model.T.index_set():
+        #    self.plant_simulation_model.T[index].value = T_bar
         # solve statement
         ip = SolverFactory("asl:ipopt")
-        ip.options["halt_on_ampl_error"] = "no"
+        ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
         ip.options["max_iter"] = 3000
-        
-        out = ip.solve(self.plant_simulation_model, tee=True)
+
+        out = ip.solve(self.plant_simulation_model, tee=True, symbolic_solver_labels=True)
         
         # check if converged otw. run again and hope for numerical issues
         if [str(out.solver.status), str(out.solver.termination_condition)] != ['ok','optimal']:
-            out = ip.solve(self.plant_simulation_model, tee = True)
+            #ip.options["linear_solver"] = "ma27"
+            #ip.options["linear_scaling_on_demand"] = "yes"
+            self.plant_simulation_model.magic()
+            out = ip.solve(self.plant_simulation_model, tee = True, symbolic_solver_labels=True)
         
         self.plant_trajectory[self.iterations,'solstat'] = [str(out.solver.status), str(out.solver.termination_condition)]
         self.plant_trajectory[self.iterations,'tf'] = self.plant_simulation_model.tf.value
@@ -472,18 +484,18 @@ class NmpcGen(DynGen):
         self.forward_simulation_model.clear_aux_bounds()
         # solve statement
         ip = SolverFactory("asl:ipopt")
-        ip.options["halt_on_ampl_error"] = "no"
+        ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
         ip.options["max_iter"] = 3000
   
-        out = ip.solve(self.forward_simulation_model, tee=True)
+        out = ip.solve(self.forward_simulation_model, tee=True, symbolic_solver_labels=True)
         self.simulation_trajectory[self.iterations,'obj_fun'] = 0.0
         
         if [str(out.solver.status), str(out.solver.termination_condition)] != ['ok','optimal']:
             self.forward_simulation_model.clear_aux_bounds()
-            out = ip.solve(self.forward_simulation_model, tee = True)
+            out = ip.solve(self.forward_simulation_model, tee = True, symbolic_solver_labels=True)
             self.simulation_trajectory[self.iterations,'obj_fun'] = 0.0
             
         self.simulation_trajectory[self.iterations,'solstat'] = [str(out.solver.status), str(out.solver.termination_condition)]
@@ -506,7 +518,7 @@ class NmpcGen(DynGen):
         self.recipe_optimization_model.clear_aux_bounds()
         #self.recipe_optimization_model.aux.fixed = True
         ip = SolverFactory("asl:ipopt")
-        ip.options["halt_on_ampl_error"] = "no"
+        ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["max_iter"] = 5000
@@ -681,10 +693,8 @@ class NmpcGen(DynGen):
         self.olnmpc.eobj.deactivate()
         
         # declare/activate tracking obj function
-        if self.multimodel or self.linapprox: # for those two model types additionally scenarios need to be accounted for
-            self.olnmpc.objfun_nmpc = Objective(expr = (self.olnmpc.tf + self.olnmpc.rho*sum(sum(self.olnmpc.eps[i,s] for i in self.olnmpc.epc) for s in self.olnmpc.s)+self.olnmpc.xQ_expr_nmpc + self.olnmpc.xR_expr_nmpc + self.olnmpc.uK_expr_nmpc))        
-        else:
-            self.olnmpc.objfun_nmpc = Objective(expr = (self.olnmpc.tf + self.olnmpc.rho*sum(self.olnmpc.eps[i] for i in self.olnmpc.epc)+self.olnmpc.xQ_expr_nmpc + self.olnmpc.xR_expr_nmpc + self.olnmpc.uK_expr_nmpc))
+        self.olnmpc.objfun_nmpc = Objective(expr = self.olnmpc.eobj.expr + self.olnmpc.xQ_expr_nmpc + self.olnmpc.xR_expr_nmpc + self.olnmpc.uK_expr_nmpc, sense=minimize)        
+
         
     def set_regularization_weights(self, Q_w = 1.0, R_w = 1.0, K_w = 1.0 ):
         for i in self.olnmpc.fe_t:
@@ -937,12 +947,12 @@ class NmpcGen(DynGen):
         
         # 7. solve the problem
         ip = SolverFactory("asl:ipopt")
-        ip.options["halt_on_ampl_error"] = "no"
+        ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
 
-        results = ip.solve(self.noisy_model, tee=True)
+        results = ip.solve(self.noisy_model, tee=True, symbolic_solver_labels=True)
         
         self.nmpc_trajectory[self.iterations, 'solstat_noisy'] = [str(results.solver.status),str(results.solver.termination_condition)]
         self.nmpc_trajectory[self.iterations, 'obj_noisy'] = value(self.noisy_model.obj_fun_noisy.expr)
@@ -973,7 +983,7 @@ class NmpcGen(DynGen):
         print("solve_olnmpc")
         print('#'*20 + ' ' + str(self.iterations) + ' ' + '#'*20)
         ip = SolverFactory("asl:ipopt")
-        ip.options["halt_on_ampl_error"] = "no"
+        ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
@@ -989,7 +999,7 @@ class NmpcGen(DynGen):
             
         self.olnmpc.clear_aux_bounds() #redudant I believe
         
-        results = ip.solve(self.olnmpc,tee=True)   
+        results = ip.solve(self.olnmpc,tee=True, symbolic_solver_labels=True)
         self.olnmpc.solutions.load_from(results)
         self.olnmpc.write_nl()
         if not(str(results.solver.status) == 'ok' and str(results.solver.termination_condition) == 'optimal'):
@@ -1038,7 +1048,7 @@ class NmpcGen(DynGen):
         eps = kwargs.pop('eps',0.0)
         
         ip = SolverFactory('asl:ipopt')
-        ip.options["halt_on_ampl_error"] = "no"
+        ip.options["halt_on_ampl_error"] = "yes"
         ip.options["max_iter"] = 5000
         ip.options["tol"] = 1e-8
         ip.options["linear_solver"] = "ma57"
@@ -1074,12 +1084,13 @@ class NmpcGen(DynGen):
                 u_var.unfix()
             self.olnmpc.tf.unfix()
             self.olnmpc.eps.unfix()
+            self.olnmpc.eps_pc.unfix()
             
             for i in cons:
                 slack = getattr(self.olnmpc, 's_'+i)
                 for index in slack.index_set():
                     slack[index].setlb(0)
-            nlp_results = ip.solve(self.olnmpc, tee=False)
+            nlp_results = ip.solve(self.olnmpc, tee=False, symbolic_solver_labels=True)
 
             if [str(nlp_results.solver.status),str(nlp_results.solver.termination_condition)] != ['ok','optimal']:
                 self.olnmpc.A.pprint()
@@ -1092,10 +1103,17 @@ class NmpcGen(DynGen):
             for index in self.olnmpc.eps.index_set():
                 if self.olnmpc.eps[index].value > 1e-3:
                     flag = True
+            for index in self.olnmpc.eps_pc.index_set():
+                if self.olnmpc.eps_pc[index].value > 1e-3:
+                    flag = True
+                    
             if flag:
+                print('Restricted Problem infeasible')
+                print('Stop iterating')
                 break
             
             self.olnmpc.eps.fix()
+            self.olnmpc.eps_pc.fix()
             for u in self.u:
                 u_var = getattr(self.olnmpc,u)
                 u_var.fix()
@@ -1203,7 +1221,7 @@ class NmpcGen(DynGen):
             slack = getattr(self.olnmpc, 's_'+i)
             for index in slack.index_set():
                 slack[index].setlb(0)
-        ip.solve(self.olnmpc,tee=True)
+        ip.solve(self.olnmpc,tee=True, symbolic_solver_labels=True)
             
            
         # save converged results 
@@ -1489,10 +1507,10 @@ class NmpcGen(DynGen):
         sIP = SolverFactory('ipopt_sens', solver_io = 'nl')
         sIP.options['run_sens'] = 'yes'
         sIP.options['tol'] = 1e-8
-        sip.options["halt_on_ampl_error"] = "no"
+        sip.options["halt_on_ampl_error"] = "yes"
         sIP.options["print_user_options"] = "yes"
         sIP.options["linear_solver"] = "ma57"
-        results = sIP.solve(self.olnmpc, tee = True)
+        results = sIP.solve(self.olnmpc, tee = True, symbolic_solver_labels=True)
         self.olnmpc.solutions.load_from(results)
         
         self.nmpc_trajectory[self.iterations,'sIpopt'] = [str(results.solver.status),str(results.solver.termination_condition)]

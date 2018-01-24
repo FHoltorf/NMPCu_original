@@ -83,7 +83,8 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         self.fe_t = Set(initialize=[i for i in range(1,nfe+1)])
         self.cp = Set(initialize=[i for i in range(ncp+1)])
         self.epc = Set(initialize=[i for i in range(1,5)])
- 
+        self.pc = Set(initialize=[i for i in range(1,3)])
+        
         # time horizon
         self.tf = Var(self.fe_t, self.s, initialize=9.6*60/nfe,bounds=(2*60,9.20*60)) # batch time in [min]
         
@@ -110,6 +111,7 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         # parameters for l1-relaxation of endpoint-constraints
         self.eps = Var(self.epc, self.s, initialize=0, bounds=(0,None))
         self.eps.fix()
+        self.eps_pc = Var(self.fe_t, self.cp, self.pc, self.s, initialize=0.0, bounds=(0,None))
         self.rho = Param(initialize=1e3, mutable=True)
         
         # auxilliary parameter to enable non-uniform finite element distribution
@@ -785,7 +787,7 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
                     return Constraint.Skip
                 else:
                     #return 0.0 <= (self.T_safety + self.Tb) - self.Tad[i,j,s]*self.Tad_scale + self.eps
-                    return 0.0 == (self.T_safety + self.Tb) - self.Tad[i,j,s]*self.Tad_scale - self.s_temp_b[i,j,s] #+ self.eps 
+                    return 0.0 == (self.T_safety + self.Tb) - self.Tad[i,j,s]*self.Tad_scale - self.s_temp_b[i,j,s] + self.eps_pc[i,j,1,s] 
             else:
                 return Constraint.Skip
             
@@ -799,7 +801,7 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
                     return Constraint.Skip
                 else:
                     #return 0.0 <= self.max_heat_removal + self.F[i,s]*self.monomer_cooling[i,j,s] - self.heat_removal [i,j,s] + self.eps
-                    return 0.0 == (self.max_heat_removal - self.heat_removal[i,j,s] - self.s_heat_removal_a[i,j,s]) #+ self.eps
+                    return 0.0 == self.max_heat_removal - self.heat_removal[i,j,s] - self.s_heat_removal_a[i,j,s] + self.eps_pc[i,j,2,s] 
             else:
                 return Constraint.Skip
             
@@ -985,7 +987,9 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         
         # objective
         def _eobj(self):
-            return 1.0/self.s_max * sum(sum(self.tf[i,s] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) + self.rho*sum(sum(self.eps[k,s] for s in self.s) for k in self.epc)#*nfe
+            return 1.0/self.s_max * sum(sum(self.tf[i,s] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
+                    + self.rho*(sum(sum(self.eps[k,s] for s in self.s) for k in self.epc)#*nfe\
+                    + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc) for s in self.s if (i,s) in self.scenario_tree))                    
         self.eobj = Objective(rule=_eobj,sense=minimize)
         
         #Suffixes
@@ -1058,7 +1062,7 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
                 var[key].setlb(None)
                 var[key].setub(None)
 
-        variables = ['s_temp_b','s_heat_removal_a','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps']
+        variables = ['s_temp_b','s_heat_removal_a','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','eps_pc']
         for varname in variables:
             var = getattr(self,varname)
             for key in var.index_set():
@@ -1072,7 +1076,7 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
                 var[key].setub(None)
     
     def clear_aux_bounds(self):
-        keep_bounds = ['s_temp_b','s_heat_removal_a','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','T','F','u1','u2','tf'] 
+        keep_bounds = ['s_temp_b','s_heat_removal_a','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','eps_pc','T','F','u1','u2','tf'] 
         for var in self.component_objects(Var, active=True):
             if var.name in keep_bounds:
                 continue

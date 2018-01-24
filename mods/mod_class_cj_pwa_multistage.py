@@ -176,7 +176,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.PO_ic = Param(initialize = 0, mutable=True)
         self.m_tot_ic = Param(initialize = (self.m_PG+self.m_KOH+self.m_H2O)/self.m_tot_scale, mutable=True)
         self.X_ic = Param(initialize = (self.n_PG*self.num_OH+self.n_H2O*self.num_OH)/self.X_scale, mutable=True)
-        self.Y_ic = Param(initialize = 0, mutable=True)
+        self.Y_ic = Param(initialize = 0.0, mutable=True)
         self.MY_ic = Param(initialize = 0.0, mutable=True)
         self.MX_ic = Param(self.o, initialize = 0.0, mutable=True)
         self.PO_fed_ic = Param(initialize = 0.0, mutable=True) 
@@ -224,7 +224,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         #        PO_fed(k,q), PO_fed0(k), PO_feddot(k,q)
         
         # reactions
-        self.k_l = Var(self.fe_t, self.cp, self.r, self.s, bounds=(-50,50)) # rate coefficients (?)
+        self.k_l = Var(self.fe_t, self.cp, self.r, self.s, bounds=(None,20)) # rate coefficients (?)
         self.kr = Var(self.fe_t,self.cp,self.r, self.s) # rate coefficients (?)
         
         # algebraic variables
@@ -878,7 +878,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         def _Q_out(self,i,j,s):
             if (i,s) in self.scenario_tree:
                 if j > 0:
-                    return self.Qc[i,j,s] == self.kA*self.tf[i,s] * self.Hrxn_aux['p'] * self.p_Hrxn_aux['p',i,s] * (self.T[i,j,s]*self.T_scale - self.T_cw[i,j,s]*self.T_scale)
+                    return self.Qc[i,j,s] == self.kA * self.tf[i,s] * (self.T[i,j,s]*self.T_scale - self.T_cw[i,j,s]*self.T_scale)
                 else:
                     return Constraint.Skip
             else:
@@ -1204,14 +1204,17 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 self.F[i,s].setub(3.0) #5*self.n_PO/(3.0*60))
                 self.u2[i,s].setub(3.0)
                 for j in self.cp:
-                    self.T[i,j,s].setlb((50 + self.Tb)/self.T_scale)
-                    self.T[i,j,s].setub((200 + self.Tb)/self.T_scale)
+                    self.T[i,j,s].setlb((25 + self.Tb)/self.T_scale)
+                    self.T[i,j,s].setub((225 + self.Tb)/self.T_scale)
                     self.int_T[i,j,s].setlb((1.1*(100+self.Tb) + 2.72*(100+self.Tb)**2/2000)/self.int_T_scale)
                     self.int_T[i,j,s].setub((1.1*(170+self.Tb) + 2.72*(170+self.Tb)**2/2000)/self.int_T_scale)
                     self.Vi[i,j,s].setlb(0.9/self.Vi_scale*(1e3)/((self.m_KOH + self.m_PG + self.m_PO + self.m_H2O)*(1 + 0.0007576*((170+self.Tb)-298.15))))
                     self.Vi[i,j,s].setub(1.1/self.Vi_scale*(1e3)/((self.m_KOH + self.m_PG + self.m_H2O)*(1 + 0.0007576*((100+self.Tb)-298.15))))
                     self.Tad[i,j,s].setlb((100 + self.Tb)/self.Tad_scale)
                     self.Tad[i,j,s].setub((self.T_safety + self.Tb)/self.Tad_scale)        
+                    for r in self.r:
+                        self.k_l[i,j,r].setlb(None)
+                        self.k_l[i,j,r].setub(20.0)
 
     def del_pc_bounds(self):
         for i in self.fe_t:

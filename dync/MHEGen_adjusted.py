@@ -824,7 +824,7 @@ class MheGen(NmpcGen):
                              
                 for t in range(1,self.nfe_mhe):
                     if self.diag_Q_R:
-                        qtarget[t, v_i] = 1 / (cov_dict[t][vni, vnj]*self.nmpc_trajectory[t,vni_traj] + .001)**2 
+                        qtarget[t, v_i] = 1 / (cov_dict[0][vni, vnj]*self.nmpc_trajectory[t,vni_traj] + .001)**2 
                     else:
                         qtarget[t, v_i, v_j] = cov_dict[t][vni, vnj]
                     # bound disturbances to help solution
