@@ -357,18 +357,21 @@ class NmpcGen(DynGen):
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
         ip.options["max_iter"] = 3000
-
+        
         self.plant_simulation_model.A['p'] = 12112.9911944# 14267.7530887 # 13288.0471352
         self.plant_simulation_model.A['i'] = 337678.098021# 302423.866195 # 426854.024419
-        self.plant_simulation_model.kA =  0.057361376673# 0.0562482825565 # 0.0539566959
+        self.plant_simulation_model.kA = 0.057361376673# 0.0562482825565 # 0.0539566959
 
 
         out = ip.solve(self.plant_simulation_model, tee=True, symbolic_solver_labels=True)
         
         # check if converged otw. run again and hope for numerical issues
         if [str(out.solver.status), str(out.solver.termination_condition)] != ['ok','optimal']:
-            self.plant_simulation_model.magic(self.nominal_parameter_values)
-            #out = ip.solve(self.plant_simulation_model, tee = True, symbolic_solver_labels=True)
+            #self.plant_simulation_model.magic(self.nominal_parameter_values)
+            self.plant_simulation_model.clear_all_bounds()
+            for index in self.plant_simulation_model.k_l.index_set():
+                self.plant_simulation_model.k_l[index].setub(10.0)
+            out = ip.solve(self.plant_simulation_model, tee = True, symbolic_solver_labels=True)
             print('oleoloeloleoloeloleoleoleoleoleoleoeloeoleoleoleololeoleoloeole')
             sys.exit()
             
