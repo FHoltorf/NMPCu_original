@@ -246,10 +246,8 @@ class NmpcGen(DynGen):
                 for x in self.states: 
                     for j in self.state_vars[x]:
                         state_noise[(x,j)] = 0.0   
-            
             for u in self.u:
-                input_noise[u] = 0.0
-                
+                input_noise[u] = 0.0     
         elif disturbance_src == 'parameter_noise':
             for p in parameter_disturbance:
                 disturbed_parameter = getattr(self.plant_simulation_model, p[0])
@@ -259,10 +257,21 @@ class NmpcGen(DynGen):
                     else:
                         self.nominal_parameter_values[p] = disturbed_parameter.value
                 if (self.iterations-1)%parameter_disturbance[p][1] == 0:
-                    if p[1] != ():
-                        disturbed_parameter[p[1]].value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0]))                 
+                    sigma = parameter_disturbance[p][0]
+                    rand = np.random.normal(loc=0.0, scale=sigma)
+                    #truncation at 2 sigma
+                    if abs(rand) > 2*sigma:
+                        if rand < 0.0:
+                            rand = -2.0 * sigma
+                        else:
+                            rand = 2.0 * sigma
                     else:
-                        disturbed_parameter.value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0])) 
+                        pass
+                    
+                    if p[1] != ():
+                            disturbed_parameter[p[1]].value = self.nominal_parameter_values[p] * (1 + rand)                 
+                    else:
+                        disturbed_parameter.value = self.nominal_parameter_values[p] * (1 + rand) 
             for x in self.states:
                 for j in self.state_vars[x]:
                     state_noise[(x,j)] = 0.0
@@ -281,8 +290,7 @@ class NmpcGen(DynGen):
                 for j in self.state_vars[x]:
                         state_noise[(x,j)] = 0.0
             for u in self.u:
-                input_noise[u] = 0.0
-                
+                input_noise[u] = 0.0     
         if first_call: 
             for x in self.states:
                     xic = getattr(self.plant_simulation_model,x+'_ic')
@@ -290,14 +298,8 @@ class NmpcGen(DynGen):
                     for j in self.state_vars[x]:
                         if j == ():
                             xic.value = xic.value * (1 + np.random.normal(loc=0.0, scale=initial_disturbance[(x,j)]))
-                            aux = xic.value
                         else:
                             xic[j].value = xic[j].value * (1 + np.random.normal(loc=0.0, scale=initial_disturbance[(x,j)]))
-                            aux = xic[j].value
-                        # just for initialization purposes for the simulation
-                        for k in range(0,self.ncp_t+1): 
-                            x_var[(1,k)+j].value = aux
-                            
             # initialization of the simulation (initial guess)               
             for var in self.plant_simulation_model.component_objects(Var, active=True):
                 var_ref = getattr(self.recipe_optimization_model, var.name)
@@ -307,37 +309,32 @@ class NmpcGen(DynGen):
                     else:
                         var[key].value = var_ref[key].value
         else:                
-            # initialization of simulation
-            for var in self.plant_simulation_model.component_objects(Var, active=True):
-                for key in var.index_set():
-                    if var[key].fixed:
-                        break
-                    elif key == None or type(key) == int:
-                        continue
-                    elif type(key) == tuple and type(key[0])==int:
-                        if len(key) > 2:
-                            var[key] = var[(1,self.ncp_t)+key[2:]].value 
-                        else:
-                            var[key] = var[(1,self.ncp_t)].value
-                            
             # initialization of state trajectories
             # adding state noise if specified
             for x in self.states:
                 xic = getattr(self.plant_simulation_model,x+'_ic')
                 x_var = getattr(self.plant_simulation_model,x)
-                if self.iterations > 1:
-                    x_olnmpc = getattr(self.olnmpc,x)
-                else:
-                    x_olnmpc = getattr(self.recipe_optimization_model,x)
                 for j in self.state_vars[x]:
                     if j == (): 
                         xic.value = x_var[(1,self.ncp_t)+j].value * (1.0 + state_noise[(x,j)])#+ noise # again tailored to RADAU nodes
                     else:
                         xic[j].value = x_var[(1,self.ncp_t)+j].value * (1.0 + state_noise[(x,j)])# + noise # again tailored to RADAU nodes
-                    # for initialization: take element 1 from olnmpc
-                    for k in range(0,self.ncp_t+1):
-                        x_var[(1,k)+j].value = x_olnmpc[(1,k)+j].value
  
+    
+            # initialization of simulation
+            for var in self.plant_simulation_model.component_objects(Var, active=True):
+                try:
+                    var_ref = getattr(self.olnmpc,var.name)
+                except AttributeError: 
+                    # catch that plant simulation includes quantities (Outputs)
+                    # that are not relevant for plant simulation (therefore removed)
+                    continue
+                for key in var.index_set():
+                    if var[key].fixed:
+                        break
+                    else:
+                        var[key].value = var_ref[key].value
+           
         # result is the previous olnmpc solution 
         #    --> therefore provides information about the sampling interval
         # 1 element model for forward simulation
@@ -347,18 +344,12 @@ class NmpcGen(DynGen):
         # FIX(!!) the controls, path constraints are deactivated by default
         for u in self.u:
             control = getattr(self.plant_simulation_model,u)
-            control[1].value = result[u,1]*(1.0+input_noise[u])
-            control[1].fixed = True
-            self.plant_simulation_model.equalize_u(direction="u_to_r")
+            control[1].fix(result[u,1]*(1.0+input_noise[u]))
+            #self.plant_simulation_model.equalize_u(direction="u_to_r")
     
         # probably redundant
         self.plant_simulation_model.clear_aux_bounds()
-        #T_bar = 0.0
-        #for index in self.plant_simulation_model.T.index_set():
-        #    T_bar += self.plant_simulation_model.T[index].value
-        #T_bar *= 0.25
-        #for index in self.plant_simulation_model.T.index_set():
-        #    self.plant_simulation_model.T[index].value = T_bar
+
         # solve statement
         ip = SolverFactory("asl:ipopt")
         ip.options["halt_on_ampl_error"] = "yes"
@@ -367,15 +358,20 @@ class NmpcGen(DynGen):
         ip.options["tol"] = 1e-8
         ip.options["max_iter"] = 3000
 
+        self.plant_simulation_model.A['p'] = 12112.9911944# 14267.7530887 # 13288.0471352
+        self.plant_simulation_model.A['i'] = 337678.098021# 302423.866195 # 426854.024419
+        self.plant_simulation_model.kA =  0.057361376673# 0.0562482825565 # 0.0539566959
+
+
         out = ip.solve(self.plant_simulation_model, tee=True, symbolic_solver_labels=True)
         
         # check if converged otw. run again and hope for numerical issues
         if [str(out.solver.status), str(out.solver.termination_condition)] != ['ok','optimal']:
-            #ip.options["linear_solver"] = "ma27"
-            #ip.options["linear_scaling_on_demand"] = "yes"
-            self.plant_simulation_model.magic()
-            out = ip.solve(self.plant_simulation_model, tee = True, symbolic_solver_labels=True)
-        
+            self.plant_simulation_model.magic(self.nominal_parameter_values)
+            #out = ip.solve(self.plant_simulation_model, tee = True, symbolic_solver_labels=True)
+            print('oleoloeloleoloeloleoleoleoleoleoleoeloeoleoleoleololeoleoloeole')
+            sys.exit()
+            
         self.plant_trajectory[self.iterations,'solstat'] = [str(out.solver.status), str(out.solver.termination_condition)]
         self.plant_trajectory[self.iterations,'tf'] = self.plant_simulation_model.tf.value
         
@@ -388,7 +384,7 @@ class NmpcGen(DynGen):
             for j in self.state_vars[x]:
                     self.plant_trajectory[self.iterations,(x,j)] = xvar[(1,3)+j].value 
                     # setting the current real value w/o measurement noise
-                    self.curr_rstate[(x,j)] = xvar[(1,3)+j].value 
+                    self.curr_rstate[(x,j)] = xvar[(1,self.ncp_t)+j].value 
       
         # monitor path constraints for results
         if self.path_constraints != []:

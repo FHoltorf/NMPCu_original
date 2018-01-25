@@ -25,20 +25,18 @@ import numpy.linalg as linalg
 ###############################################################################
 ###                               Specifications
 ###############################################################################
-
 # all states + states that are subject to process noise (directly drawn from e.g. a gaussian distribution)
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","PO_fed","T"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)], "T":[()], "T_cw":[()]}
 p_noisy = {"A":['p','i','a'],'kA':[()],'Hrxn_aux':['p']}
 u = ["u1", "u2"]
-u_bounds = {"u1": (-10.0, 10.0), "u2": (0, 3.0)} 
+u_bounds = {"u1": (-5.0, 5.0), "u2": (0, 3.0)} 
 
 # mhe_
 nfe = 24
 
 pc = ['Tad','T']
-
 e = MheGen(d_mod=SemiBatchPolymerization,
            x_noisy=x_noisy,
            x_vars=x_vars,
@@ -72,17 +70,19 @@ for i in range(1,nfe):
     print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
     if i == 1:
         e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+        if e.plant_trajectory[i,'solstat'] != ['ok','optimal']:
+            sys.exit()
         e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
         e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
-        if i == 3:
+        if e.plant_trajectory[i,'solstat'] != ['ok','optimal']:
             sys.exit()
         e.cycle_nmpc(e.store_results(e.olnmpc))   
 
     e.cycle_ics() # writes the obtained initial conditions from mhe into olnmpc
     e.solve_olnmpc() # solves the olnmpc problem
     e.olnmpc.write_nl()
-    
+     
     e.cycle_iterations()
     k += 1
 

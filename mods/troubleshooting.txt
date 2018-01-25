@@ -56,40 +56,40 @@ Model unknown
         (1, 3) :   0.0 :  3.97 :  None :  True :  True :  Reals
     T : Size=4, Index=T_index
         Key    : Lower : Value         : Upper : Fixed : Stale : Domain
-        (1, 0) :  None : 4.06975495167 :  None : False : False :  Reals
-        (1, 1) :  None : 4.06978288167 :  None : False : False :  Reals
-        (1, 2) :  None : 4.06986612037 :  None : False : False :  Reals
-        (1, 3) :  None :  4.0699219446 :  None : False : False :  Reals
+        (1, 0) :  None : 4.09482450471 :  None : False : False :  Reals
+        (1, 1) :  None : 4.09485883416 :  None : False : False :  Reals
+        (1, 2) :  None : 4.09496093656 :  None : False : False :  Reals
+        (1, 3) :  None : 4.09502922148 :  None : False : False :  Reals
     dT_dt : Size=4, Index=dT_dt_index
         Key    : Lower : Value             : Upper : Fixed : Stale : Domain
         (1, 0) :  None :               0.0 :  None : False :  True :  Reals
-        (1, 1) :  None : 0.000177612238065 :  None : False : False :  Reals
-        (1, 2) :  None : 0.000162410829791 :  None : False : False :  Reals
-        (1, 3) :  None : 0.000152153056965 :  None : False : False :  Reals
+        (1, 1) :  None : 0.000218200589124 :  None : False : False :  Reals
+        (1, 2) :  None : 0.000198894645504 :  None : False : False :  Reals
+        (1, 3) :  None : 0.000185892452957 :  None : False : False :  Reals
     W : Size=4, Index=W_index
         Key    : Lower : Value          : Upper : Fixed : Stale : Domain
-        (1, 0) :   0.0 : 0.142373126389 :  None : False : False :  Reals
-        (1, 1) :   0.0 : 0.136806537331 :  None : False : False :  Reals
-        (1, 2) :   0.0 : 0.120543242069 :  None : False : False :  Reals
-        (1, 3) :   0.0 : 0.109926230817 :  None : False : False :  Reals
+        (1, 0) :   0.0 : 0.131180252304 :  None : False : False :  Reals
+        (1, 1) :   0.0 : 0.125919139696 :  None : False : False :  Reals
+        (1, 2) :   0.0 : 0.110580644439 :  None : False : False :  Reals
+        (1, 3) :   0.0 :  0.10059593065 :  None : False : False :  Reals
     dW_dt : Size=4, Index=dW_dt_index
         Key    : Lower : Value            : Upper : Fixed : Stale : Domain
         (1, 0) :  None :             None :  None : False :  True :  Reals
-        (1, 1) :  None :  -0.035229178261 :  None : False : False :  Reals
-        (1, 2) :  None : -0.0312360118649 :  None : False : False :  Reals
-        (1, 3) :  None : -0.0286066046773 :  None : False : False :  Reals
+        (1, 1) :  None : -0.0332789271068 :  None : False : False :  Reals
+        (1, 2) :  None : -0.0294104671009 :  None : False : False :  Reals
+        (1, 3) :  None : -0.0268702563268 :  None : False : False :  Reals
     PO : Size=4, Index=PO_index
         Key    : Lower : Value          : Upper : Fixed : Stale : Domain
-        (1, 0) :   0.0 : 0.159386388914 :  None : False : False :  Reals
-        (1, 1) :   0.0 : 0.160608718155 :  None : False : False :  Reals
-        (1, 2) :   0.0 : 0.164454319306 :  None : False : False :  Reals
-        (1, 3) :   0.0 :  0.16722525124 :  None : False : False :  Reals
+        (1, 0) :   0.0 : 0.141161879118 :  None : False : False :  Reals
+        (1, 1) :   0.0 : 0.142242815389 :  None : False : False :  Reals
+        (1, 2) :   0.0 : 0.145642952117 :  None : False : False :  Reals
+        (1, 3) :   0.0 : 0.148092316732 :  None : False : False :  Reals
     dPO_dt : Size=4, Index=dPO_dt_index
         Key    : Lower : Value            : Upper : Fixed : Stale : Domain
         (1, 0) :  None :             None :  None : False :  True :  Reals
-        (1, 1) :  None : 0.00787545371062 :  None : False : False :  Reals
-        (1, 2) :  None : 0.00782373212571 :  None : False : False :  Reals
-        (1, 3) :  None : 0.00778469046557 :  None : False : False :  Reals
+        (1, 1) :  None : 0.00696415252114 :  None : False : False :  Reals
+        (1, 2) :  None : 0.00691648500548 :  None : False : False :  Reals
+        (1, 3) :  None : 0.00688057869709 :  None : False : False :  Reals
     m_tot : Size=4, Index=m_tot_index
         Key    : Lower : Value          : Upper : Fixed : Stale : Domain
         (1, 0) :     0 :        0.93994 :  None : False :  True :  Reals
@@ -104,10 +104,10 @@ Model unknown
         (1, 3) :  None :  None :  None : False :  True :  Reals
     X : Size=4, Index=X_index
         Key    : Lower : Value         : Upper : Fixed : Stale : Domain
-        (1, 0) :   0.0 : 4.03082289838 :  None : False :  True :  Reals
-        (1, 1) :   0.0 : 3.92891418289 :  None : False : False :  Reals
-        (1, 2) :   0.0 : 3.62151388181 :  None : False : False :  Reals
-        (1, 3) :   0.0 : 3.41210812961 :  None : False : False :  Reals
+        (1, 0) :   0.0 : 3.90196771643 :  None : False :  True :  Reals
+        (1, 1) :   0.0 : 3.80120636539 :  None : False : False :  Reals
+        (1, 2) :   0.0 : 3.49760979665 :  None : False : False :  Reals
+        (1, 3) :   0.0 : 3.29110946052 :  None : False : False :  Reals
     dX_dt : Size=4, Index=dX_dt_index
         Key    : Lower : Value : Upper : Fixed : Stale : Domain
         (1, 0) :  None :  None :  None : False :  True :  Reals
@@ -116,48 +116,48 @@ Model unknown
         (1, 3) :  None :  None :  None : False :  True :  Reals
     MX : Size=8, Index=MX_index
         Key       : Lower : Value         : Upper : Fixed : Stale : Domain
-        (1, 0, 0) :   0.0 : 6.35058830137 :  None : False : False :  Reals
-        (1, 0, 1) :   0.0 : 1.25986606047 :  None : False : False :  Reals
-        (1, 1, 0) :   0.0 : 6.36189249074 :  None : False : False :  Reals
-        (1, 1, 1) :   0.0 : 1.26892368332 :  None : False : False :  Reals
-        (1, 2, 0) :   0.0 :  6.3958851799 :  None : False : False :  Reals
-        (1, 2, 1) :   0.0 :  1.2975540144 :  None : False : False :  Reals
-        (1, 3, 0) :   0.0 : 6.41894915737 :  None : False : False :  Reals
-        (1, 3, 1) :   0.0 : 1.31831422479 :  None : False : False :  Reals
+        (1, 0, 0) :   0.0 : 6.36571239439 :  None : False : False :  Reals
+        (1, 0, 1) :   0.0 : 1.26126427176 :  None : False : False :  Reals
+        (1, 1, 0) :   0.0 : 6.37684075201 :  None : False : False :  Reals
+        (1, 1, 1) :   0.0 :  1.2703344947 :  None : False : False :  Reals
+        (1, 2, 0) :   0.0 : 6.41026810794 :  None : False : False :  Reals
+        (1, 2, 1) :   0.0 : 1.29900388357 :  None : False : False :  Reals
+        (1, 3, 0) :   0.0 : 6.43291508431 :  None : False : False :  Reals
+        (1, 3, 1) :   0.0 : 1.31979168559 :  None : False : False :  Reals
     dMX_dt : Size=8, Index=dMX_dt_index
         Key       : Lower : Value           : Upper : Fixed : Stale : Domain
         (1, 0, 0) :  None :            None :  None : False :  True :  Reals
         (1, 0, 1) :  None :            None :  None : False :  True :  Reals
-        (1, 1, 0) :  None : 0.0720438553609 :  None : False : False :  Reals
-        (1, 1, 1) :  None : 0.0584231107916 :  None : False : False :  Reals
-        (1, 2, 0) :  None : 0.0667825640028 :  None : False : False :  Reals
-        (1, 2, 1) :  None : 0.0584590764896 :  None : False : False :  Reals
-        (1, 3, 0) :  None : 0.0631638962655 :  None : False : False :  Reals
-        (1, 3, 1) :  None : 0.0584827053636 :  None : False : False :  Reals
+        (1, 1, 0) :  None : 0.0709045251937 :  None : False : False :  Reals
+        (1, 1, 1) :  None : 0.0585040052696 :  None : False : False :  Reals
+        (1, 2, 0) :  None : 0.0656155342354 :  None : False : False :  Reals
+        (1, 2, 1) :  None : 0.0585376347894 :  None : False : False :  Reals
+        (1, 3, 0) :  None : 0.0619828038549 :  None : False : False :  Reals
+        (1, 3, 1) :  None : 0.0585595704784 :  None : False : False :  Reals
     Y : Size=4, Index=Y_index
         Key    : Lower : Value         : Upper : Fixed : Stale : Domain
-        (1, 0) :   0.0 : 7.80270984865 :  None : False : False :  Reals
-        (1, 1) :   0.0 : 7.81781252384 :  None : False : False :  Reals
-        (1, 2) :   0.0 : 7.86334062773 :  None : False : False :  Reals
-        (1, 3) :   0.0 : 7.89433577124 :  None : False : False :  Reals
+        (1, 0) :   0.0 : 8.20955681379 :  None : False : False :  Reals
+        (1, 1) :   0.0 : 8.22544970589 :  None : False : False :  Reals
+        (1, 2) :   0.0 : 8.27332835495 :  None : False : False :  Reals
+        (1, 3) :   0.0 : 8.30589459176 :  None : False : False :  Reals
     dY_dt : Size=4, Index=dY_dt_index
         Key    : Lower : Value           : Upper : Fixed : Stale : Domain
         (1, 0) :  None :            None :  None : False :  True :  Reals
-        (1, 1) :  None : 0.0963098955553 :  None : False : False :  Reals
-        (1, 2) :  None : 0.0896205635548 :  None : False : False :  Reals
-        (1, 3) :  None : 0.0850078294163 :  None : False : False :  Reals
+        (1, 1) :  None :  0.101333022452 :  None : False : False :  Reals
+        (1, 2) :  None : 0.0941986010879 :  None : False : False :  Reals
+        (1, 3) :  None : 0.0892824305832 :  None : False : False :  Reals
     MY : Size=4, Index=MY_index
         Key    : Lower : Value         : Upper : Fixed : Stale : Domain
-        (1, 0) :   0.0 : 1.72561711635 :  None : False : False :  Reals
-        (1, 1) :   0.0 : 1.74780232315 :  None : False : False :  Reals
-        (1, 2) :   0.0 : 1.81843938416 :  None : False : False :  Reals
-        (1, 3) :   0.0 : 1.87012598452 :  None : False : False :  Reals
+        (1, 0) :   0.0 : 1.83417547425 :  None : False : False :  Reals
+        (1, 1) :   0.0 : 1.85791979916 :  None : False : False :  Reals
+        (1, 2) :   0.0 : 1.93352514088 :  None : False : False :  Reals
+        (1, 3) :   0.0 : 1.98885033599 :  None : False : False :  Reals
     dMY_dt : Size=4, Index=dMY_dt_index
         Key    : Lower : Value          : Upper : Fixed : Stale : Domain
         (1, 0) :  None :           None :  None : False :  True :  Reals
-        (1, 1) :  None : 0.143353946787 :  None : False : False :  Reals
-        (1, 2) :  None : 0.145004013759 :  None : False : False :  Reals
-        (1, 3) :  None : 0.146137515811 :  None : False : False :  Reals
+        (1, 1) :  None : 0.153430661174 :  None : False : False :  Reals
+        (1, 2) :  None : 0.155208525672 :  None : False : False :  Reals
+        (1, 3) :  None : 0.156428293102 :  None : False : False :  Reals
     PO_fed : Size=4, Index=PO_fed_index
         Key    : Lower : Value         : Upper : Fixed : Stale : Domain
         (1, 0) :   0.0 :          1.38 :  None : False : False :  Reals
@@ -171,83 +171,83 @@ Model unknown
         (1, 2) :  None :  0.06 :  None : False : False :  Reals
         (1, 3) :  None :  0.06 :  None : False : False :  Reals
     k_l : Size=16, Index=k_l_index
-        Key         : Lower : Value           : Upper : Fixed : Stale : Domain
-        (1, 0, 'a') :  None :             0.0 :    20 : False :  True :  Reals
-        (1, 0, 'i') :  None :             0.0 :    20 : False :  True :  Reals
-        (1, 0, 'p') :  None :             0.0 :    20 : False :  True :  Reals
-        (1, 0, 't') :  None :             0.0 :    20 : False :  True :  Reals
-        (1, 1, 'a') :  None :  -1.98979737361 :    20 : False : False :  Reals
-        (1, 1, 'i') :  None :  0.893939883765 :    20 : False : False :  Reals
-        (1, 1, 'p') :  None : 0.0708072446101 :    20 : False : False :  Reals
-        (1, 1, 't') :  None :  -5.80637673505 :    20 : False : False :  Reals
-        (1, 2, 'a') :  None :  -1.98929917994 :    20 : False : False :  Reals
-        (1, 2, 'i') :  None :  0.894410255955 :    20 : False : False :  Reals
-        (1, 2, 'p') :  None : 0.0712253344194 :    20 : False : False :  Reals
-        (1, 2, 't') :  None :  -5.80574198464 :    20 : False : False :  Reals
-        (1, 3, 'a') :  None :  -1.98896507658 :    20 : False : False :  Reals
-        (1, 3, 'i') :  None :  0.894725701411 :    20 : False : False :  Reals
-        (1, 3, 'p') :  None : 0.0715057177691 :    20 : False : False :  Reals
-        (1, 3, 't') :  None :   -5.8053163023 :    20 : False : False :  Reals
+        Key         : Lower : Value          : Upper : Fixed : Stale : Domain
+        (1, 0, 'a') :  None :            0.0 :    20 : False :  True :  Reals
+        (1, 0, 'i') :  None :            0.0 :    20 : False :  True :  Reals
+        (1, 0, 'p') :  None :            0.0 :    20 : False :  True :  Reals
+        (1, 0, 't') :  None :            0.0 :    20 : False :  True :  Reals
+        (1, 1, 'a') :  None : -1.84063078976 :    20 : False : False :  Reals
+        (1, 1, 'i') :  None :   1.0347763034 :    20 : False : False :  Reals
+        (1, 1, 'p') :  None :  0.19598954292 :    20 : False : False :  Reals
+        (1, 1, 't') :  None : -5.61632303408 :    20 : False : False :  Reals
+        (1, 2, 'a') :  None : -1.84002715874 :    20 : False : False :  Reals
+        (1, 2, 'i') :  None :  1.03534622482 :    20 : False : False :  Reals
+        (1, 2, 'p') :  None : 0.196496116955 :    20 : False : False :  Reals
+        (1, 2, 't') :  None : -5.61555394555 :    20 : False : False :  Reals
+        (1, 3, 'a') :  None : -1.83962347403 :    20 : False : False :  Reals
+        (1, 3, 'i') :  None :  1.03572736588 :    20 : False : False :  Reals
+        (1, 3, 'p') :  None : 0.196834893769 :    20 : False : False :  Reals
+        (1, 3, 't') :  None : -5.61503960935 :    20 : False : False :  Reals
     kr : Size=16, Index=kr_index
         Key         : Lower : Value           : Upper : Fixed : Stale : Domain
         (1, 0, 'a') :  None :            None :  None : False :  True :  Reals
         (1, 0, 'i') :  None :            None :  None : False :  True :  Reals
         (1, 0, 'p') :  None :            None :  None : False :  True :  Reals
         (1, 0, 't') :  None :            None :  None : False :  True :  Reals
-        (1, 1, 'a') :  None :   1.64067751622 :  None : False : False :  Reals
-        (1, 1, 'i') :  None :   29.3369124455 :  None : False : False :  Reals
-        (1, 1, 'p') :  None :   12.8804916869 :  None : False : False :  Reals
-        (1, 1, 't') :  None : 0.0360997230555 :  None : False : False :  Reals
-        (1, 2, 'a') :  None :   1.64149509501 :  None : False : False :  Reals
-        (1, 2, 'i') :  None :   29.3507149591 :  None : False : False :  Reals
-        (1, 2, 'p') :  None :   12.8858780151 :  None : False : False :  Reals
-        (1, 2, 't') :  None : 0.0361226446436 :  None : False : False :  Reals
-        (1, 3, 'a') :  None :   1.64204361567 :  None : False : False :  Reals
-        (1, 3, 'i') :  None :   29.3599749692 :  None : False : False :  Reals
-        (1, 3, 'p') :  None :   12.8894915073 :  None : False : False :  Reals
-        (1, 3, 't') :  None : 0.0361380246886 :  None : False : False :  Reals
+        (1, 1, 'a') :  None :   1.90460732748 :  None : False : False :  Reals
+        (1, 1, 'i') :  None :   33.7737189163 :  None : False : False :  Reals
+        (1, 1, 'p') :  None :    14.598170209 :  None : False : False :  Reals
+        (1, 1, 't') :  None : 0.0436559198829 :  None : False : False :  Reals
+        (1, 2, 'a') :  None :    1.9057573546 :  None : False : False :  Reals
+        (1, 2, 'i') :  None :   33.7929727683 :  None : False : False :  Reals
+        (1, 2, 'p') :  None :   14.6055671364 :  None : False : False :  Reals
+        (1, 2, 't') :  None : 0.0436895080648 :  None : False : False :  Reals
+        (1, 3, 'a') :  None :   1.90652683502 :  None : False : False :  Reals
+        (1, 3, 'i') :  None :   33.8058551125 :  None : False : False :  Reals
+        (1, 3, 'p') :  None :   14.6105160021 :  None : False : False :  Reals
+        (1, 3, 't') :  None : 0.0437119849401 :  None : False : False :  Reals
     Vi : Size=4, Index=Vi_index
         Key    : Lower : Value         : Upper         : Fixed : Stale : Domain
         (1, 0) :     0 :          None : 10000000000.0 : False :  True :  Reals
-        (1, 1) :     0 : 9.77244691324 : 10000000000.0 : False : False :  Reals
-        (1, 2) :     0 : 9.59904079621 : 10000000000.0 : False : False :  Reals
-        (1, 3) :     0 : 9.47716477734 : 10000000000.0 : False : False :  Reals
+        (1, 1) :     0 : 9.75532579939 : 10000000000.0 : False : False :  Reals
+        (1, 2) :     0 : 9.58221095511 : 10000000000.0 : False : False :  Reals
+        (1, 3) :     0 : 9.46054044813 : 10000000000.0 : False : False :  Reals
     G : Size=4, Index=G_index
         Key    : Lower : Value          : Upper : Fixed : Stale : Domain
         (1, 0) :  None :           None :  None : False :  True :  Reals
-        (1, 1) :  None : 0.156462442302 :  None : False : False :  Reals
-        (1, 2) :  None : 0.144135607315 :  None : False : False :  Reals
-        (1, 3) :  None : 0.135747844365 :  None : False : False :  Reals
+        (1, 1) :  None : 0.151294433926 :  None : False : False :  Reals
+        (1, 2) :  None : 0.139131372627 :  None : False : False :  Reals
+        (1, 3) :  None : 0.130867202339 :  None : False : False :  Reals
     U : Size=4, Index=U_index
         Key    : Lower : Value          : Upper : Fixed : Stale : Domain
         (1, 0) :  None :           None :  None : False :  True :  Reals
-        (1, 1) :  None : 0.311331320564 :  None : False : False :  Reals
-        (1, 2) :  None : 0.312959556111 :  None : False : False :  Reals
-        (1, 3) :  None :  0.31406949104 :  None : False : False :  Reals
+        (1, 1) :  None : 0.327386791827 :  None : False : False :  Reals
+        (1, 2) :  None : 0.329104616336 :  None : False : False :  Reals
+        (1, 3) :  None : 0.330274395667 :  None : False : False :  Reals
     MG : Size=4, Index=MG_index
         Key    : Lower : Value         : Upper : Fixed : Stale : Domain
         (1, 0) :  None :          None :  None : False :  True :  Reals
-        (1, 1) :  None :  2.5335173802 :  None : False : False :  Reals
-        (1, 2) :  None : 2.54555090718 :  None : False : False :  Reals
-        (1, 3) :  None : 2.55372478862 :  None : False : False :  Reals
+        (1, 1) :  None : 2.53809032994 :  None : False : False :  Reals
+        (1, 2) :  None : 2.54993968058 :  None : False : False :  Reals
+        (1, 3) :  None : 2.55797508429 :  None : False : False :  Reals
     int_T : Size=4, Index=int_T_index
         Key    : Lower : Value         : Upper : Fixed : Stale : Domain
         (1, 0) :  None :          6.53 :  None : False :  True :  Reals
-        (1, 1) :  None : 6.72934721757 :  None : False : False :  Reals
-        (1, 2) :  None : 6.72953092474 :  None : False : False :  Reals
-        (1, 3) :  None : 6.72965412944 :  None : False : False :  Reals
+        (1, 1) :  None : 6.78477488413 :  None : False : False :  Reals
+        (1, 2) :  None : 6.78500092001 :  None : False : False :  Reals
+        (1, 3) :  None :  6.7851520918 :  None : False : False :  Reals
     int_Tad : Size=4, Index=int_Tad_index
         Key    : Lower : Value         : Upper : Fixed : Stale : Domain
         (1, 0) :  None :           7.0 :  None : False :  True :  Reals
-        (1, 1) :  None : 6.88573180896 :  None : False : False :  Reals
-        (1, 2) :  None : 6.88681949903 :  None : False : False :  Reals
-        (1, 3) :  None : 6.88756282268 :  None : False : False :  Reals
+        (1, 1) :  None : 6.92327660942 :  None : False : False :  Reals
+        (1, 2) :  None : 6.92429779219 :  None : False : False :  Reals
+        (1, 3) :  None : 6.92499379657 :  None : False : False :  Reals
     Tad : Size=4, Index=Tad_index
         Key    : Lower : Value         : Upper : Fixed : Stale : Domain
         (1, 0) :  None :         4.177 :  None : False :  True :  Reals
-        (1, 1) :  None : 4.14033520524 :  None : False : False :  Reals
-        (1, 2) :  None : 4.14082378295 :  None : False : False :  Reals
-        (1, 3) :  None : 4.14115765849 :  None : False : False :  Reals
+        (1, 1) :  None : 4.15718305471 :  None : False : False :  Reals
+        (1, 2) :  None : 4.15764081668 :  None : False : False :  Reals
+        (1, 3) :  None : 4.15795279746 :  None : False : False :  Reals
     f : Size=4, Index=f_index
         Key    : Lower : Value : Upper : Fixed : Stale : Domain
         (1, 0) :  None : 1.121 :  None : False :  True :  Reals
@@ -257,9 +257,9 @@ Model unknown
     monomer_cooling : Size=4, Index=monomer_cooling_index
         Key    : Lower : Value          : Upper : Fixed : Stale : Domain
         (1, 0) :  None :           0.08 :  None : False :  True :  Reals
-        (1, 1) :  None : 0.158307075278 :  None : False : False :  Reals
-        (1, 2) :  None : 0.158320808144 :  None : False : False :  Reals
-        (1, 3) :  None : 0.158330018305 :  None : False : False :  Reals
+        (1, 1) :  None : 0.162458847633 :  None : False : False :  Reals
+        (1, 2) :  None : 0.162475813174 :  None : False : False :  Reals
+        (1, 3) :  None : 0.162487159811 :  None : False : False :  Reals
     heat_removal : Size=4, Index=heat_removal_index
         Key    : Lower : Value : Upper : Fixed : Stale : Domain
         (1, 0) :  None :   0.0 :  None : False :  True :  Reals
@@ -269,15 +269,15 @@ Model unknown
     Qr : Size=4, Index=Qr_index
         Key    : Lower : Value         : Upper : Fixed : Stale : Domain
         (1, 0) :  None :           0.0 :  None : False :  True :  Reals
-        (1, 1) :  None : 5.88601628463 :  None : False : False :  Reals
-        (1, 2) :  None : 5.89052666688 :  None : False : False :  Reals
-        (1, 3) :  None : 5.89354649067 :  None : False : False :  Reals
+        (1, 1) :  None : 5.89707954768 :  None : False : False :  Reals
+        (1, 2) :  None : 5.90142468284 :  None : False : False :  Reals
+        (1, 3) :  None :  5.9043239567 :  None : False : False :  Reals
     Qc : Size=4, Index=Qc_index
         Key    : Lower : Value         : Upper : Fixed : Stale : Domain
         (1, 0) :  None :           0.0 :  None : False :  True :  Reals
-        (1, 1) :  None : 5.72368346098 :  None : False : False :  Reals
-        (1, 2) :  None :  5.7284581474 :  None : False : False :  Reals
-        (1, 3) :  None : 5.73166030226 :  None : False : False :  Reals
+        (1, 1) :  None : 5.72965969382 :  None : False : False :  Reals
+        (1, 2) :  None : 5.73434508136 :  None : False : False :  Reals
+        (1, 3) :  None : 5.73747861487 :  None : False : False :  Reals
     s_temp_b : Size=4, Index=s_temp_b_index
         Key    : Lower : Value : Upper : Fixed : Stale : Domain
         (1, 0) :     0 :     0 :  None : False :  True :  Reals
@@ -327,30 +327,30 @@ Model unknown
         (1, 2) : 67.8214521649 : 67.8214521649 : 67.8214521649
         (1, 3) : 67.8214521649 : 67.8214521649 : 67.8214521649
     de_W : Size=3
-        Key    : Lower : Body               : Upper
-        (1, 1) :   0.0 : -6.93889390391e-18 :   0.0
-        (1, 2) :   0.0 :  3.46944695195e-18 :   0.0
-        (1, 3) :   0.0 :  3.46944695195e-18 :   0.0
+        Key    : Lower : Body              : Upper
+        (1, 1) :   0.0 :               0.0 :   0.0
+        (1, 2) :   0.0 :               0.0 :   0.0
+        (1, 3) :   0.0 : 3.46944695195e-18 :   0.0
     dvar_t_W : Size=3
         Key    : Lower : Body               : Upper
-        (1, 1) :   0.0 :  4.51028103754e-17 :   0.0
-        (1, 2) :   0.0 : -2.77555756156e-17 :   0.0
-        (1, 3) :   0.0 :  1.11022302463e-16 :   0.0
+        (1, 1) :   0.0 : -3.12250225676e-17 :   0.0
+        (1, 2) :   0.0 : -5.55111512313e-17 :   0.0
+        (1, 3) :   0.0 :  2.22044604925e-16 :   0.0
     cp_W : Size=0
         Key : Lower : Body : Upper
     W_icc : Size=1
         Key  : Lower : Body : Upper
         None :   0.0 :  0.0 :   0.0
     de_PO : Size=3
-        Key    : Lower : Body               : Upper
-        (1, 1) :   0.0 :  -1.8561541193e-16 :   0.0
-        (1, 2) :   0.0 : -5.89805981832e-17 :   0.0
-        (1, 3) :   0.0 :  5.20417042793e-18 :   0.0
-    dvar_t_PO : Size=3
         Key    : Lower : Body              : Upper
-        (1, 1) :   0.0 : 5.55111512313e-17 :   0.0
-        (1, 2) :   0.0 :               0.0 :   0.0
-        (1, 3) :   0.0 : 2.22044604925e-16 :   0.0
+        (1, 1) :   0.0 : 4.59701721134e-17 :   0.0
+        (1, 2) :   0.0 : 2.12503625807e-16 :   0.0
+        (1, 3) :   0.0 :  1.2056328158e-16 :   0.0
+    dvar_t_PO : Size=3
+        Key    : Lower : Body               : Upper
+        (1, 1) :   0.0 : -2.77555756156e-17 :   0.0
+        (1, 2) :   0.0 :                0.0 :   0.0
+        (1, 3) :   0.0 :  2.22044604925e-16 :   0.0
     cp_PO : Size=0
         Key : Lower : Body : Upper
     PO_icc : Size=1
@@ -372,21 +372,21 @@ Model unknown
         Key  : Lower : Body : Upper
         None :   0.0 :  0.0 :   0.0
     de_MX : Size=6
-        Key       : Lower : Body              : Upper
-        (1, 1, 0) :   0.0 :               0.0 :   0.0
-        (1, 1, 1) :   0.0 : 6.93889390391e-18 :   0.0
-        (1, 2, 0) :   0.0 :               0.0 :   0.0
-        (1, 2, 1) :   0.0 :               0.0 :   0.0
-        (1, 3, 0) :   0.0 :               0.0 :   0.0
-        (1, 3, 1) :   0.0 : 1.38777878078e-17 :   0.0
+        Key       : Lower : Body               : Upper
+        (1, 1, 0) :   0.0 :                0.0 :   0.0
+        (1, 1, 1) :   0.0 : -6.93889390391e-18 :   0.0
+        (1, 2, 0) :   0.0 :  1.38777878078e-17 :   0.0
+        (1, 2, 1) :   0.0 : -6.93889390391e-18 :   0.0
+        (1, 3, 0) :   0.0 : -6.93889390391e-18 :   0.0
+        (1, 3, 1) :   0.0 :  6.93889390391e-18 :   0.0
     dvar_t_MX : Size=6
         Key       : Lower : Body               : Upper
-        (1, 1, 0) :   0.0 :   4.4408920985e-16 :   0.0
-        (1, 1, 1) :   0.0 : -2.77555756156e-16 :   0.0
+        (1, 1, 0) :   0.0 : -6.66133814775e-16 :   0.0
+        (1, 1, 1) :   0.0 :  3.33066907388e-16 :   0.0
         (1, 2, 0) :   0.0 :                0.0 :   0.0
-        (1, 2, 1) :   0.0 :  2.22044604925e-16 :   0.0
-        (1, 3, 0) :   0.0 :                0.0 :   0.0
-        (1, 3, 1) :   0.0 :   -8.881784197e-16 :   0.0
+        (1, 2, 1) :   0.0 :                0.0 :   0.0
+        (1, 3, 0) :   0.0 :  -7.1054273576e-15 :   0.0
+        (1, 3, 1) :   0.0 :                0.0 :   0.0
     cp_MX : Size=0
         Key : Lower : Body : Upper
     MX_icc : Size=2
@@ -395,29 +395,29 @@ Model unknown
           1 :   0.0 :  0.0 :   0.0
     de_Y : Size=3
         Key    : Lower : Body               : Upper
-        (1, 1) :   0.0 :                0.0 :   0.0
-        (1, 2) :   0.0 : -6.93889390391e-17 :   0.0
-        (1, 3) :   0.0 :  -1.2490009027e-16 :   0.0
+        (1, 1) :   0.0 :   1.2490009027e-16 :   0.0
+        (1, 2) :   0.0 : -2.08166817117e-16 :   0.0
+        (1, 3) :   0.0 : -1.38777878078e-16 :   0.0
     dvar_t_Y : Size=3
-        Key    : Lower : Body             : Upper
-        (1, 1) :   0.0 : 4.4408920985e-16 :   0.0
-        (1, 2) :   0.0 :              0.0 :   0.0
-        (1, 3) :   0.0 :              0.0 :   0.0
+        Key    : Lower : Body              : Upper
+        (1, 1) :   0.0 : 1.33226762955e-15 :   0.0
+        (1, 2) :   0.0 :  3.5527136788e-15 :   0.0
+        (1, 3) :   0.0 : -7.1054273576e-15 :   0.0
     cp_Y : Size=0
         Key : Lower : Body : Upper
     Y_icc : Size=1
         Key  : Lower : Body : Upper
         None :   0.0 :  0.0 :   0.0
     de_MY : Size=3
-        Key    : Lower : Body              : Upper
-        (1, 1) :   0.0 : 2.77555756156e-17 :   0.0
-        (1, 2) :   0.0 :               0.0 :   0.0
-        (1, 3) :   0.0 : 2.77555756156e-17 :   0.0
-    dvar_t_MY : Size=3
         Key    : Lower : Body               : Upper
-        (1, 1) :   0.0 :  3.33066907388e-16 :   0.0
-        (1, 2) :   0.0 : -2.22044604925e-16 :   0.0
-        (1, 3) :   0.0 :                0.0 :   0.0
+        (1, 1) :   0.0 :                0.0 :   0.0
+        (1, 2) :   0.0 :                0.0 :   0.0
+        (1, 3) :   0.0 : -2.77555756156e-17 :   0.0
+    dvar_t_MY : Size=3
+        Key    : Lower : Body              : Upper
+        (1, 1) :   0.0 : 7.77156117238e-16 :   0.0
+        (1, 2) :   0.0 :               0.0 :   0.0
+        (1, 3) :   0.0 :  3.5527136788e-15 :   0.0
     cp_MY : Size=0
         Key : Lower : Body : Upper
     MY_icc : Size=1
@@ -427,14 +427,14 @@ Model unknown
         Key : Lower : Body : Upper
     de_T : Size=3
         Key    : Lower : Body               : Upper
-        (1, 1) :   0.0 : -9.00565429521e-18 :   0.0
-        (1, 2) :   0.0 :  7.31836466428e-19 :   0.0
-        (1, 3) :   0.0 : -2.57498015965e-19 :   0.0
+        (1, 1) :   0.0 :  4.66206934169e-18 :   0.0
+        (1, 2) :   0.0 : -5.21772295509e-19 :   0.0
+        (1, 3) :   0.0 : -1.05845237089e-17 :   0.0
     dvar_t_T : Size=3
-        Key    : Lower : Body              : Upper
-        (1, 1) :   0.0 :  1.7763568394e-15 :   0.0
-        (1, 2) :   0.0 : -1.7763568394e-15 :   0.0
-        (1, 3) :   0.0 :  3.5527136788e-15 :   0.0
+        Key    : Lower : Body             : Upper
+        (1, 1) :   0.0 : 4.4408920985e-16 :   0.0
+        (1, 2) :   0.0 :  8.881784197e-16 :   0.0
+        (1, 3) :   0.0 :              0.0 :   0.0
     cp_T : Size=0
         Key : Lower : Body : Upper
     T_icc : Size=1
@@ -442,82 +442,82 @@ Model unknown
         None :   0.0 :  0.0 :   0.0
     rxn_rate_r_a : Size=12
         Key         : Lower : Body               : Upper
-        (1, 1, 'a') :   0.0 : -1.70530256582e-12 :   0.0
-        (1, 1, 'i') :   0.0 : -1.81898940355e-12 :   0.0
-        (1, 1, 'p') :   0.0 :  -7.1054273576e-13 :   0.0
-        (1, 1, 't') :   0.0 : -1.36424205266e-12 :   0.0
-        (1, 2, 'a') :   0.0 :                0.0 :   0.0
-        (1, 2, 'i') :   0.0 : -7.95807864051e-13 :   0.0
-        (1, 2, 'p') :   0.0 :  7.81597009336e-14 :   0.0
+        (1, 1, 'a') :   0.0 : -2.50111042988e-12 :   0.0
+        (1, 1, 'i') :   0.0 :  7.38964445191e-13 :   0.0
+        (1, 1, 'p') :   0.0 : -7.95807864051e-13 :   0.0
+        (1, 1, 't') :   0.0 :  1.81898940355e-12 :   0.0
+        (1, 2, 'a') :   0.0 : -1.25055521494e-12 :   0.0
+        (1, 2, 'i') :   0.0 :  5.68434188608e-14 :   0.0
+        (1, 2, 'p') :   0.0 : -2.38742359215e-12 :   0.0
         (1, 2, 't') :   0.0 : -4.54747350886e-13 :   0.0
-        (1, 3, 'a') :   0.0 :                0.0 :   0.0
-        (1, 3, 'i') :   0.0 : -7.95807864051e-13 :   0.0
-        (1, 3, 'p') :   0.0 : -5.89750470681e-13 :   0.0
-        (1, 3, 't') :   0.0 :  1.81898940355e-12 :   0.0
+        (1, 3, 'a') :   0.0 :  -6.8212102633e-13 :   0.0
+        (1, 3, 'i') :   0.0 :  6.25277607469e-13 :   0.0
+        (1, 3, 'p') :   0.0 : -1.67688085639e-12 :   0.0
+        (1, 3, 't') :   0.0 :  9.09494701773e-13 :   0.0
     rxn_rate_r_b : Size=12
         Key         : Lower : Body               : Upper
-        (1, 1, 'a') :   0.0 : -2.22044604925e-16 :   0.0
-        (1, 1, 'i') :   0.0 :  -3.5527136788e-15 :   0.0
+        (1, 1, 'a') :   0.0 :                0.0 :   0.0
+        (1, 1, 'i') :   0.0 :                0.0 :   0.0
         (1, 1, 'p') :   0.0 :                0.0 :   0.0
-        (1, 1, 't') :   0.0 :  1.38777878078e-17 :   0.0
-        (1, 2, 'a') :   0.0 :                0.0 :   0.0
+        (1, 1, 't') :   0.0 :  6.93889390391e-18 :   0.0
+        (1, 2, 'a') :   0.0 : -2.22044604925e-16 :   0.0
         (1, 2, 'i') :   0.0 :                0.0 :   0.0
-        (1, 2, 'p') :   0.0 :                0.0 :   0.0
-        (1, 2, 't') :   0.0 :  1.38777878078e-17 :   0.0
+        (1, 2, 'p') :   0.0 :  -1.7763568394e-15 :   0.0
+        (1, 2, 't') :   0.0 : -1.38777878078e-17 :   0.0
         (1, 3, 'a') :   0.0 :                0.0 :   0.0
-        (1, 3, 'i') :   0.0 :                0.0 :   0.0
-        (1, 3, 'p') :   0.0 :   1.7763568394e-15 :   0.0
-        (1, 3, 't') :   0.0 : -1.38777878078e-17 :   0.0
+        (1, 3, 'i') :   0.0 :   7.1054273576e-15 :   0.0
+        (1, 3, 'p') :   0.0 :                0.0 :   0.0
+        (1, 3, 't') :   0.0 :  6.93889390391e-18 :   0.0
     ae_V : Size=3
-        Key    : Lower : Body               : Upper
-        (1, 1) :   0.0 :  1.13686837722e-13 :   0.0
-        (1, 2) :   0.0 : -1.13686837722e-13 :   0.0
-        (1, 3) :   0.0 :  1.13686837722e-13 :   0.0
-    ae_equilibrium_a : Size=3
-        Key    : Lower : Body              : Upper
-        (1, 1) :   0.0 :               0.0 :   0.0
-        (1, 2) :   0.0 : -1.7763568394e-15 :   0.0
-        (1, 3) :   0.0 :               0.0 :   0.0
-    ae_equilibrium_b : Size=3
-        Key    : Lower : Body               : Upper
-        (1, 1) :   0.0 : -2.77555756156e-17 :   0.0
-        (1, 2) :   0.0 : -2.77555756156e-17 :   0.0
-        (1, 3) :   0.0 :  5.55111512313e-17 :   0.0
-    ae_equilibrium_c : Size=3
-        Key    : Lower : Body               : Upper
-        (1, 1) :   0.0 :                0.0 :   0.0
-        (1, 2) :   0.0 : -2.84217094304e-14 :   0.0
-        (1, 3) :   0.0 :  5.68434188608e-14 :   0.0
-    pc_heat_a : Size=3
         Key    : Lower : Body               : Upper
         (1, 1) :   0.0 : -1.13686837722e-13 :   0.0
         (1, 2) :   0.0 :                0.0 :   0.0
         (1, 3) :   0.0 :                0.0 :   0.0
+    ae_equilibrium_a : Size=3
+        Key    : Lower : Body             : Upper
+        (1, 1) :   0.0 : 1.7763568394e-15 :   0.0
+        (1, 2) :   0.0 :              0.0 :   0.0
+        (1, 3) :   0.0 : 1.7763568394e-15 :   0.0
+    ae_equilibrium_b : Size=3
+        Key    : Lower : Body              : Upper
+        (1, 1) :   0.0 :               0.0 :   0.0
+        (1, 2) :   0.0 :               0.0 :   0.0
+        (1, 3) :   0.0 : 2.77555756156e-17 :   0.0
+    ae_equilibrium_c : Size=3
+        Key    : Lower : Body              : Upper
+        (1, 1) :   0.0 : 2.84217094304e-14 :   0.0
+        (1, 2) :   0.0 :               0.0 :   0.0
+        (1, 3) :   0.0 : 2.84217094304e-14 :   0.0
+    pc_heat_a : Size=3
+        Key    : Lower : Body : Upper
+        (1, 1) :   0.0 :  0.0 :   0.0
+        (1, 2) :   0.0 :  0.0 :   0.0
+        (1, 3) :   0.0 :  0.0 :   0.0
     pc_heat_b : Size=3
         Key    : Lower : Body               : Upper
-        (1, 1) :   0.0 : -1.13686837722e-13 :   0.0
-        (1, 2) :   0.0 :  1.13686837722e-13 :   0.0
-        (1, 3) :   0.0 : -1.13686837722e-13 :   0.0
+        (1, 1) :   0.0 :                0.0 :   0.0
+        (1, 2) :   0.0 : -1.13686837722e-13 :   0.0
+        (1, 3) :   0.0 :                0.0 :   0.0
     Q_in : Size=3
         Key    : Lower : Body               : Upper
-        (1, 1) :   0.0 :  2.26901830658e-15 :   0.0
-        (1, 2) :   0.0 : -2.77555756156e-17 :   0.0
-        (1, 3) :   0.0 :  2.63677968348e-16 :   0.0
+        (1, 1) :   0.0 :  1.87350135405e-16 :   0.0
+        (1, 2) :   0.0 :  -1.3357370765e-15 :   0.0
+        (1, 3) :   0.0 : -2.04697370165e-16 :   0.0
     Q_out : Size=3
         Key    : Lower : Body              : Upper
-        (1, 1) :   0.0 : 1.86517468137e-14 :   0.0
-        (1, 2) :   0.0 : 3.01980662698e-14 :   0.0
-        (1, 3) :   0.0 :  7.9936057773e-15 :   0.0
+        (1, 1) :   0.0 :  3.5527136788e-15 :   0.0
+        (1, 2) :   0.0 : 1.15463194561e-14 :   0.0
+        (1, 3) :   0.0 : 2.22044604925e-14 :   0.0
     pc_temp_a : Size=3
         Key    : Lower : Body               : Upper
-        (1, 1) :   0.0 :                0.0 :   0.0
-        (1, 2) :   0.0 : -1.45519152284e-10 :   0.0
-        (1, 3) :   0.0 : -2.91038304567e-11 :   0.0
+        (1, 1) :   0.0 :  3.05590219796e-10 :   0.0
+        (1, 2) :   0.0 : -3.78349795938e-10 :   0.0
+        (1, 3) :   0.0 :  -1.7462298274e-10 :   0.0
     pc_heat_removal_c : Size=3
-        Key    : Lower : Body               : Upper
-        (1, 1) :   0.0 : -1.09139364213e-11 :   0.0
-        (1, 2) :   0.0 : -9.09494701773e-12 :   0.0
-        (1, 3) :   0.0 :  3.63797880709e-12 :   0.0
+        Key    : Lower : Body              : Upper
+        (1, 1) :   0.0 : 5.45696821064e-12 :   0.0
+        (1, 2) :   0.0 : 5.45696821064e-12 :   0.0
+        (1, 3) :   0.0 : 5.45696821064e-12 :   0.0
     u1_c : Size=1
         Key : Lower : Body : Upper
           1 :   0.0 :  0.0 :   0.0

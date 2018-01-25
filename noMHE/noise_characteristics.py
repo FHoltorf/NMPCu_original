@@ -17,7 +17,7 @@ qcov[("PO_fed",()), ("PO_fed",())] = 0.0
 
 # process disturbances
 v_disturbances = {}
-v_disturbances[("PO",())] = disturbance_error*2
+v_disturbances[("PO",())] = disturbance_error
 v_disturbances[("MX",(0,))] = disturbance_error
 v_disturbances[("MX",(1,))] = disturbance_error
 v_disturbances[("X",())] = disturbance_error
@@ -92,4 +92,4 @@ v_param[('Hrxn_aux',('a',))] = [0.0,200]
 v_param[('Hrxn_aux',('i',))] = [0.0,200]
 v_param[('Hrxn_aux',('p',))] = [0.0,200]
 v_param[('Hrxn_aux',('t',))] = [0.0,200]
-v_param[('kA',())] = [0.1,200]
+v_param[('kA',())] = [0.05,200]
