@@ -45,7 +45,7 @@ U_scale = 1.0e-2
 monomer_cooling_scale = 1.0e-2
 scale = 1.0
 
-# ODE System
+# 
 n_KOH = 2.70005346641 # [kmol]
 mw_PO = 58.08 # [kg/kmol]
 bulk_cp_1 = 1.1 # [kJ/kg/K]
@@ -64,11 +64,14 @@ Ea_a = 82.425 # [kJ/kmol]
 Ea_i = 77.822
 Ea_p = 69.172
 Ea_t = 105.018
-kA = 2200.0*60.0/30.0/Hrxn # [kJ/min/K]
+kA = 2200.0*60.0/20.0/Hrxn # [kJ/min/K]
 Tf = 298.15
+nx = 10
+
+# ODE System
 def fun_gen(u1,u2):
     def fun(t,x):
-        dxdt = [0.0]*10
+        dxdt = [0.0]*nx
         PO = x[0]*PO_scale
         W = x[1]*W_scale
         Y = x[2]*Y_scale
@@ -76,9 +79,11 @@ def fun_gen(u1,u2):
         MX0 = x[4]*MX0_scale
         MY = x[6]*MY0_scale
         T = x[7]*T_scale
-        T_cw = x[8]*T_scale       
-        #F = x[10] #pwa
-        F = u2 #pwc
+        T_cw = x[8]*T_scale  
+        if nx == 11:    
+            F = x[10] #pwa
+        else:
+            F = u2 #pwc
         kr_i = A_i * np.exp(-Ea_i/(8.314e-3*T)) # [m^3/min/kmol] * exp([kJ/kmol]/[kJ/kmol/K]/[K]) = [m^3/min/kmol]
         kr_p = A_p * np.exp(-Ea_p/(8.314e-3*T))
         kr_a = A_a * np.exp(-Ea_a/(8.314e-3*T))
@@ -114,7 +119,10 @@ def fun_gen(u1,u2):
         # t
         dxdt[9] = 1.0
         # pwa F
-#        dxdt[10] = u2
+        if nx == 11:
+            dxdt[10] = u2
+        else:
+            pass
         return dxdt
     return fun
 
@@ -132,12 +140,16 @@ def fun_gen(u1,u2):
 
 f = open('optimal_trajectory.pckl','rb')
 traj = pickle.load(f)
-states = {'PO':[()],'MX':[(0,),(1,)],'MY':[()],'T':[()],'T_cw':[()],'Y':[()],'W':[()],'m_tot':[()]}#,'F':[()]}
-stv = {('PO',()):0,('W',()):1,('Y',()):2,('m_tot',()):3,('MX',(0,)):4,('MX',(1,)):5,('MY',()):6,('T',()):7,('T_cw',()):8}#,('F',()):10}
-#scaling = {('PO',()):1e1,('W',()):1.0,('Y',()):1e-2,('m_tot',()):1e4,('MX',(0,)):1e1,('MX',(1,)):1e2,('MY',()):1e-1,('T',()):1e2,('T_cw',()):1e2}
-scaling = {('PO',()):1,('W',()):1.0,('Y',()):1,('m_tot',()):1,('MX',(0,)):1,('MX',(1,)):1,('MY',()):1,('T',()):1,('T_cw',()):1}#,('F',()):1}
+if nx == 11:
+    states = {'PO':[()],'MX':[(0,),(1,)],'MY':[()],'T':[()],'T_cw':[()],'Y':[()],'W':[()],'m_tot':[()],'F':[()]}
+    stv = {('PO',()):0,('W',()):1,('Y',()):2,('m_tot',()):3,('MX',(0,)):4,('MX',(1,)):5,('MY',()):6,('T',()):7,('T_cw',()):8,('F',()):10}
+    scaling = {('PO',()):1,('W',()):1.0,('Y',()):1,('m_tot',()):1,('MX',(0,)):1,('MX',(1,)):1,('MY',()):1,('T',()):1,('T_cw',()):1,('F',()):1}
+else:
+    states = {'PO':[()],'MX':[(0,),(1,)],'MY':[()],'T':[()],'T_cw':[()],'Y':[()],'W':[()],'m_tot':[()]}#,'F':[()]}
+    stv = {('PO',()):0,('W',()):1,('Y',()):2,('m_tot',()):3,('MX',(0,)):4,('MX',(1,)):5,('MY',()):6,('T',()):7,('T_cw',()):8}#,('F',()):10}
+    scaling = {('PO',()):1,('W',()):1.0,('Y',()):1,('m_tot',()):1,('MX',(0,)):1,('MX',(1,)):1,('MY',()):1,('T',()):1,('T_cw',()):1}#,('F',()):1}
 # set initial guess
-x0 = [0.0]*10
+x0 = [0.0]*nx
 for x in states:
     for key in states[x]:
         index = stv[(x,key)]
@@ -154,10 +166,13 @@ delta_t = traj['tf',None]
 nfe = 24
 results = {}
 timesteps = 3
-
+u1_l = []
+u2_l = []
 for i in range(1,nfe+1):
     u1 = traj['u1',i]
+    u1_l.append(u1)
     u2 = traj['u2',i]
+    u2_l.append(u2)
     fx = fun_gen(u1,u2)
     #sol = odeint(fx,x0,t)
     #t = np.linspace(0.0,delta_t,timesteps)

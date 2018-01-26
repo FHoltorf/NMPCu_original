@@ -11,7 +11,7 @@ from pyomo.environ import *
 from scipy.stats import chi2
 from copy import deepcopy
 from main.dync.MHEGen_adjusted import MheGen
-from main.mods.mod_class_cj_pwa import *
+from main.mods.mod_class_cj_F_T_pwa import *
 from main.noMHE.noise_characteristics import * 
 import itertools, sys, csv
 import numpy as np
@@ -26,12 +26,12 @@ import numpy.linalg as linalg
 ###                               Specifications
 ###############################################################################
 # all states + states that are subject to process noise (directly drawn from e.g. a gaussian distribution)
-states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
+states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw","F"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","PO_fed","T"] # all the states are noisy  
-x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)], "T":[()], "T_cw":[()]}
+x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)], "T":[()], "T_cw":[()],"F":[()]}
 p_noisy = {"A":['p','i','a'],'kA':[()],'Hrxn_aux':['p']}
 u = ["u1", "u2"]
-u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)} 
+u_bounds = {"u1": (-5.0, 5.0), "u2": (-0.1, 0.1)} 
 
 nfe = 24
 tf_bounds = [10.0*24.0/nfe, 20.0*24.0/nfe]
@@ -148,7 +148,7 @@ for m in moment:
         l += 1
 
 #plots = [('Y',()),('PO',()),('PO_fed',()),('W',()),('MY',()),('T_cw',()),('T',())]
-plots = [('PO',()),('T_cw',()),('T',())]
+plots = [('PO',()),('T_cw',()),('T',()),('F',())]
 for p in plots: 
     state_traj_ref = np.array([e.reference_state_trajectory[(p[0],(i,3))] for i in range(1,nfe+1)]) 
     state_traj_nmpc = np.array([e.nmpc_trajectory[i,p] for i in range(1,k)])

@@ -68,8 +68,8 @@ class NmpcGen(DynGen):
         self.initial_values = {}
         self.nominal_parameter_values = {}
         self.delta_u = False
-
-        
+        self.tf_bounds = kwargs.pop('tf_bounds',[10.0,20.0])
+            
         # plant simulation model in order to distinguish between noise and disturbances
         self.plant_simulation_model = self.d_mod(1, self.ncp_t, _t=self._t)
         self.plant_simulation_model.name = 'plant simulation model'
@@ -320,7 +320,6 @@ class NmpcGen(DynGen):
                     else:
                         xic[j].value = x_var[(1,self.ncp_t)+j].value * (1.0 + state_noise[(x,j)])# + noise # again tailored to RADAU nodes
  
-    
             # initialization of simulation
             for var in self.plant_simulation_model.component_objects(Var, active=True):
                 try:
@@ -358,9 +357,9 @@ class NmpcGen(DynGen):
         ip.options["tol"] = 1e-8
         ip.options["max_iter"] = 3000
         
-#        self.plant_simulation_model.A['p'] = 12112.9911944# 14267.7530887 # 13288.0471352
-#        self.plant_simulation_model.A['i'] = 337678.098021# 302423.866195 # 426854.024419
-#        self.plant_simulation_model.kA = 0.057361376673# 0.0562482825565 # 0.0539566959
+        #self.plant_simulation_model.A['p'] = 11000.0 #12112.9911944# 14267.7530887 # 13288.0471352
+        #self.plant_simulation_model.A['i'] = 300000.0  #337678.098021# 302423.866195 # 426854.024419
+        #self.plant_simulation_model.kA =   0.06  # 0.057361376673# 0.0562482825565 # 0.0539566959
 
 
         out = ip.solve(self.plant_simulation_model, tee=True, symbolic_solver_labels=True)
@@ -372,7 +371,6 @@ class NmpcGen(DynGen):
             for index in self.plant_simulation_model.k_l.index_set():
                 self.plant_simulation_model.k_l[index].setub(10.0)
             out = ip.solve(self.plant_simulation_model, tee = True, symbolic_solver_labels=True)
-            print('oleoloeloleoloeloleoleoleoleoleoleoeloeoleoleoleololeoleoloeole')
             sys.exit()
             
         self.plant_trajectory[self.iterations,'solstat'] = [str(out.solver.status), str(out.solver.termination_condition)]
@@ -418,7 +416,6 @@ class NmpcGen(DynGen):
         
         # IMPORTANT:
         # --> before calling forward_simulation() need to call dot_sens to perform the update
-        #
                 
         # curr_state_info:
         # comprises both cases where state is estimated and directly measured
@@ -505,7 +502,11 @@ class NmpcGen(DynGen):
             xvar = getattr(self.forward_simulation_model, x)
             for j in self.state_vars[x]:
                     self.curr_pstate[(x,j)] = xvar[(1,self.ncp_t)+j].value  
-                      
+              
+    def create_tf_bounds(self,m):
+        for index in m.tf.index_set():
+            m.tf[index].setlb(self.tf_bounds[0])
+            m.tf[index].setub(self.tf_bounds[1])
                 
     def recipe_optimization(self):
         self.nfe_t_0 = self.nfe_t # set self.nfe_0 to keep track of the length of the reference trajectory
@@ -513,6 +514,7 @@ class NmpcGen(DynGen):
         self.recipe_optimization_model = self.d_mod(self.nfe_t, self.ncp_t)
         self.recipe_optimization_model.initialize_element_by_element()
         self.recipe_optimization_model.create_bounds()
+        self.create_tf_bounds(self.recipe_optimization_model)
         self.recipe_optimization_model.create_output_relations()
         self.recipe_optimization_model.clear_aux_bounds()
         #self.recipe_optimization_model.aux.fixed = True
@@ -597,6 +599,7 @@ class NmpcGen(DynGen):
         self.olnmpc = self.d_mod(self.nfe_t,self.ncp_t)
         self.olnmpc.name = "olnmpc (Open-Loop eNMPC)"
         self.olnmpc.create_bounds()
+        self.create_tf_bounds(self.olnmpc)
         self.olnmpc.clear_aux_bounds()
         
     def create_nmpc(self):
@@ -613,6 +616,7 @@ class NmpcGen(DynGen):
             
         self.olnmpc.name = "olnmpc (Open-Loop NMPC)"
         self.olnmpc.create_bounds()
+        self.create_tf_bounds(self.olnmpc) # creates tf_bounds
         self.olnmpc.clear_aux_bounds()
         if not(hasattr(self.olnmpc, 'ipopt_zL_in')):
             self.olnmpc.dual = Suffix(direction=Suffix.IMPORT_EXPORT)
@@ -812,7 +816,6 @@ class NmpcGen(DynGen):
                 p = getattr(self.olnmpc, index[0])
                 p[index[1]].value = self.curr_epars[index]
         
-
         # set initial value parameters in model olnmpc
         # set according to predicted state by forward simulation
         # a) values will not be overwritten in case advanced step is used
