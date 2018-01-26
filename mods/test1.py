@@ -590,10 +590,9 @@ class SemiBatchPolymerization(ConcreteModel):
         
         def _ode_T(self,i,j):    
             if j > 0:
-                #return self.dT_dt[i,j]*(self.m_tot[i,j]*self.m_tot_scale)*(self.bulk_cp_1 + self.bulk_cp_2*self.T[i,j]*self.T_scale) == (-self.F[i]*self.Hrxn['p']*self.monomer_cooling[i,j]*self.tf*self.fe_dist[i] + \
-                #                          self.Hrxn['p']*(self.F[i]*self.tf*self.fe_dist[i] - self.dPO_dt[i,j]*self.PO_scale + self.dW_dt[i,j]*self.W_scale) - self.k_c*self.tf*self.fe_dist[i]*(self.T[i,j]*self.T_scale - self.T_cw[i]*self.T_scale))/self.T_scale
-                return self.dT_dt[i,j]*(self.m_tot[i,j]*self.m_tot_scale*(self.bulk_cp_1 + self.bulk_cp_2*self.T[i,j]*self.T_scale))/self.Hrxn['p'] ==\
-                            (self.Qr[i,j] - self.Qc[i,j] - self.F[i]*self.tf*self.mw_PO*self.monomer_cooling[i,j])/self.T_scale
+#                return self.dT_dt[i,j]*(self.m_tot[i,j]*self.m_tot_scale*(self.bulk_cp_1 + self.bulk_cp_2*self.T[i,j]*self.T_scale))/self.Hrxn['p'] ==\
+#                            (self.Qr[i,j] - self.Qc[i,j] - self.F[i]*self.tf*self.mw_PO*self.monomer_cooling[i,j])/self.T_scale
+                return  0.0 == (self.Qr[i,j] - self.Qc[i,j] - self.F[i]*self.tf*self.mw_PO*self.monomer_cooling[i,j])
             else:
                 return Constraint.Skip
     

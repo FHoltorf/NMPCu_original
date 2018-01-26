@@ -120,10 +120,10 @@ class SemiBatchPolymerization(ConcreteModel):
         # thermodynamic properties (selfodel parameter)
         self.bulk_cp_1 = Param(initialize=1.1) # [kJ/kg/K]  
         self.bulk_cp_2 = Param(initialize=2.72e-3) # [kJ/kg/K^2]
-        self.mono_cp_1 = Param(initialize=53.347) # [kJ/kg/K]
-        self.mono_cp_2 = Param(initialize=5.1543e-1) # [kJ/kg/K^2]
-        self.mono_cp_3 = Param(initialize=-1.8029e-3) # [kJ/kg/K^3]
-        self.mono_cp_4 = Param(initialize=2.7795e-6) # [kJ/kg/K^4]
+        self.mono_cp_1 = Param(initialize=0.92) # [kJ/kg/K]    #53.347 [kJ/kg/K]
+        self.mono_cp_2 = Param(initialize=8.87e-3) # [kJ/kg/K^2]  #5.1543e-1 [kJ/kmol/K^2]
+        self.mono_cp_3 = Param(initialize=-3.10e-5) # [kJ/kg/K^3]  #-1.8029e-3 [kJ/kmol/K^3]
+        self.mono_cp_4 = Param(initialize=4.78e-8)  # [kJ/kg/K^4]  #2.7795e-6 [kJ/kmol/K^4]
         
         # batch charge conditions
         self.m_H2O = Param(initialize=180.98) # [kg] mass of H2O
