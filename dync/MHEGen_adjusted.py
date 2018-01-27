@@ -438,7 +438,7 @@ class MheGen(NmpcGen):
         self.lsmhe.eps.fix()
 
         ip = SolverFactory("asl:ipopt")
-        ip.options["halt_on_ampl_error"] = "no"
+        ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8

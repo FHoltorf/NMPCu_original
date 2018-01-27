@@ -6,8 +6,8 @@ Created on Wed Nov  1 13:49:10 2017
 @author: flemmingholtorf
 """
 # relative standard deviation that is associated with disturbances
-disturbance_error = 0.10
-measurement_error = 0.10
+disturbance_error = 0.05
+measurement_error = 0.05
 disturbance_error_T = 0.0
 disturbance_error_F = 0.0
 
@@ -22,6 +22,7 @@ qcov_a[("Y",()), ("Y",())] = disturbance_error
 qcov_a[("W",()), ("W",())] = disturbance_error
 qcov_a[("m_tot",()), ("m_tot",())] = 0.0
 qcov_a[("PO_fed",()), ("PO_fed",())] = 0.0
+qcov_a[("T",()),("T",())] = disturbance_error
 qcov[0] = qcov_a 
 
 # process disturbances
@@ -35,6 +36,7 @@ v_disturbances[("Y",())] = disturbance_error
 v_disturbances[("W",())] = disturbance_error
 v_disturbances[("m_tot",())] = disturbance_error*0.0
 v_disturbances[("PO_fed",())] = disturbance_error*0.0
+v_disturbances[("T",())] = disturbance_error
 v_disturbances["u1"] = disturbance_error_T
 v_disturbances["u2"] = disturbance_error_F
 
@@ -50,7 +52,8 @@ mcov[("W",()), ("W",())] = measurement_error
 mcov[("MW",()), ("MW",())] = measurement_error
 mcov[("m_tot",()), ("m_tot",())] = 0.005
 mcov[("PO_fed",()), ("PO_fed",())] = 0.0 # measurement_error
-mcov[(("heat_removal"),()),(("heat_removal"),())] =  measurement_error
+mcov[("heat_removal",()),("heat_removal",())] =  measurement_error
+mcov[("T",()),("T",())] = measurement_error
 
 # actual measurement noise from which measurement noise is generated
 x_measurement = {}
@@ -65,6 +68,7 @@ x_measurement[("MW",())] = measurement_error
 x_measurement[("m_tot",())] = 0.005
 x_measurement[("PO_fed",())] = 0.0
 x_measurement[("heat_removal",())] =  measurement_error
+x_measurement[("T",())] = measurement_error
 
 # relative variance that is associated with the controls
 ucov = {}
@@ -82,6 +86,7 @@ v_init[("Y",())] = 0.0
 v_init[("W",())] = 0.0
 v_init[("m_tot",())] = 0.0
 v_init[("PO_fed",())] = 0.0
+v_init[("T",())] = 0.0
 
 # uncertainty in parameters
 v_param = {} #[relative standard deviation, frequency for changes (measured in intervalls)]

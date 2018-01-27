@@ -16,12 +16,10 @@ import sys
 import itertools, sys
 import numpy as np
 import matplotlib.pyplot as plt
+from main.noise_characteristics import *
 import numpy.linalg as linalg
-import pickle
-from main.testtest import *
 from scipy.stats import chi2
 from copy import deepcopy
-
 #redirect system output to a file:
 #sys.stdout = open('consol_output.txt','w')
 
@@ -57,13 +55,11 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            noisy_params = True,
            adapt_params = False,
            u_bounds=u_bounds,
-           diag_QR=False,
+           diag_QR=True,
            nfe_t=nfe,
            del_ics=False,
            sens=None,
            path_constraints=pc)
-
-e.delta_u = True
 ###############################################################################
 ###                                     NMPC
 ###############################################################################
@@ -115,12 +111,12 @@ for i in range(1,nfe):
     
     #solve mhe problem
     for z in range(i):
-        e.lsmhe.wk_mhe[z,1].fix(0.0) # MX0
-        e.lsmhe.wk_mhe[z,2].fix(0.0) # MX1
-        e.lsmhe.wk_mhe[z,6].fix(0.0) #PO_fed 
+        e.lsmhe.wk_mhe[z,1].fix() # MX0
+        e.lsmhe.wk_mhe[z,2].fix() # MX1
+        e.lsmhe.wk_mhe[z,6].fix() #PO_fed 
        # e.lsmhe.wk_mhe[z,0].fix() # PO
-        e.lsmhe.wk_mhe[z,3].fix(0.0) #MY
-        e.lsmhe.wk_mhe[z,5].fix(0.0) #W
+        e.lsmhe.wk_mhe[z,3].fix() #MY
+        e.lsmhe.wk_mhe[z,5].fix() #W
        # e.lsmhe.wk_mhe[z,4].fix() #Y
     e.solve_mhe(fix_noise=False) # solves the mhe problem
     previous_mhe = e.store_results(e.lsmhe)
