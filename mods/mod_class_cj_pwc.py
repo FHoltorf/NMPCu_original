@@ -120,10 +120,10 @@ class SemiBatchPolymerization(ConcreteModel):
         # thermodynamic properties (selfodel parameter)
         self.bulk_cp_1 = Param(initialize=1.1) # [kJ/kg/K]  
         self.bulk_cp_2 = Param(initialize=2.72e-3) # [kJ/kg/K^2]
-        self.mono_cp_1 = Param(initialize=53.347) # [kJ/kg/K]
-        self.mono_cp_2 = Param(initialize=5.1543e-1) # [kJ/kg/K^2]
-        self.mono_cp_3 = Param(initialize=-1.8029e-3) # [kJ/kg/K^3]
-        self.mono_cp_4 = Param(initialize=2.7795e-6) # [kJ/kg/K^4]
+        self.mono_cp_1 = Param(initialize=0.92) #53.347) # [kJ/kg/K]
+        self.mono_cp_2 = Param(initialize=8.87e-3)#5.1543e-1) # [kJ/kmol/K^2]
+        self.mono_cp_3 = Param(initialize=-3.10e-5)#-1.8029e-3) # [kJ/kmol/K^3]
+        self.mono_cp_4 = Param(initialize=4.78e-8)#2.7795e-6 # [kJ/kmol/K^4]
         
         # batch charge conditions
         self.m_H2O = Param(initialize=180.98) # [kg] mass of H2O
@@ -301,7 +301,7 @@ class SemiBatchPolymerization(ConcreteModel):
         
         def _ode_PO(self,i,j):
             if j > 0:
-                return self.dPO_dt[i,j] == (self.F[i]*self.tf*self.fe_dist[i] - (((self.kr[i,j,'i']-self.kr[i,j,'p'])*(self.G[i,j]*self.G_scale + self.U[i,j]*self.U_scale) + (self.kr[i,j,'p'] + self.kr[i,j,'t'])*self.n_KOH + self.kr[i,j,'a']*self.W[i,j])*self.PO[i,j]*self.PO_scale*self.Vi[i,j]*self.Vi_scale))/self.PO_scale
+                return self.dPO_dt[i,j] == (self.F[i]*self.tf*self.fe_dist[i] - (((self.kr[i,j,'i']-self.kr[i,j,'p'])*(self.G[i,j]*self.G_scale + self.U[i,j]*self.U_scale) + (self.kr[i,j,'p'] + self.kr[i,j,'t'])*self.n_KOH + self.kr[i,j,'a']*self.W[i,j]*self.W_scale)*self.PO[i,j]*self.PO_scale*self.Vi[i,j]*self.Vi_scale))/self.PO_scale
             else:
                 return Constraint.Skip
         
@@ -567,7 +567,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 #                          self.Hrxn['p']*(self.F[i]*self.tf*self.fe_dist[i] - self.dPO_dt[i,j]*self.PO_scale + self.dW_dt[i,j]*self.W_scale) - self.k_c*self.tf*self.fe_dist[i]*(self.T[i,j]*self.T_scale - self.T_cw[i]*self.T_scale))/self.T_scale
                 
                 return self.dT_dt[i,j] ==\
-                            (self.Q_R[i,j] - self.Q_C[i,j] - self.monomer_cooling[i,j])/self.T_scale * self.Hrxn['p']/(self.m_tot[i,j]*self.m_tot_scale)/(self.bulk_cp_1 + self.bulk_cp_2*self.T[i,j]*self.T_scale)
+                            (self.Q_R[i,j] - self.Q_C[i,j] - self.F[i]*self.tf*self.monomer_cooling[i,j])/self.T_scale * self.Hrxn['p']/(self.m_tot[i,j]*self.m_tot_scale)/(self.bulk_cp_1 + self.bulk_cp_2*self.T[i,j]*self.T_scale)
             else:
                 return Constraint.Skip
     
@@ -575,7 +575,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 
         def _Q_in(self,i,j):
             if j > 0: # normalized with delta_H_r
-                return self.Q_R[i,j] == ((self.kr[i,j,'i']-self.kr[i,j,'p'])*(self.G[i,j]*self.G_scale + self.U[i,j]*self.U_scale) + (self.kr[i,j,'p'] + self.kr[i,j,'t'])*self.n_KOH + self.kr[i,j,'a']*self.W[i,j])*self.PO[i,j]*self.PO_scale*self.Vi[i,j]*self.Vi_scale*self.Hrxn_aux['p'] + self.dW_dt[i,j]*self.W_scale * self.Hrxn_aux['p']
+                return self.Q_R[i,j] == ((self.kr[i,j,'i']-self.kr[i,j,'p'])*(self.G[i,j]*self.G_scale + self.U[i,j]*self.U_scale) + (self.kr[i,j,'p'] + self.kr[i,j,'t'])*self.n_KOH + self.kr[i,j,'a']*self.W[i,j]*self.W_scale)*self.PO[i,j]*self.PO_scale*self.Vi[i,j]*self.Vi_scale*self.Hrxn_aux['p'] + self.dW_dt[i,j]*self.W_scale * self.Hrxn_aux['p']
             else:
                 return Constraint.Skip
         self.Q_in = Constraint(self.fe_t, self.cp, rule=_Q_in)
@@ -648,7 +648,7 @@ class SemiBatchPolymerization(ConcreteModel):
             if j == 0:
                 return Constraint.Skip
             else:
-                return 0.0 == self.G[i,j]*self.G_scale*(self.MX[i,j,0]*self.MX0_scale + self.MY[i,j]*self.MY0_scale + self.X[i,j] + self.Y[i,j]*self.Y_scale) - self.X[i,j]*self.n_KOH
+                return 0.0 == self.G[i,j]*self.G_scale*(self.MX[i,j,0]*self.MX0_scale + self.MY[i,j]*self.MY0_scale + self.X[i,j]*self.X_scale + self.Y[i,j]*self.Y_scale) - self.X[i,j]*self.X_scale*self.n_KOH
         
         self.ae_equilibrium_a = Constraint(self.fe_t, self.cp, rule =_ae_equilibrium_a)
         #algebraic_equilibrium_a(k,q)$(ak(k))..
@@ -658,7 +658,7 @@ class SemiBatchPolymerization(ConcreteModel):
             if j == 0:
                 return Constraint.Skip
             else:
-                return 0.0 == self.U[i,j]*self.U_scale*(self.MX[i,j,0]*self.MX0_scale + self.MY[i,j]*self.MY0_scale + self.X[i,j] + self.Y[i,j]*self.Y_scale) - self.Y[i,j]*self.Y_scale*self.n_KOH
+                return 0.0 == self.U[i,j]*self.U_scale*(self.MX[i,j,0]*self.MX0_scale + self.MY[i,j]*self.MY0_scale + self.X[i,j]*self.X_scale + self.Y[i,j]*self.Y_scale) - self.Y[i,j]*self.Y_scale*self.n_KOH
         
         self.ae_equilibrium_b = Constraint(self.fe_t, self.cp, rule =_ae_equilibrium_b)
         #algebraic_equilibrium_b(k,q)$(ak(k))..
@@ -666,7 +666,7 @@ class SemiBatchPolymerization(ConcreteModel):
         
         def _ae_equilibrium_c(self,i,j):
             if j > 0:
-                return 0.0 == self.MG[i,j]*(self.MX[i,j,0]*self.MX0_scale + self.MY[i,j]*self.MY0_scale + self.X[i,j] + self.Y[i,j]*self.Y_scale) - self.MX[i,j,0]*self.MX0_scale*self.n_KOH
+                return 0.0 == self.MG[i,j]*(self.MX[i,j,0]*self.MX0_scale + self.MY[i,j]*self.MY0_scale + self.X[i,j]*self.X_scale + self.Y[i,j]*self.Y_scale) - self.MX[i,j,0]*self.MX0_scale*self.n_KOH
             else:
                 return Constraint.Skip
                 

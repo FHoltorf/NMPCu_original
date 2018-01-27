@@ -55,6 +55,9 @@ class NmpcGen(DynGen):
         # regularization
         self.delta_u = False
         
+        #timestep bounds
+        self.tf_bounds = kwargs.pop('tf_bounds',(10.0,20.0))
+        
         # multistage
         dummy_tree = {}
         for i in range(1,self.nfe_t+1):
@@ -403,7 +406,12 @@ class NmpcGen(DynGen):
             xvar = getattr(self.forward_simulation_model, x)
             for j in self.state_vars[x]:
                     self.curr_pstate[(x,j)] = xvar[(1,self.ncp_t)+j].value  # implicit assumption of RADAU nodes
-                    
+         
+    def create_tf_bounds(self,m):
+        for index in m.tf.index_set():
+            m.tf[index].setlb(self.tf_bounds[0])
+            m.tf[index].setub(self.tf_bounds[1])
+            
     def recipe_optimization(self, multimodel=False):
         self.nfe_t_0 = self.nfe_t # set self.nfe_0 to keep track of the length of the reference trajectory
         self.generate_state_index_dictionary()
@@ -504,6 +512,7 @@ class NmpcGen(DynGen):
         self.olnmpc = self.d_mod(self.nfe_t, self.ncp_t, scenario_tree = self.st, s_max = self.s_used, nr = self.nr)
         self.olnmpc.name = "olnmpc (Open-Loop eNMPC)"
         self.olnmpc.create_bounds() 
+        self.create_tf_bounds(self.olnmpc)
         self.olnmpc.clear_aux_bounds()
         
          # Regularization Steps
@@ -527,6 +536,7 @@ class NmpcGen(DynGen):
         self.olnmpc = self.d_mod(self.nfe_t, self.ncp_t, scenario_tree = self.st, s_max = self.s_used, nr = self.nr)            
         self.olnmpc.name = "olnmpc (Open-Loop NMPC)"
         self.olnmpc.create_bounds()
+        self.create_tf_bounds(self.olnmpc)
         self.olnmpc.clear_aux_bounds()
         if not(hasattr(self.olnmpc, 'ipopt_zL_in')):
             self.olnmpc.dual = Suffix(direction=Suffix.IMPORT_EXPORT)
@@ -1416,6 +1426,7 @@ class NmpcGen(DynGen):
             u_var.unfix()
         self.olnmpc.tf.unfix()
         self.olnmpc.create_bounds()
+        self.create_tf_bounds(self.olnmpc)
         self.olnmpc.clear_aux_bounds()
         
         # activate non_anticipativity

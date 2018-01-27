@@ -344,7 +344,6 @@ class NmpcGen(DynGen):
         for u in self.u:
             control = getattr(self.plant_simulation_model,u)
             control[1].fix(result[u,1]*(1.0+input_noise[u]))
-            #self.plant_simulation_model.equalize_u(direction="u_to_r")
     
         # probably redundant
         self.plant_simulation_model.clear_aux_bounds()
@@ -366,12 +365,10 @@ class NmpcGen(DynGen):
         
         # check if converged otw. run again and hope for numerical issues
         if [str(out.solver.status), str(out.solver.termination_condition)] != ['ok','optimal']:
-            #self.plant_simulation_model.magic(self.nominal_parameter_values)
             self.plant_simulation_model.clear_all_bounds()
             for index in self.plant_simulation_model.k_l.index_set():
                 self.plant_simulation_model.k_l[index].setub(10.0)
             out = ip.solve(self.plant_simulation_model, tee = True, symbolic_solver_labels=True)
-            sys.exit()
             
         self.plant_trajectory[self.iterations,'solstat'] = [str(out.solver.status), str(out.solver.termination_condition)]
         self.plant_trajectory[self.iterations,'tf'] = self.plant_simulation_model.tf.value
@@ -1080,6 +1077,7 @@ class NmpcGen(DynGen):
             print(' '*7 + str(iters))
             # solve optimization problem
             self.olnmpc.create_bounds()
+            self.create_tf_bounds(self.olnmpc)
             self.olnmpc.clear_aux_bounds()
             for u in self.u:
                 u_var = getattr(self.olnmpc,u)
@@ -1213,6 +1211,7 @@ class NmpcGen(DynGen):
             iters += 1
             
         self.olnmpc.create_bounds()
+        self.create_tf_bounds(self.olnmpc)
         self.olnmpc.clear_aux_bounds()
         for u in self.u:
             u_var = getattr(self.olnmpc,u)

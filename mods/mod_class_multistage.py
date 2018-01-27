@@ -127,10 +127,10 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         # thermodynamic properties (selfodel parameter)
         self.bulk_cp_1 = Param(initialize=1.1) # [kJ/kg/K]  
         self.bulk_cp_2 = Param(initialize=2.72e-3) # [kJ/kg/K^2]
-        self.mono_cp_1 = Param(initialize=53.347) # [kJ/kg/K]
-        self.mono_cp_2 = Param(initialize=5.1543e-1) # [kJ/kg/K^2]
-        self.mono_cp_3 = Param(initialize=-1.8029e-3) # [kJ/kg/K^3]
-        self.mono_cp_4 = Param(initialize=2.7795e-6) # [kJ/kg/K^4]
+        self.mono_cp_1 = Param(initialize=0.92) #53.347) # [kJ/kg/K]
+        self.mono_cp_2 = Param(initialize=8.87e-3)#5.1543e-1) # [kJ/kmol/K^2]
+        self.mono_cp_3 = Param(initialize=-3.10e-5)#-1.8029e-3) # [kJ/kmol/K^3]
+        self.mono_cp_4 = Param(initialize=4.78e-8)#2.7795e-6 # [kJ/kmol/K^4]
         
         # batch charge conditions
         self.m_H2O = Param(initialize=180.98) # [kg] mass of H2O
@@ -318,7 +318,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         def _ode_PO(self,i,j,s):
             if (i,s) in self.scenario_tree:
                 if j > 0:
-                    return self.dPO_dt[i,j,s] == (self.F[i,s]*self.tf[i,s]*self.fe_dist[i] - (((self.kr[i,j,'i',s]-self.kr[i,j,'p',s])*(self.G[i,j,s]*self.G_scale + self.U[i,j,s]*self.U_scale) + (self.kr[i,j,'p',s] + self.kr[i,j,'t',s])*self.n_KOH + self.kr[i,j,'a',s]*self.W[i,j,s])*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale))/self.PO_scale
+                    return self.dPO_dt[i,j,s] == (self.F[i,s]*self.tf[i,s]*self.fe_dist[i] - (((self.kr[i,j,'i',s]-self.kr[i,j,'p',s])*(self.G[i,j,s]*self.G_scale + self.U[i,j,s]*self.U_scale) + (self.kr[i,j,'p',s] + self.kr[i,j,'t',s])*self.n_KOH + self.kr[i,j,'a',s]*self.W[i,j,s]*self.W_scale)*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale))/self.PO_scale
                 else:
                     return Constraint.Skip
             else:
@@ -699,7 +699,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 if j == 0:
                     return Constraint.Skip
                 else:
-                    return 0.0 == self.G[i,j,s]*self.G_scale*(self.MX[i,j,0,s]*self.MX0_scale + self.MY[i,j,s]*self.MY0_scale + self.X[i,j,s] + self.Y[i,j,s]*self.Y_scale) - self.X[i,j,s]*self.n_KOH
+                    return 0.0 == self.G[i,j,s]*self.G_scale*(self.MX[i,j,0,s]*self.MX0_scale + self.MY[i,j,s]*self.MY0_scale + self.X[i,j,s]*self.X_scale + self.Y[i,j,s]*self.Y_scale) - self.X[i,j,s]*self.X_scale*self.n_KOH
             else:
                 return Constraint.Skip
             
@@ -712,7 +712,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 if j == 0:
                     return Constraint.Skip
                 else:
-                    return 0.0 == self.U[i,j,s]*self.U_scale*(self.MX[i,j,0,s]*self.MX0_scale + self.MY[i,j,s]*self.MY0_scale + self.X[i,j,s] + self.Y[i,j,s]*self.Y_scale) - self.Y[i,j,s]*self.Y_scale*self.n_KOH
+                    return 0.0 == self.U[i,j,s]*self.U_scale*(self.MX[i,j,0,s]*self.MX0_scale + self.MY[i,j,s]*self.MY0_scale + self.X[i,j,s]*self.X_scale + self.Y[i,j,s]*self.Y_scale) - self.Y[i,j,s]*self.Y_scale*self.n_KOH
             else:
                 return Constraint.Skip
             
@@ -723,7 +723,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         def _ae_equilibrium_c(self,i,j,s):
             if (i,s) in self.scenario_tree:
                 if j > 0:
-                    return 0.0 == self.MG[i,j,s]*(self.MX[i,j,0,s]*self.MX0_scale + self.MY[i,j,s]*self.MY0_scale + self.X[i,j,s] + self.Y[i,j,s]*self.Y_scale) - self.MX[i,j,0,s]*self.MX0_scale*self.n_KOH
+                    return 0.0 == self.MG[i,j,s]*(self.MX[i,j,0,s]*self.MX0_scale + self.MY[i,j,s]*self.MY0_scale + self.X[i,j,s]*self.X_scale + self.Y[i,j,s]*self.Y_scale) - self.MX[i,j,0,s]*self.MX0_scale*self.n_KOH
                 else:
                     return Constraint.Skip
             else:
@@ -806,7 +806,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 if j == 0:
                     return Constraint.Skip
                 else:
-                    return 0.0 == ((((self.kr[i,j,'i',s]-self.kr[i,j,'p',s])*(self.G[i,j,s]*self.G_scale + self.U[i,j,s]*self.U_scale) + (self.kr[i,j,'p',s] + self.kr[i,j,'t',s])*self.n_KOH + self.kr[i,j,'a',s]*self.W[i,j,s])*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale) + self.dW_dt[i,j,s] - (self.heat_removal[i,j,s]/(self.Hrxn_aux['p']*self.p_Hrxn_aux['p',i,s]) + self.F[i,s]*self.monomer_cooling[i,j,s]*self.monomer_cooling_scale)*self.tf[i,s]*self.fe_dist[i])
+                    return 0.0 == ((((self.kr[i,j,'i',s]-self.kr[i,j,'p',s])*(self.G[i,j,s]*self.G_scale + self.U[i,j,s]*self.U_scale) + (self.kr[i,j,'p',s] + self.kr[i,j,'t',s])*self.n_KOH + self.kr[i,j,'a',s]*self.W[i,j,s]*self.W_scale)*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale) + self.dW_dt[i,j,s] - (self.heat_removal[i,j,s]/(self.Hrxn_aux['p']*self.p_Hrxn_aux['p',i,s]) + self.F[i,s]*self.mw_PO*self.monomer_cooling[i,j,s]*self.monomer_cooling_scale)*self.tf[i,s]*self.fe_dist[i])
             else:
                 return Constraint.Skip
             

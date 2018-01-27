@@ -30,31 +30,40 @@ from main.noMHE.noise_characteristics import *
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","PO_fed"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)],"T":[()],"T_cw":[()]}
-p_noisy = {"A":['p','i']}
+p_noisy = {"A":['p','i'],'kA':[()]}
 u = ["u1", "u2"]
-u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
+u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)} 
 
+nfe = 24
+tf_bounds = [10.0*24.0/nfe, 20.0*24.0/nfe]
 pc = ['Tad','T']
 
 # scenario_tree
 st = {} # scenario tree : {parent_node, scenario_number on current stage, base node (True/False), scenario values {'name',(index):value}}
-s_max = 5
+s_max = 9
 nr = 1
-nfe = 24
 alpha = 0.2
 for i in range(1,nfe+1):
     if i < nr + 1:
         for s in range(1,s_max**i+1):
             if s%s_max == 1:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A','p'):1.0,('A','i'):1.0})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A','p'):1.0,('A','i'):1.0,('kA',()):1.0}) 
             elif s%s_max == 2:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0+alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0+alpha,('kA',()):1.0-alpha})
             elif s%s_max == 3:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0+alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0+alpha,('kA',()):1.0-alpha})
             elif s%s_max == 4:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0-alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0-alpha,('kA',()):1.0-alpha})
+            elif s%s_max == 5:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0-alpha,('kA',()):1.0-alpha})
+            elif s%s_max == 6:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0+alpha,('kA',()):1.0+alpha})
+            elif s%s_max == 7:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0+alpha,('kA',()):1.0+alpha})
+            elif s%s_max == 8:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0-alpha,('kA',()):1.0+alpha})
             else:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0-alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0-alpha,('kA',()):1.0+alpha})
     else:
         for s in range(1,s_max**nr+1):
             st[(i,s)] = (i-1,s,True,st[(i-1,s)][3])
@@ -70,6 +79,8 @@ e = MheGen(d_mod=SemiBatchPolymerization_multistage,
            scenario_tree = st,
            robust_horizon = nr,
            s_max = sr,
+           u_bounds = u_bounds,
+           tf_bounds = tf_bounds,
            noisy_inputs = False,
            noisy_params = False,
            adapt_params = False,
@@ -116,9 +127,6 @@ for i in range(1,nfe):
         break
 
 # simulate the last step too
-
-#e.forward_simulation_model.troubleshooting()
-e.plant_simulation_model.troubleshooting()
 
 for i in range(1,k):
     print('iteration: %i' % i)
