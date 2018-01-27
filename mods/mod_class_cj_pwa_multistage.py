@@ -712,7 +712,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                     #return self.dT_dt[i,j]*(self.m_tot[i,j]*self.m_tot_scale)*(self.bulk_cp_1 + self.bulk_cp_2*self.T[i,j]*self.T_scale) == (-self.F[i]*self.Hrxn['p']*self.monomer_cooling[i,j]*self.tf*self.fe_dist[i] + \
                     #                          self.Hrxn['p']*(self.F[i]*self.tf*self.fe_dist[i] - self.dPO_dt[i,j]*self.PO_scale + self.dW_dt[i,j]*self.W_scale) - self.k_c*self.tf*self.fe_dist[i]*(self.T[i,j]*self.T_scale - self.T_cw[i]*self.T_scale))/self.T_scale
                     return self.dT_dt[i,j,s]*(self.m_tot[i,j,s]*self.m_tot_scale)*(self.bulk_cp_1 + self.bulk_cp_2*self.T[i,j,s]*self.T_scale) ==\
-                                (self.Qr[i,j,s] - self.Qc[i,j,s] - self.F[i,s]*self.tf[i,s]*self.mw_PO*self.monomer_cooling[i,j,s])*self.Hrxn['p']/self.T_scale
+                                (self.Qr[i,j,s] - self.Qc[i,j,s] - self.F[i,s]*self.tf[i,s]*self.mw_PO*self.monomer_cooling[i,j,s]*self.monomer_cooling_scale)*self.Hrxn['p']/self.T_scale
                 else:
                     return Constraint.Skip
             else:
@@ -1175,7 +1175,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 var[key].setub(None)
     
     def clear_aux_bounds(self):
-        keep_bounds = ['s_temp_b','s_T_min','s_T_max','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','eps_pc','u1','u2','tf'] 
+        keep_bounds = ['s_temp_b','s_T_min','s_T_max','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','eps_pc','u1','u2','tf','T_cw'] 
         for var in self.component_objects(Var, active=True):
             if var.name in keep_bounds:
                 continue
@@ -1204,6 +1204,8 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 self.F[i,s].setub(3.0) #5*self.n_PO/(3.0*60))
                 self.u2[i,s].setub(3.0)
                 for j in self.cp:
+                    self.T_cw[i,j,s].setlb(298.15/self.T_scale)
+                    self.T_cw[i,j,s].setub((170.0 + self.Tb)/self.T_scale)
                     self.T[i,j,s].setlb((25 + self.Tb)/self.T_scale)
                     self.T[i,j,s].setub((225 + self.Tb)/self.T_scale)
                     self.int_T[i,j,s].setlb((1.1*(100+self.Tb) + 2.72*(100+self.Tb)**2/2000)/self.int_T_scale)
@@ -1248,6 +1250,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         m_aux.T_cw.fix(397.0/self.T_scale)
         m_aux.tf[1,1] = min(12.0*24.0/self.nfe,12.0)
         m_aux.F[1,1].fixed = True
+        m_aux.tf[1,1].fixed = True
         opt = SolverFactory('ipopt')
         opt.options["halt_on_ampl_error"] = "yes"
         opt.options["max_iter"] = 5000
@@ -1503,30 +1506,38 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
             self.pprint(ostream=f)
             f.close()
 
-# create scenario_tree
-s_max = 5
-nr = 1
-nfe = 24
-alpha = 0.2
-st = {}
-for i in range(1,nfe+1):
-    if i < nr + 1:
-        for s in range(1,s_max**i+1):
-            if s%s_max == 1:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A','p'):1.0,('A','i'):1.0,('kA',()):1.0})
-            elif s%s_max == 2:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0+alpha,('kA',()):1.0-alpha})
-            elif s%s_max == 3:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0+alpha,('kA',()):1.0-alpha})
-            elif s%s_max == 4:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0-alpha,('kA',()):1.0-alpha})
-            else:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0-alpha,('kA',()):1.0-alpha})
-    else:
-        for s in range(1,s_max**nr+1):
-            st[(i,s)] = (i-1,s,True,st[(i-1,s)][3])
-
-            
+## create scenario_tree
+#s_max = 9
+#nr = 1
+#nfe = 24
+#alpha = 0.2
+#st = {}
+#for i in range(1,nfe+1):
+#    if i < nr + 1:
+#        for s in range(1,s_max**i+1):
+#            if s%s_max == 1:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A','p'):1.0,('A','i'):1.0,('kA',()):1.0}) 
+#            elif s%s_max == 2:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0+alpha,('kA',()):1.0-alpha})
+#            elif s%s_max == 3:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0+alpha,('kA',()):1.0-alpha})
+#            elif s%s_max == 4:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0-alpha,('kA',()):1.0-alpha})
+#            elif s%s_max == 5:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0-alpha,('kA',()):1.0-alpha})
+#            elif s%s_max == 6:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0+alpha,('kA',()):1.0+alpha})
+#            elif s%s_max == 7:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0+alpha,('kA',()):1.0+alpha})
+#            elif s%s_max == 8:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0-alpha,('kA',()):1.0+alpha})
+#            else:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0-alpha,('kA',()):1.0+alpha})
+#    else:
+#        for s in range(1,s_max**nr+1):
+#            st[(i,s)] = (i-1,s,True,st[(i-1,s)][3])
+#
+#            
 #Solver = SolverFactory('ipopt')
 #Solver.options["halt_on_ampl_error"] = "yes"
 #Solver.options["max_iter"] = 5000
@@ -1541,6 +1552,7 @@ for i in range(1,nfe+1):
 #m.initialize_element_by_element()
 #m.create_output_relations()
 #m.create_bounds()
+#m.clear_aux_bounds()
 #Solver.solve(m,tee=True)
 #m.Tad_ic = Var(initialize=3)
 #m.plot_profiles(var_list=['W', 'X', 'm_tot','MY','PO', 'T_cw', 'T', 'Tad'],control_list=['F'])
