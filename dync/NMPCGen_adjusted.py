@@ -489,7 +489,7 @@ class NmpcGen(DynGen):
         if [str(out.solver.status), str(out.solver.termination_condition)] != ['ok','optimal']:
             self.forward_simulation_model.clear_all_bounds()
             out = ip.solve(self.forward_simulation_model, tee = True, symbolic_solver_labels=True)
-            self.simulation_trajectory[self.iterations,'obj_fun'] = 0.0
+            self.simulation_trajectory[self.iterations,'obj_fun'] = value(self.forward_simulation_model.obj_u)
             
         self.simulation_trajectory[self.iterations,'solstat'] = [str(out.solver.status), str(out.solver.termination_condition)]
         

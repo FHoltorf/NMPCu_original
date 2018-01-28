@@ -566,7 +566,7 @@ class SemiBatchPolymerization(ConcreteModel):
             if j > 0:
                 # implicit systematic
                 #return self.dT_cw_dt[i] == sum(self.ldot_t[j, k] * self.T_cw[i, k]*self.T_scale for k in self.cp)/self.tf
-                # explicit tailored
+                # explicit tailored to piecewise affine
                 return self.T_cw[i,j]*self.T_scale == self.T_cw[i,0]*self.T_scale + self.dT_cw_dt[i]*self.tf*self.fe_dist[i]*self.tau_i_t[j]
             else:   
                 return Constraint.Skip

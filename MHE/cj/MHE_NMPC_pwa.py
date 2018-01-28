@@ -27,7 +27,7 @@ import numpy.linalg as linalg
 ###############################################################################
 # all states + states that are subject to process noise (directly drawn from e.g. a gaussian distribution)
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
-x_noisy = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # all the states are noisy  
+x_noisy = ["PO","MX","MY","Y","W","PO_fed","T"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)], "T":[()], "T_cw":[()]}
 p_noisy = {"A":['p','i'],'kA':[()],'Hrxn_aux':['p']}
 u = ["u1", "u2"]

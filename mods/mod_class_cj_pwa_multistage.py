@@ -674,7 +674,10 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         def _collocation_T_cw(self,i,j,s):
             if (i,s) in self.scenario_tree:
                 if j > 0:
-                    return self.dT_cw_dt[i,s] == sum(self.ldot_t[j, k] * self.T_cw[i, k, s] for k in self.cp)/self.tf[i,s]
+                    # implicit systematic
+                    #return self.dT_cw_dt[i] == sum(self.ldot_t[j, k] * self.T_cw[i, k]*self.T_scale for k in self.cp)/self.tf
+                    # explicit tailored to piecewise-affine
+                    return self.T_cw[i,j,s]*self.T_scale == self.T_cw[i,0,s]*self.T_scale + self.dT_cw_dt[i,s]*self.tf[i,s]*self.fe_dist[i]*self.tau_i_t[j]
                 else:   
                     return Constraint.Skip
             else:
@@ -702,6 +705,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                     return self.T_cw[1,0,s] - self.T_cw[1,0,1]
             else:
                 return Constraint.Skip
+            
         self.T_cw_ice = Expression(self.s, rule=_init_T_cw)
         self.T_cw_icc = Constraint(self.s, rule=lambda self,s: self.T_cw_ice[s] == 0.0)
         
@@ -1194,10 +1198,10 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
             for i in self.fe_t:
                 self.tf[i,s].setlb(min(10.0,10.0*24.0/self.nfe))
                 self.tf[i,s].setub(min(25.0,25.0*24.0/self.nfe))#14*60/24)
-                self.dT_cw_dt[i,s].setlb(-100.0/self.T_scale/10.0)
-                self.u1[i,s].setlb(-50.0/self.T_scale/10.0)
-                self.dT_cw_dt[i,s].setub(100.0/self.T_scale/10.0)
-                self.u1[i,s].setub(50.0/self.T_scale/10.0)
+                self.dT_cw_dt[i,s].setlb(-5.0)
+                self.u1[i,s].setlb(-5.0)
+                self.dT_cw_dt[i,s].setub(5.0)
+                self.u1[i,s].setub(5.0)
                 self.F[i,s].setlb(0.0)
                 self.u2[i,s].setlb(0.0)
                 self.F[i,s].setub(3.0) #5*self.n_PO/(3.0*60))
@@ -1243,11 +1247,11 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         m_aux.deactivate_pc()
         m_aux.deactivate_epc()
         m_aux.eobj.deactivate()
-        m_aux.F[1,1] = 0.5
+        m_aux.F[1,1] = 1.0
         m_aux.dvar_t_T_cw.deactivate()
         m_aux.T_cw_icc.deactivate()
         m_aux.T_cw.fix(397.0/self.T_scale)
-        m_aux.tf[1,1] = min(12.0*24.0/self.nfe,12.0)
+        m_aux.tf[1,1] = min(15.0*24.0/self.nfe,15.0)
         m_aux.F[1,1].fixed = True
         m_aux.tf[1,1].fixed = True
         opt = SolverFactory('ipopt')

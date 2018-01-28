@@ -26,19 +26,22 @@ from main.noise_characteristics import *
 ###############################################################################
 
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
-x_noisy = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # all the states are noisy  
+x_noisy = ["PO","MX","MY","Y","W","PO_fed","T"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)],"T":[()],"T_cw":[()]}
 p_noisy = {"A":['p','i'],'kA':[()]}
 u = ["u1", "u2"]
 u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)} 
 
+y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
+y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
 nfe = 24
 tf_bounds = [10.0*24.0/nfe, 20.0*24.0/nfe]
+
 pc = ['Tad','T']
 
 # scenario_tree
 st = {} # scenario tree : {parent_node, scenario_number on current stage, base node (True/False), scenario values {'name',(index):value}}
-s_max = 3
+s_max = 9
 nr = 1
 alpha = 0.2
 for i in range(1,nfe+1):
@@ -48,18 +51,18 @@ for i in range(1,nfe+1):
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A','p'):1.0,('A','i'):1.0,('kA',()):1.0}) 
             elif s%s_max == 2:
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0+alpha,('kA',()):1.0-alpha})
-#            elif s%s_max == 3:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0+alpha,('kA',()):1.0-alpha})
-#            elif s%s_max == 4:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0-alpha,('kA',()):1.0-alpha})
-#            elif s%s_max == 5:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0-alpha,('kA',()):1.0-alpha})
-#            elif s%s_max == 6:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0+alpha,('kA',()):1.0+alpha})
-#            elif s%s_max == 7:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0+alpha,('kA',()):1.0+alpha})
-#            elif s%s_max == 8:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0-alpha,('kA',()):1.0+alpha})
+            elif s%s_max == 3:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0+alpha,('kA',()):1.0-alpha})
+            elif s%s_max == 4:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0-alpha,('kA',()):1.0-alpha})
+            elif s%s_max == 5:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0-alpha,('kA',()):1.0-alpha})
+            elif s%s_max == 6:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0+alpha,('kA',()):1.0+alpha})
+            elif s%s_max == 7:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0+alpha,('kA',()):1.0+alpha})
+            elif s%s_max == 8:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0-alpha,('kA',()):1.0+alpha})
             else:
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0-alpha,('kA',()):1.0+alpha})
     else:
@@ -70,16 +73,18 @@ sr = s_max**nr
 
 e = MheGen(d_mod=SemiBatchPolymerization_multistage,
            d_mod_mhe = SemiBatchPolymerization,
+           y=y,
+           y_vars=y_vars,
            x_noisy=x_noisy,
            x_vars=x_vars,
            p_noisy=p_noisy,
            states=states,
            u=u,
+           u_bounds = u_bounds,
+           tf_bounds = tf_bounds,
            scenario_tree = st,
            robust_horizon = nr,
            s_max = sr,
-           u_bounds = u_bounds,
-           tf_bounds = tf_bounds,
            noisy_inputs = False,
            noisy_params = False,
            adapt_params = False,
