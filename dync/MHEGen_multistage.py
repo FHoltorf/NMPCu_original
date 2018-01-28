@@ -282,10 +282,11 @@ class MheGen(NmpcGen):
             self.yk0_jrnl[y] = []        
             
         # remove all unnecessary bounds to improve reduced hessian computation
-        for var in self.lsmhe.component_objects(Var, active=True):
-            for key in var.index_set():
-                var[key].setlb(None)
-                var[key].setub(None)
+        self.lsmhe.clear_aux_bounds()
+        #for var in self.lsmhe.component_objects(Var, active=True):
+        #    for key in var.index_set():
+        #        var[key].setlb(None)
+        #        var[key].setub(None)
         
     def set_measurement_prediction(self,results):
         measured_state = {}
@@ -748,7 +749,7 @@ class MheGen(NmpcGen):
         # disturbances
         qtarget = getattr(self.lsmhe, "Q_mhe")
         w = getattr(self.lsmhe, 'wk_mhe')
-        for key in cov_dict:
+        for key in cov_dict[0]:
             if key[0] in self.xkN_key:
                 vni = key[0]
                 vnj = key[1]
@@ -756,54 +757,52 @@ class MheGen(NmpcGen):
                 v_j = self.xkN_key[vnj]
             
                 xic = getattr(self.lsmhe, vni[0] + "_ic")
-                try:
+                if self.diag_Q_R:
                     if vni[1] == ():
-                        qtarget[0, v_i] = 1 / (cov_dict[vni, vnj]*xic.value + 0.001)**2 # .00001
+                        qtarget[0, v_i] = 1 / (cov_dict[0][vni, vnj]*xic.value + 0.001)**2 # .00001
                     else:
-                        qtarget[0, v_i] = 1 / (cov_dict[vni, vnj]*xic[vni[1]].value + 0.001)**2 # .0001
-                    
-                    if set_bounds:
-                        if cov_dict[vni, vnj] != 0:
-                            if vni[1] == (): 
-                                confidence = 3*cov_dict[vni, vnj]*xic.value
-                            else:
-                                confidence = 3*cov_dict[vni, vnj]*xic[vni[1]].value
+                        qtarget[0, v_i] = 1 / (cov_dict[0][vni, vnj]*xic[vni[1]].value + 0.001)**2 # .0001
+                else:
+                     qtarget[0, v_i, v_j] = cov_dict[0][vni, vnj]
+                     
+                if set_bounds:
+                    if cov_dict[0][vni, vnj] != 0:
+                        if vni[1] == (): 
+                            confidence = 3*cov_dict[0][vni, vnj]*xic.value
                         else:
-                            if vni[1] == ():     
-                                confidence = 0.5*xic.value
-                            else:
-                                confidence = 0.5*xic[vni[1]].value
+                            confidence = 3*cov_dict[0][vni, vnj]*xic[vni[1]].value
                         w[0,v_i].setlb(-confidence)
                         w[0,v_i].setub(confidence)
-                        
-                        if w[0,v_i].lb == w[0,v_i].ub:
-                            w[0,v_i].fix()
-
-                except ZeroDivisionError:
-                    qtarget[0, v_i] = 1 
-                    # t > 1 is systematic:
-                for _t in range(1,self.nfe_mhe):
-                    if self.diag_Q_R:
-                        try:
-                            qtarget[_t, v_i] = 1 / (cov_dict[vni, vnj]*self.nmpc_trajectory[_t,vni] + .001)**2 # 0.00001
-                        except ZeroDivisionError:
-                            qtarget[_t, v_i] = 1
+                        if abs(w[0,v_i].lb - w[0,v_i].ub) < 1e-3:
+                            w[0,v_i].fix(0.0)
                     else:
-                        qtarget[_t, v_i, v_j] = cov_dict[vni, vnj]
-                    
-                    # bound disturbances to help solution
-                    if set_bounds:                        
-                        if cov_dict[vni, vnj] != 0.0:
-                            confidence = 3*cov_dict[vni,vnj]*self.nmpc_trajectory[_t,vni]
-                        else:
-                            confidence = 0.5*self.nmpc_trajectory[_t,vni]
-
-                        w[_t,v_i].setlb(-confidence)
-                        w[_t,v_i].setub(confidence)
-                        
-                        if abs(w[_t,v_i].lb - w[_t,v_i].ub) < 1e-5:
-                            w[_t,v_i].fix()
-            
+                        w[0,v_i].fix(0.0)
+                    # t > 1 is systematic:
+                for t in range(1,self.nfe_mhe):
+                    if self.diag_Q_R:
+                        qtarget[t, v_i] = 1 / (cov_dict[0][vni, vnj]*self.nmpc_trajectory[t,vni] + .001)**2 # 0.00001
+                        if set_bounds:
+                            if cov_dict[0][vni, vnj] != 0.0:
+                                    confidence = 10*abs(cov_dict[0][vni,vnj]*self.nmpc_trajectory[t,vni])
+                            else:
+                                confidence = 0.0 # fix controls if 0.0
+                            w[t,v_i].setlb(-confidence)
+                            w[t,v_i].setub(confidence)
+                            if abs(w[t,v_i].lb - w[t,v_i].ub) < 1e-3:
+                                w[t,v_i].fix()
+                    else:
+                        qtarget[t, v_i, v_j] = cov_dict[t][vni, vnj]
+                        if set_bounds:                        
+                            if cov_dict[0][vni, vnj] != 0.0:
+                                confidence = 10*abs(cov_dict[t][vni,vnj]*self.nmpc_trajectory[t,vni])
+                            else:
+                                confidence = 0.0
+                            w[t,v_i].setlb(-confidence)
+                            w[t,v_i].setub(confidence)
+                            if abs(w[t,v_i].lb - w[t,v_i].ub) < 1e-3:
+                                w[t,v_i].fix()
+            else:
+                print(key[0], ' is not a state variable')
 
     def set_covariance_u(self, cov_dict):
         """Sets covariance(inverse) for the states.

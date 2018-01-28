@@ -7,13 +7,13 @@ Created on Fri Jan 19 21:55:44 2018
 """
 from __future__ import print_function
 from mods.mod_class_robust_optimal_control import *
-import sys,csv
-import numpy.linalg as linalg
+from copy import deepcopy
 from pyomo.core import *
 from pyomo.environ import *
 import numpy as np
 import pickle
-from copy import deepcopy
+import sys,csv
+
 
 ip = SolverFactory('ipopt')
 ip.options["linear_solver"] = "ma57"

@@ -8,26 +8,28 @@ Created on Wed Nov  1 13:49:10 2017
 # relative standard deviation that is associated with disturbances
 disturbance_error = 0.05
 measurement_error = 0.05
-disturbance_error_T = 0.0
-disturbance_error_F = 0.0
+disturbance_error_1 = 0.0
+disturbance_error_2 = 0.0
 
 qcov = {}
 qcov_a = {}
-qcov_a[("PO",()), ("PO",())] = disturbance_error
-qcov_a[("MX",(0,)), ("MX",(0,))] = disturbance_error
-qcov_a[("MX",(1,)), ("MX",(1,))] = disturbance_error
-qcov_a[("X",()), ("X",())] = disturbance_error
-qcov_a[("MY",()), ("MY",())] = disturbance_error
-qcov_a[("Y",()), ("Y",())] = disturbance_error
-qcov_a[("W",()), ("W",())] = disturbance_error
+qcov_a[("PO",()), ("PO",())] = 0.1
+qcov_a[("MX",(0,)), ("MX",(0,))] = 0.0
+qcov_a[("MX",(1,)), ("MX",(1,))] = 0.0
+qcov_a[("X",()), ("X",())] = 0.0
+qcov_a[("MY",()), ("MY",())] = 0.0
+qcov_a[("Y",()), ("Y",())] = 0.1
+qcov_a[("W",()), ("W",())] = 0.0
 qcov_a[("m_tot",()), ("m_tot",())] = 0.0
 qcov_a[("PO_fed",()), ("PO_fed",())] = 0.0
-qcov_a[("T",()),("T",())] = disturbance_error
+qcov_a[("T",()),("T",())] = 0.1
+qcov_a[("T_cw",()),("T_cw",())] = 0.0
+
 qcov[0] = qcov_a 
 
 # process disturbances
 v_disturbances = {}
-v_disturbances[("PO",())] = disturbance_error*2
+v_disturbances[("PO",())] = disturbance_error
 v_disturbances[("MX",(0,))] = disturbance_error
 v_disturbances[("MX",(1,))] = disturbance_error
 v_disturbances[("X",())] = disturbance_error
@@ -36,9 +38,10 @@ v_disturbances[("Y",())] = disturbance_error
 v_disturbances[("W",())] = disturbance_error
 v_disturbances[("m_tot",())] = disturbance_error*0.0
 v_disturbances[("PO_fed",())] = disturbance_error*0.0
-v_disturbances[("T",())] = disturbance_error
-v_disturbances["u1"] = disturbance_error_T
-v_disturbances["u2"] = disturbance_error_F
+v_disturbances[("T",())] = 0.0
+v_disturbances[("T_cw",())] = 0.0
+v_disturbances["u1"] = disturbance_error_1
+v_disturbances["u2"] = disturbance_error_2
 
 # relative variance (measurement noise) that is associated with the disturbances
 mcov = {}
@@ -53,7 +56,8 @@ mcov[("MW",()), ("MW",())] = measurement_error
 mcov[("m_tot",()), ("m_tot",())] = 0.005
 mcov[("PO_fed",()), ("PO_fed",())] = 0.0 # measurement_error
 mcov[("heat_removal",()),("heat_removal",())] =  measurement_error
-mcov[("T",()),("T",())] = measurement_error
+mcov[("T",()),("T",())] = 0.01
+mcov[("T_cw",()),("T_cw",())] = 0.0
 
 # actual measurement noise from which measurement noise is generated
 x_measurement = {}
@@ -68,12 +72,13 @@ x_measurement[("MW",())] = measurement_error
 x_measurement[("m_tot",())] = 0.005
 x_measurement[("PO_fed",())] = 0.0
 x_measurement[("heat_removal",())] =  measurement_error
-x_measurement[("T",())] = measurement_error
+x_measurement[("T",())] = 0.01
+x_measurement[("T_cw",())] = 0.0
 
 # relative variance that is associated with the controls
 ucov = {}
-ucov[("u1",())] = disturbance_error_T
-ucov[("u2",())] = disturbance_error_F
+ucov[("u1",())] = disturbance_error_1
+ucov[("u2",())] = disturbance_error_2
 
 # uncertainty in initial point
 v_init = {}
@@ -106,7 +111,7 @@ v_param[('Hrxn_aux',('a',))] = [0.0,200]
 v_param[('Hrxn_aux',('i',))] = [0.0,200]
 v_param[('Hrxn_aux',('p',))] = [0.0,200]
 v_param[('Hrxn_aux',('t',))] = [0.0,200]
-
+v_param[('kA',())] = [0.1,200]
         
 
 

@@ -567,7 +567,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 # implicit systematic
                 #return self.dT_cw_dt[i] == sum(self.ldot_t[j, k] * self.T_cw[i, k]*self.T_scale for k in self.cp)/self.tf
                 # explicit tailored
-                return self.T_cw[i,j]*self.T_scale == self.T_cw[i,0]*self.T_scale + self.dT_cw_dt[i]*self.tf*self.tau_i_t[j]
+                return self.T_cw[i,j]*self.T_scale == self.T_cw[i,0]*self.T_scale + self.dT_cw_dt[i]*self.tf*self.fe_dist[i]*self.tau_i_t[j]
             else:   
                 return Constraint.Skip
 
@@ -593,7 +593,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 #return self.dT_dt[i,j]*(self.m_tot[i,j]*self.m_tot_scale)*(self.bulk_cp_1 + self.bulk_cp_2*self.T[i,j]*self.T_scale) == (-self.F[i]*self.Hrxn['p']*self.monomer_cooling[i,j]*self.tf*self.fe_dist[i] + \
                 #                          self.Hrxn['p']*(self.F[i]*self.tf*self.fe_dist[i] - self.dPO_dt[i,j]*self.PO_scale + self.dW_dt[i,j]*self.W_scale) - self.k_c*self.tf*self.fe_dist[i]*(self.T[i,j]*self.T_scale - self.T_cw[i]*self.T_scale))/self.T_scale
                 return self.dT_dt[i,j]*(self.m_tot[i,j]*self.m_tot_scale*(self.bulk_cp_1 + self.bulk_cp_2*self.T[i,j]*self.T_scale))/self.Hrxn['p'] ==\
-                            (self.Qr[i,j] - self.Qc[i,j] - self.F[i]*self.tf*self.mw_PO*self.monomer_cooling[i,j]*self.monomer_cooling_scale)/self.T_scale
+                            (self.Qr[i,j] - self.Qc[i,j] - self.F[i]*self.tf*self.fe_dist[i]*self.mw_PO*self.monomer_cooling[i,j]*self.monomer_cooling_scale)/self.T_scale
             else:
                 return Constraint.Skip
     
@@ -817,7 +817,7 @@ class SemiBatchPolymerization(ConcreteModel):
         #        (selfolecular_weight - mw_PG)/mw_PO/num_OH*MX('1',k,q) =l= MX('2',k,q);
         
         def _epc_mw_ub(self):
-            return 0.0 == self.MX[nfe,ncp,1]*self.MX1_scale - (10+self.molecular_weight - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[nfe,ncp,0]*self.MX0_scale - self.eps[4] + self.s_mw_ub
+            return 0.0 == self.MX[nfe,ncp,1]*self.MX1_scale - (10.0+self.molecular_weight - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[nfe,ncp,0]*self.MX0_scale - self.eps[4] + self.s_mw_ub
         
         self.epc_mw_ub = Constraint(rule =_epc_mw_ub)
         
