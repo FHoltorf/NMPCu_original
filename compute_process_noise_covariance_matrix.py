@@ -6,8 +6,8 @@ Created on Fri Jan 19 21:55:44 2018
 @author: flemmingholtorf
 """
 from __future__ import print_function
+from mods.cj.mod_class_cj_pwa_robust_optimal_control import *
 #from mods.no_cj.mod_class_robust_optimal_control import *
-from mods.no_cj.mod_class_robust_optimal_control import *
 from copy import deepcopy
 from pyomo.core import *
 from pyomo.environ import *
@@ -40,7 +40,7 @@ m.var_order = Suffix(direction=Suffix.EXPORT)
 m.dcdp = Suffix(direction=Suffix.EXPORT)
 
 i = 1
-p_noisy = {'A':['p','i']}#,'kA':[()]}
+p_noisy = {'A':['p','i'],'kA':[()]}
 reverse_dict_pars = {}
 for p in p_noisy:
     for key in p_noisy[p]:
@@ -55,7 +55,7 @@ for p in p_noisy:
             i += 1
             
 i = 1
-states = {"Y":[()],"PO":[()], "W":[()], "MY":[()], "MX":[(0,),(1,)],"PO_fed":[()] }#, "T":[()]} #, "PO_fed":[()] removed since not subject to disturbances
+states = {"Y":[()],"PO":[()], "W":[()], "MY":[()],"MX":[(0,),(1,)],"PO_fed":[()],"T":[()]} #, "PO_fed":[()] removed since not subject to disturbances
 
 reverse_dict_cons = {}
 for x in states:
@@ -89,11 +89,11 @@ for key in dfdp:
 
 #########################
 # matrix dfdp[t]
-row_order = {0:("Y",()),1:("PO",()),2:("MX",(1,))}#,4:("T",())} #1:("PO",()),
+row_order = {0:("Y",()),1:("PO",()),2:("T",())}#,4:("T",())} #1:("PO",()),
 # 2:("W",()),3:("MX",(0,)),3:("MX",(1,)),2:("MY",()), ,4:("T",()),2:("MX",(1,)),
 _dfdp = {}
 n_x = len(row_order)
-n_p = 2
+n_p = 3
 for t in range(24):
     _dfdp[t] = np.zeros((n_x,n_p))
     for i in range(n_x):
@@ -106,7 +106,7 @@ for t in range(24):
             _dfdp[t][i][j] = dfdp[(x,p)]
             
 # covariance matrix of parameters
-_Vp = np.diag([0.2**2,0.2**2,0.2**2])#,0.2**2])
+_Vp = np.diag([0.2**2,0.2**2,0.2**2])
 _Q = {}
 _Q_inv = {}
 for t in range(24):
