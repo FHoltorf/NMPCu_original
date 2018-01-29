@@ -6,7 +6,8 @@ Created on Fri Jan 19 21:55:44 2018
 @author: flemmingholtorf
 """
 from __future__ import print_function
-from mods.mod_class_robust_optimal_control import *
+#from mods.no_cj.mod_class_robust_optimal_control import *
+from mods.no_cj.mod_class_robust_optimal_control import *
 from copy import deepcopy
 from pyomo.core import *
 from pyomo.environ import *
@@ -25,6 +26,11 @@ ip.solve(m,tee=True)
 
 m.u1.fix()
 m.u2.fix()
+m.tf.fix()
+m.eps_pc.fix()
+m.eps.fix()
+m.deactivate_epc()
+m.deactivate_pc()
 m.clear_all_bounds()
 
 k_aug = SolverFactory("k_aug",executable="/home/flemmingholtorf/KKT_matrix/k_aug/src/kmatrix/k_aug")
@@ -34,11 +40,14 @@ m.var_order = Suffix(direction=Suffix.EXPORT)
 m.dcdp = Suffix(direction=Suffix.EXPORT)
 
 i = 1
-p_noisy = {'A':['p','i']}
+p_noisy = {'A':['p','i']}#,'kA':[()]}
 reverse_dict_pars = {}
 for p in p_noisy:
     for key in p_noisy[p]:
-        dummy = 'dummy_constraint_p_' + p + '_' + key
+        if key != ():  
+            dummy = 'dummy_constraint_p_' + p + '_' + key
+        else:
+            dummy = 'dummy_constraint_p_' + p
         dummy_con = getattr(m, dummy)
         for index in dummy_con.index_set():
             m.dcdp.set_value(dummy_con[index], i)
@@ -46,7 +55,7 @@ for p in p_noisy:
             i += 1
             
 i = 1
-states = {"PO":[()], "Y":[()]}#, "W":[()], "MY":[()], "MX":[(0,),(1,)]} #, "PO_fed":[()] removed since not subject to disturbances
+states = {"Y":[()],"PO":[()], "W":[()], "MY":[()], "MX":[(0,),(1,)],"PO_fed":[()] }#, "T":[()]} #, "PO_fed":[()] removed since not subject to disturbances
 
 reverse_dict_cons = {}
 for x in states:
@@ -56,9 +65,7 @@ for x in states:
             m.var_order.set_value(xvar[index], i)
             reverse_dict_cons[i] = (x,index)
             i += 1
-            
-            
-            
+
 k_aug.solve(m,tee=True)
 dfdp = {}
 with open('dxdp_.dat') as f:
@@ -74,19 +81,16 @@ with open('dxdp_.dat') as f:
             k += 1
         i += 1
 
-
-
-
 # which states are useless?
 liste = []
 for key in dfdp:
-    if abs(dfdp[key]) <= 1e-2:
+    if abs(dfdp[key]) <= 1e-5:
         liste.append(key)
-
 
 #########################
 # matrix dfdp[t]
-row_order = {0:("Y",()),1:("PO",())} #1:("Y",()), 4:("MX",(0,)), # 2:("W",()), #, 3:("MX",(1,)) # 0:("PO",()),
+row_order = {0:("Y",()),1:("PO",()),2:("MX",(1,))}#,4:("T",())} #1:("PO",()),
+# 2:("W",()),3:("MX",(0,)),3:("MX",(1,)),2:("MY",()), ,4:("T",()),2:("MX",(1,)),
 _dfdp = {}
 n_x = len(row_order)
 n_p = 2
@@ -102,24 +106,23 @@ for t in range(24):
             _dfdp[t][i][j] = dfdp[(x,p)]
             
 # covariance matrix of parameters
-_Vp = np.array([[0.2**2, 0.0],[0.0,0.2**2]])
+_Vp = np.diag([0.2**2,0.2**2,0.2**2])#,0.2**2])
 _Q = {}
 _Q_inv = {}
 for t in range(24):
     _Q[t] = np.dot(_dfdp[t],np.dot(_Vp,_dfdp[t].transpose()))
-    if t > 0:
-        _Q_inv[t] = np.linalg.inv(_Q[t])
+    #if t > 0:
+    _Q_inv[t] = np.linalg.inv(_Q[t])
         
 qcov = {}
 for t in range(24):
     aux = {}
     for i in range(n_x):
         for j in range(n_x):
-            if t > 0:
-                aux[row_order[i],row_order[j]] = _Q_inv[t][i][j]
+            aux[row_order[i],row_order[j]] = _Q_inv[t][i][j]
     qcov[t] = deepcopy(aux)
 
-f = open('qcov.pckl','wb')
+f = open('qcov_cj.pckl','wb')
 pickle.dump(qcov, f)
 f.close()
 

@@ -68,7 +68,7 @@ class NmpcGen(DynGen):
         self.initial_values = {}
         self.nominal_parameter_values = {}
         self.delta_u = False
-        self.tf_bounds = kwargs.pop('tf_bounds',[10.0,20.0])
+        self.tf_bounds = kwargs.pop('tf_bounds',[10.0,30.0])
             
         # plant simulation model in order to distinguish between noise and disturbances
         self.plant_simulation_model = self.d_mod(1, self.ncp_t, _t=self._t)
@@ -426,9 +426,9 @@ class NmpcGen(DynGen):
         for u in self.u:
             control = getattr(self.olnmpc, u)
             current_control_info[u] = control[1].value
-            
-        self.forward_simulation_model.tf = self.olnmpc.tf.value
-        self.forward_simulation_model.tf.fixed = True  
+          
+        # change tf via as as well?
+        self.forward_simulation_model.tf.fix(self.olnmpc.tf.value)
         
         # Update adpated params
         if self.adapt_params and self.iterations > 1:
@@ -470,8 +470,7 @@ class NmpcGen(DynGen):
         # set and fix control as provided by olnmpc/advanced step update     
         for u in self.u:
             control = getattr(self.forward_simulation_model,u)
-            control[1].value = current_control_info[u]           
-            control[1].fixed = True
+            control[1].fix(current_control_info[u])           
             self.forward_simulation_model.equalize_u(direction="u_to_r")
         
         self.forward_simulation_model.clear_aux_bounds()
@@ -489,7 +488,6 @@ class NmpcGen(DynGen):
         if [str(out.solver.status), str(out.solver.termination_condition)] != ['ok','optimal']:
             self.forward_simulation_model.clear_all_bounds()
             out = ip.solve(self.forward_simulation_model, tee = True, symbolic_solver_labels=True)
-            self.simulation_trajectory[self.iterations,'obj_fun'] = value(self.forward_simulation_model.obj_u)
             
         self.simulation_trajectory[self.iterations,'solstat'] = [str(out.solver.status), str(out.solver.termination_condition)]
         
@@ -511,13 +509,15 @@ class NmpcGen(DynGen):
         self.recipe_optimization_model = self.d_mod(self.nfe_t, self.ncp_t)
         self.recipe_optimization_model.initialize_element_by_element()
         self.recipe_optimization_model.create_bounds()
-        self.create_tf_bounds(self.recipe_optimization_model)
-        self.recipe_optimization_model.create_output_relations()
         self.recipe_optimization_model.clear_aux_bounds()
+        self.recipe_optimization_model.create_output_relations()
+        self.create_tf_bounds(self.recipe_optimization_model)
+
         #self.recipe_optimization_model.aux.fixed = True
         ip = SolverFactory("asl:ipopt")
         ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
+        ip.options["tol"] = 1e-8
         ip.options["linear_solver"] = "ma57"
         ip.options["max_iter"] = 5000
         
@@ -1172,7 +1172,7 @@ class NmpcGen(DynGen):
                 for key in sens:
                     sens[key] = self.alpha[key[1]]*sens[key]
             elif type(self.alpha) == tuple and self.alpha[1] == 'adapted':
-                # case c): weighting_matrix --> rectangle is tilted
+                # case c): weighting_matrix --> rectangle is tilted/aligned with principal components
                 # self made matrix multiplication to ensure the rows and cols match...
                 if type(self.weighting_matrix) != dict:
                     for key in sens:
@@ -1194,6 +1194,7 @@ class NmpcGen(DynGen):
                 for index in backoff_var.index_set():
                     try:
                         # computes the 1-norm of the respective part of the sensitivity matrix
+                        # can be extended to computing the 2-norm --> ellipsoidal uncertainty set
                         new_backoff = sum(abs(sens[(('s_'+i,index),reverse_dict_pars[k])]) for k in range(1,n_p+1))
                         # update backoff margins 
                         old_backoff = backoff[('s_'+i,index)]

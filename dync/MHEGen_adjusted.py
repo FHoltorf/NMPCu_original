@@ -394,8 +394,7 @@ class MheGen(NmpcGen):
                         continue
                     
         # adjust the time intervals via model parameter self.lsmhe.fe_dist[i]
-        self.lsmhe.tf.fixed = True
-        self.lsmhe.tf.value = self.recipe_optimization_model.tf.value # base is set via recipe_optimization_model
+        self.lsmhe.tf.fix(self.recipe_optimization_model.tf.value) # base is set via recipe_optimization_model
         for i in self.lsmhe.fe_t:
             self.lsmhe.fe_dist[i] = self.plant_trajectory[i,'tf']/self.lsmhe.tf.value
         
@@ -468,7 +467,7 @@ class MheGen(NmpcGen):
     def cycle_ics_mhe(self, nmpc_as = False, mhe_as = False):
         if nmpc_as and mhe_as: # both nmpc and mhe use advanced step scheme
             ivs = self.initial_values
-        elif nmpc_as: # only nmpc uses advanced step scheme
+        elif nmpc_as and not(mhe_as): # only nmpc uses advanced step scheme
             ivs = self.curr_pstate
         else: # nothing uses advanced step scheme
             ivs = self.initial_values
@@ -481,7 +480,8 @@ class MheGen(NmpcGen):
                 else:
                     xic.value = ivs[(x,j)]
 
-        if (self.adapt_params or self.update_scenario_tree or self.update_uncertainty_set) and self.iterations > 1:
+        if (self.adapt_params or self.update_scenario_tree or self.update_uncertainty_set) \
+            and self.iterations > 1:
             ###################################################################
             # comute principle components of approximate 95%-confidence region 
             ###################################################################

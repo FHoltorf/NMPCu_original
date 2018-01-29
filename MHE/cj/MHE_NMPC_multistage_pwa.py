@@ -8,15 +8,15 @@ Created on Fri Sep 29 21:51:51 2017
 from __future__ import print_function
 from pyomo.environ import *
 from main.dync.MHEGen_multistage import MheGen
-from main.mods.mod_class_cj_pwa_multistage import *
-from main.mods.mod_class_cj_pwa import *
+from main.mods.cj.mod_class_cj_pwa_multistage import *
+from main.mods.cj.mod_class_cj_pwa import *
 import sys
 import itertools, sys, csv
 import numpy as np
 import matplotlib.pyplot as plt
 import numpy.linalg as linalg
 from scipy.stats import chi2
-from main.noise_characteristics import *
+from main.noise_characteristics_cj import *
 
 # redirect system output to a file:
 #sys.stdout = open('consol_output','w')

@@ -10,8 +10,8 @@ Created on Fri Sep 29 21:51:51 2017
 from __future__ import print_function
 from pyomo.environ import *
 from main.dync.MHEGen_multistage import MheGen
-from main.mods.mod_class import *
-from main.mods.mod_class_multistage import *
+from main.mods.no_cj.mod_class import *
+from main.mods.no_cj.mod_class_multistage import *
 import sys
 import itertools, sys, csv
 import numpy as np

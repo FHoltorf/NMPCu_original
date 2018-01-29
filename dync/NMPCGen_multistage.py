@@ -56,7 +56,7 @@ class NmpcGen(DynGen):
         self.delta_u = False
         
         #timestep bounds
-        self.tf_bounds = kwargs.pop('tf_bounds',(10.0,20.0))
+        self.tf_bounds = kwargs.pop('tf_bounds',(10.0,30.0))
         
         # multistage
         dummy_tree = {}
@@ -255,14 +255,12 @@ class NmpcGen(DynGen):
         # result is the previous olnmpc solution 
         #    --> therefore provides information about the sampling interval
         # 1 element model for forward simulation
-        self.plant_simulation_model.tf[1,1] = result['tf', (1,1)]
-        self.plant_simulation_model.tf[1,1].fixed = True
-        
+        self.plant_simulation_model.tf[1,1].fix(result['tf', (1,1)])
+
         # FIX(!!) the controls, path constraints are deactivated
         for u in self.u:
             control = getattr(self.plant_simulation_model,u)
-            control[1,1].value = result[u,(1,1)]*(1.0+input_noise[u])
-            control[1,1].fixed = True 
+            control[1,1].fix(result[u,(1,1)]*(1.0+input_noise[u]))
             self.plant_simulation_model.equalize_u(direction="u_to_r") 
                  
         # probably redundant
@@ -280,6 +278,7 @@ class NmpcGen(DynGen):
         
         #
         if [str(out.solver.status), str(out.solver.termination_condition)] != ['ok','optimal']:
+            self.plant_simulation_model.clear_all_bounds()
             out = ip.solve(self.plant_simulation_model, tee = True)
         
         self.plant_trajectory[self.iterations,'solstat'] = [str(out.solver.status), str(out.solver.termination_condition)]
@@ -322,8 +321,7 @@ class NmpcGen(DynGen):
         
         # IMPORTANT:
         # --> before calling forward_simulation() need to call dot_sens to perform the update
-        #
-                
+    
         # curr_state_info:
         # comprises both cases where state is estimated and directly measured
         current_state_info = {}
@@ -337,9 +335,8 @@ class NmpcGen(DynGen):
             control = getattr(self.olnmpc, u)
             current_control_info[u] = control[1,1].value
             
-            
-        self.forward_simulation_model.tf[1,1] = self.olnmpc.tf[1,1].value # xxx
-        self.forward_simulation_model.tf.fix()
+        # change tf via as as well?
+        self.forward_simulation_model.tf[1,1].fix(self.olnmpc.tf[1,1].value) 
 
         # general initialization
         # not super efficient but works
@@ -377,8 +374,7 @@ class NmpcGen(DynGen):
         # set and fix control as provided by olnmpc/advanced step update
         for u in self.u:
             control = getattr(self.forward_simulation_model,u)
-            control[1,1].value = current_control_info[u] # xxx
-            control[1,1].fix() # xxx
+            control[1,1].fix(current_control_info[u])
             self.forward_simulation_model.equalize_u(direction="u_to_r") # xxx
         
         self.forward_simulation_model.clear_aux_bounds()
@@ -395,8 +391,7 @@ class NmpcGen(DynGen):
         
         if [str(out.solver.status), str(out.solver.termination_condition)] != ['ok','optimal']:
             self.forward_simulation_model.clear_all_bounds()
-            out = ip.solve(self.forward_simulation_model, tee = True)
-            self.simulation_trajectory[self.iterations,'obj_fun'] = value(self.forward_simulation_model.obj_u)
+            out = ip.solve(self.forward_simulation_model, tee = True, symbolic_solver_labels=True)
 
         self.simulation_trajectory[self.iterations,'solstat'] = [str(out.solver.status), str(out.solver.termination_condition)]
         
@@ -416,17 +411,22 @@ class NmpcGen(DynGen):
         self.nfe_t_0 = self.nfe_t # set self.nfe_0 to keep track of the length of the reference trajectory
         self.generate_state_index_dictionary()
         self.recipe_optimization_model = self.d_mod(self.nfe_t,self.ncp_t,scenario_tree = self.st, s_max = self.s_used, nr = self.nr)#self.d_mod(self.nfe_t, self.ncp_t, scenario_tree = self.st)
-        if multimodel:
-            self.recipe_optimization_model.multimodel()
         self.recipe_optimization_model.initialize_element_by_element()
         self.recipe_optimization_model.create_bounds()
+        self.recipe_optimization_model.clear_aux_bounds()
         self.recipe_optimization_model.create_output_relations()
-        #self.recipe_optimization_model.aux.fixed = True
+        self.create_tf_bounds(self.recipe_optimization_model)
+        
+        if multimodel:
+            self.recipe_optimization_model.multimodel()
+        
         ip = SolverFactory("asl:ipopt")
         ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
+        ip.options["tol"] = 1e-8
         ip.options["linear_solver"] = "ma57"
         ip.options["max_iter"] = 5000
+        
         results = ip.solve(self.recipe_optimization_model, tee=True, symbolic_solver_labels=True, report_timing=True)
         if not(str(results.solver.status) == 'ok' and str(results.solver.termination_condition)) == 'optimal':
             print('Recipe Optimization failed!')

@@ -11,7 +11,7 @@ from __future__ import print_function
 from pyomo.environ import *
 # from nmpc_mhe.dync.MHEGen import MheGen
 from main.dync.MHEGen_adjusted import MheGen
-from main.mods.mod_class import *
+from main.mods.no_cj.mod_class import *
 import sys
 import itertools, sys
 import numpy as np

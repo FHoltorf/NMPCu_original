@@ -454,7 +454,7 @@ class MheGen(NmpcGen):
     def cycle_ics_mhe(self, nmpc_as = False, mhe_as = False):
         if nmpc_as and mhe_as: # both nmpc and mhe use advanced step schme
             ivs = self.initial_values
-        elif nmpc_as: # only nmpc uses advanced step scheme
+        elif nmpc_as and not(mhe_as): # only nmpc uses advanced step scheme
             ivs = self.curr_pstate
         else: # nothing uses advanced step scheme/no measurement noise
             ivs = self.initial_values

@@ -11,8 +11,8 @@ from pyomo.environ import *
 from scipy.stats import chi2
 from copy import deepcopy
 from main.dync.MHEGen_adjusted import MheGen
-from main.mods.mod_class_cj_pwa import *
-from main.noise_characteristics import * 
+from main.mods.cj.mod_class_cj_pwa import *
+from main.noise_characteristics_cj import * 
 import itertools, sys, csv
 import numpy as np
 import matplotlib.pyplot as plt

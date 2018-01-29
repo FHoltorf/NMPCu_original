@@ -10,12 +10,12 @@ Created on Fri Sep 29 21:51:51 2017
 from __future__ import print_function
 from pyomo.environ import *
 from main.dync.MHEGen_adjusted import MheGen
-from main.mods.mod_class_cj_pwa import *
+from main.mods.cj.mod_class_cj_pwa import *
 import sys
 import itertools, sys
 import numpy as np
 import matplotlib.pyplot as plt
-from main.noise_characteristics import *
+from main.noise_characteristics_cj import *
 import numpy.linalg as linalg
 from scipy.stats import chi2
 from copy import deepcopy
@@ -99,18 +99,15 @@ for i in range(1,nfe):
     e.create_suffixes_nmpc()
     e.sens_k_aug_nmpc()
     
-    # here measurement becomes available
     #solve mhe problem
     e.solve_mhe(fix_noise=False) # solves the mhe problem
     previous_mhe = e.store_results(e.lsmhe)
-    #e.compute_confidence_ellipsoid()
     
     # update state estimate 
     e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True
     
     # compute fast update for nmpc
     e.compute_offset_state(src_kind="estimated")
-    
     e.sens_dot_nmpc()   
     
     # forward simulation for next iteration
