@@ -262,18 +262,6 @@ class MheGen(NmpcGen):
                     
         self.lsmhe.U_e_mhe = Expression(expr= 1.0/2.0 * expr_u_obf)  # how about this
         
-        
-        #with open("file_cv.txt", "a") as f:
-        #    self.lsmhe.U_e_mhe.pprint(ostream=f)
-        #    f.close()
-
-
-
-# DO NOT NEED ARIVAL COST FOR NOW
-#        self.lsmhe.Arrival_e_mhe = Expression(
-#            expr=0.5 * sum((self.xkN_l[j] - self.lsmhe.x_0_mhe[j]) *
-#                     sum(self.lsmhe.PikN_mhe[j, k] * (self.xkN_l[k] - self.lsmhe.x_0_mhe[k]) for k in self.lsmhe.xkNk_mhe)
-#                     for j in self.lsmhe.xkNk_mhe))
         self.lsmhe.Arrival_e_mhe = Expression(expr = 0.0)
 
         self.lsmhe.obfun_dum_mhe_deb = Objective(sense=minimize,
@@ -291,10 +279,6 @@ class MheGen(NmpcGen):
         # deactivate endpoint constraints
         self.lsmhe.deactivate_epc()
         self.lsmhe.deactivate_pc()
-
-        # with open("file_cv.txt", "a") as f:
-        #     self.lsmhe.obfun_mhe.pprint(ostream=f)
-        #     f.close()
 
         self._PI = {}  #: Container of the KKT matrix
         self.xreal_W = {}
@@ -324,10 +308,7 @@ class MheGen(NmpcGen):
             
         # remove all unnecessary bounds to improve reduced hessian computation
         self.lsmhe.clear_aux_bounds()
-        #for var in self.lsmhe.component_objects(Var, active=True):
-        #    for key in var.index_set():
-        #        var[key].setlb(None)
-        #        var[key].setub(None)
+
         
     def set_measurement_prediction(self,results):
         # needed for construction of lsmhe
@@ -459,7 +440,7 @@ class MheGen(NmpcGen):
         ip.options["max_iter"] = 3000
         with open("ipopt.opt", "w") as f:
             f.write("print_info_string yes")
-        f.close()
+            f.close()
 
         result = ip.solve(self.lsmhe, tee=True)        
     
@@ -486,7 +467,6 @@ class MheGen(NmpcGen):
                     key = j
                 self.initial_values[(x,j)] = output[(x+"_e",key)]
                 
-
         return output   
 
     def cycle_ics_mhe(self, nmpc_as = False, mhe_as = False):

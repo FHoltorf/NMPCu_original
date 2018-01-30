@@ -59,8 +59,8 @@ class MheGen(NmpcGen):
         self.lsmhe.name = "lsmhe (Least-Squares MHE)"
         self.lsmhe.create_bounds()
         self.lsmhe.create_output_relations()
-        #: create x_pi constraint
-
+        self.lsmhe.e_state_relation()
+        
         #: Create list of noisy-states vars
         self.xkN_l = []
         self.xkN_nexcl = []
@@ -75,13 +75,16 @@ class MheGen(NmpcGen):
                 k += 1
 
         self.lsmhe.xkNk_mhe = Set(initialize=[i for i in range(0, len(self.xkN_l))])  #: Create set of noisy_states
-        self.lsmhe.wk_mhe = Var(range(0,self.nfe_mhe), self.lsmhe.xkNk_mhe, initialize=0.0)
+        #self.lsmhe.wk_mhe = Var(range(0,self.nfe_mhe), self.lsmhe.xkNk_mhe, initialize=0.0)
+        #self.lsmhe.Q_mhe = Param(range(0, self.nfe_mhe), self.lsmhe.xkNk_mhe, initialize=1, mutable=True) if self.diag_Q_R\
+        #    else Param(range(0, self.nfe_mhe), self.lsmhe.xkNk_mhe, self.lsmhe.xkNk_mhe,
+        #                     initialize=lambda m, t, i, ii: 1.0 if i == ii else 0.0, mutable=True)  #: Disturbance-weight
         
-        
-        self.lsmhe.Q_mhe = Param(range(0, self.nfe_mhe), self.lsmhe.xkNk_mhe, initialize=1, mutable=True) if self.diag_Q_R\
-            else Param(range(0, self.nfe_mhe), self.lsmhe.xkNk_mhe, self.lsmhe.xkNk_mhe,
-                             initialize=lambda m, t, i, ii: 1. if i == ii else 0.0, mutable=True)  #: Disturbance-weight
-        
+        self.lsmhe.wk_mhe = Var(range(0,self.nfe_mhe+1), self.lsmhe.xkNk_mhe, initialize=0.0)
+        self.lsmhe.Q_mhe = Param(range(0, self.nfe_mhe+1), self.lsmhe.xkNk_mhe, initialize=1.0, mutable=True) if self.diag_Q_R \
+            else Param(range(0, self.nfe_mhe+1), self.lsmhe.xkNk_mhe, self.lsmhe.xkNk_mhe,
+                             initialize=lambda m, t, i, ii: 1.0 if i == ii else 0.0, mutable=True)  #: Disturbance-weight
+
         # deactivates the continuity constraints in collocation scheme
         for i in self.x_noisy:
             cp_con = getattr(self.lsmhe, "cp_" + i)
@@ -104,7 +107,14 @@ class MheGen(NmpcGen):
             for y in self.y:
                 m_v = getattr(self.lsmhe, y)  #: Measured "state"
                 for jth in self.y_vars[y]:  #: the jth variable
-                    self.yk_l[t].append(m_v[(t, self.ncp_t) + jth])
+                    if (t == self.nfe_mhe) and (y in self.x_noisy):
+                        m_v = getattr(self.lsmhe, y + "_e")
+                        if jth == ():
+                            self.yk_l[t].append(m_v)
+                        else:    
+                            self.yk_l[t].append(m_v[jth])
+                    else:
+                        self.yk_l[t].append(m_v[(t, self.ncp_t) + jth])
 
         self.lsmhe.ykk_mhe = Set(initialize=[i for i in range(0, len(self.yk_l[1]))])  #: Create set of measured_vars
         self.lsmhe.nuk_mhe = Var(self.lsmhe.fe_t, self.lsmhe.ykk_mhe, initialize=0.0)   #: Measurement noise
@@ -176,36 +186,34 @@ class MheGen(NmpcGen):
         #: Put the noise in the continuation equations (finite-element)
         j = 0
         self.lsmhe.noisy_cont = ConstraintList()
-        for i in self.x_noisy:
-            #cp_con = getattr(self.lsmhe, "cp_" + i)
-            cp_exp = getattr(self.lsmhe, "noisy_" + i)
-            # self.lsmhe.del_component(cp_con)
-            for k in self.x_vars[i]:  #: This should keep the same order
+        for x in self.x_noisy:
+            cp_exp = getattr(self.lsmhe, "noisy_" + x)
+            for key in self.x_vars[x]:  #: This should keep the same order
                 for t in range(1, self.nfe_mhe):
-                    # pass
-                    self.lsmhe.noisy_cont.add(cp_exp[t, k] == self.lsmhe.wk_mhe[t, j])
-                    # self.lsmhe.noisy_cont.add(cp_exp[t, k] == 0.0)
+                    self.lsmhe.noisy_cont.add(cp_exp[t, key] == self.lsmhe.wk_mhe[t, j])
                 j += 1
-            #cp_con.reconstruct()
+         
+        for x in self.x_noisy:
+            e_state_expr = getattr(self.lsmhe, x + "_e_expr")
+            e_state_constr = getattr(self.lsmhe, x + "_e_c")
+            e_state_constr.deactivate()
+            for key in self.x_vars[x]:
+                j = self.xkN_key[(x,key)]
+                if key != ():
+                    self.lsmhe.noisy_cont.add(e_state_expr[key] == self.lsmhe.wk_mhe[self.nfe_mhe,j])
+                else:
+                    self.lsmhe.noisy_cont.add(e_state_expr == self.lsmhe.wk_mhe[self.nfe_mhe,j])
+        
         self.lsmhe.noisy_cont.deactivate()
-
-        #: Expressions for the objective function (least-squares)
-#        self.lsmhe.Q_e_mhe = Expression(
-#            expr=0.5 * sum(
-#                sum(
-#                    self.lsmhe.Q_mhe[i, k] * self.lsmhe.wk_mhe[i, k]**2 for k in self.lsmhe.xkNk_mhe)
-#                for i in range(1, self.nfe_mhe))) if self.diag_Q_R else Expression(
-#            expr=sum(sum(self.lsmhe.wk_mhe[i, j] *
-#                         sum(self.lsmhe.Q_mhe[i, j, k] * self.lsmhe.wk_mhe[i, k] for k in self.lsmhe.xkNk_mhe)
-#                         for j in self.lsmhe.xkNk_mhe) for i in range(1, self.nfe_mmhe)))
+       
         self.lsmhe.Q_e_mhe = Expression(
             expr= 1.0/2.0 * sum(
                 sum(
                     self.lsmhe.Q_mhe[i, k] * self.lsmhe.wk_mhe[i, k]**2 for k in self.lsmhe.xkNk_mhe)
-                for i in range(0, self.nfe_mhe))) if self.diag_Q_R else Expression(
+                for i in range(0, self.nfe_mhe+1))) if self.diag_Q_R else Expression(
             expr=sum(sum(self.lsmhe.wk_mhe[i, j] *
                          sum(self.lsmhe.Q_mhe[i, j, k] * self.lsmhe.wk_mhe[i, k] for k in self.lsmhe.xkNk_mhe)
-                         for j in self.lsmhe.xkNk_mhe) for i in range(0, self.nfe_mhe)))
+                         for j in self.lsmhe.xkNk_mhe) for i in range(0, self.nfe_mhe+1)))
 
         self.lsmhe.R_e_mhe = Expression(
             expr=1.0/2.0 * sum(
@@ -224,15 +232,7 @@ class MheGen(NmpcGen):
                     expr_u_obf += self.lsmhe.U_mhe[i, u] * var_w[i] ** 2
 
         self.lsmhe.U_e_mhe = Expression(expr= 1.0/2.0 * expr_u_obf)  # how about this
-#        with open("file_cv.txt", "a") as f:
-#            self.lsmhe.U_e_mhe.pprint(ostream=f)
-#            f.close()
 
-# DO NOT NEED ARIVAL COST FOR NOW
-#        self.lsmhe.Arrival_e_mhe = Expression(
-#            expr=0.5 * sum((self.xkN_l[j] - self.lsmhe.x_0_mhe[j]) *
-#                     sum(self.lsmhe.PikN_mhe[j, k] * (self.xkN_l[k] - self.lsmhe.x_0_mhe[k]) for k in self.lsmhe.xkNk_mhe)
-#                     for j in self.lsmhe.xkNk_mhe))
         self.lsmhe.Arrival_e_mhe = Expression(expr = 0.0)
 
         self.lsmhe.obfun_dum_mhe_deb = Objective(sense=minimize,
@@ -251,10 +251,6 @@ class MheGen(NmpcGen):
         # deactivate endpoint constraints
         self.lsmhe.deactivate_epc()
         self.lsmhe.deactivate_pc()
-
-        # with open("file_cv.txt", "a") as f:
-        #     self.lsmhe.obfun_mhe.pprint(ostream=f)
-        #     f.close()
 
         self._PI = {}  #: Container of the KKT matrix
         self.xreal_W = {}
@@ -283,12 +279,10 @@ class MheGen(NmpcGen):
             
         # remove all unnecessary bounds to improve reduced hessian computation
         self.lsmhe.clear_aux_bounds()
-        #for var in self.lsmhe.component_objects(Var, active=True):
-        #    for key in var.index_set():
-        #        var[key].setlb(None)
-        #        var[key].setub(None)
         
     def set_measurement_prediction(self,results):
+        # needed for construction of lsmhe
+        # however only of importance when asMHE is applied
         measured_state = {}
         for x in self.states:
             for j in self.x_vars[x]:
@@ -435,7 +429,9 @@ class MheGen(NmpcGen):
             f.close()
 
         result = ip.solve(self.lsmhe, tee=True)
-        aux = value(self.lsmhe.obfun_mhe)
+        if [str(result.solver.status),str(result.solver.termination_condition)] != ['optimal','ok']:
+            self.lsmhe.clear_all_bounds()
+            result = ip.solve(self.lsmhe, tee=True)
         
         # saves the results to initialize the upcoming mhe problem
         # is up to the user to do it by hand
@@ -444,11 +440,17 @@ class MheGen(NmpcGen):
         # saves the predicted initial_values for the states
         for x in self.states:
             for j in self.x_vars[x]:
-                self.initial_values[(x,j+(1,))] = output[(x,(self.nfe_mhe,3)+j)]
-        
+                if j == ():
+                    key = None
+                elif len(j) == 1:
+                    key = j[0]
+                else:
+                    key = j
+                self.initial_values[(x,j+(1,))] = output[(x+"_e",key)]
+                
         # load solution status in self.nmpc_trajectory
         self.nmpc_trajectory[self.iterations,'solstat_mhe'] = [str(result.solver.status),str(result.solver.termination_condition)]
-        self.nmpc_trajectory[self.iterations,'obj_value_mhe'] = aux
+        self.nmpc_trajectory[self.iterations,'obj_value_mhe'] = value(self.lsmhe.obfun_mhe)
         return output   
         
     def cycle_ics_mhe(self, nmpc_as = False, mhe_as = False):
@@ -763,7 +765,7 @@ class MheGen(NmpcGen):
                     else:
                         qtarget[0, v_i] = 1 / (cov_dict[0][vni, vnj]*xic[vni[1]].value + 0.001)**2 # .0001
                 else:
-                     qtarget[0, v_i, v_j] = cov_dict[0][vni, vnj]
+                    qtarget[0, v_i, v_j] = cov_dict[0][vni, vnj]
                      
                 if set_bounds:
                     if cov_dict[0][vni, vnj] != 0:
@@ -778,7 +780,7 @@ class MheGen(NmpcGen):
                     else:
                         w[0,v_i].fix(0.0)
                     # t > 1 is systematic:
-                for t in range(1,self.nfe_mhe):
+                for t in range(1,self.nfe_mhe+1):
                     if self.diag_Q_R:
                         qtarget[t, v_i] = 1 / (cov_dict[0][vni, vnj]*self.nmpc_trajectory[t,vni] + .001)**2 # 0.00001
                         if set_bounds:
@@ -791,16 +793,10 @@ class MheGen(NmpcGen):
                             if abs(w[t,v_i].lb - w[t,v_i].ub) < 1e-3:
                                 w[t,v_i].fix()
                     else:
-                        qtarget[t, v_i, v_j] = cov_dict[t][vni, vnj]
-                        if set_bounds:                        
-                            if cov_dict[0][vni, vnj] != 0.0:
-                                confidence = 10*abs(cov_dict[t][vni,vnj]*self.nmpc_trajectory[t,vni])
-                            else:
-                                confidence = 0.0
-                            w[t,v_i].setlb(-confidence)
-                            w[t,v_i].setub(confidence)
-                            if abs(w[t,v_i].lb - w[t,v_i].ub) < 1e-3:
-                                w[t,v_i].fix()
+                        if (vni,vnj) in cov_dict[t]:
+                            qtarget[t, v_i, v_j] = cov_dict[t][vni, vnj]
+                        else:
+                            qtarget[t, v_i, v_j] = 1e8
             else:
                 print(key[0], ' is not a state variable')
 

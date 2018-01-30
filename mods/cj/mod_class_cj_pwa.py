@@ -759,18 +759,8 @@ class SemiBatchPolymerization(ConcreteModel):
         self.u2_c = Constraint(self.fe_t, rule = lambda self, i: self.u2_e[i] == self.u2[i])
         
         # objective
-        if obj_key == 'eobj':
-            def _obj(self):
-                return self.tf + self.rho*(sum(self.eps[i] for i in self.epc) + sum(sum(sum(self.eps_pc[i,j,k] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc))
-        else:
-            self.tf.fix(15.0)
-            self.eps.fix(0.0) 
-            self.s_mw.setlb(None)
-            self.s_mw_ub.setlb(None)
-            self.s_unsat.setlb(None)
-            self.s_PO_ptg.setlb(None)
-            def _obj(self):
-                return self.tf + 10*(self.s_unsat**2.0 + self.s_mw**2.0 + self.s_PO_ptg**2.0) + self.rho*sum(sum(sum(self.eps_pc[i,j,k] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc)
+        def _obj(self):
+            return self.tf + self.rho*(sum(self.eps[i] for i in self.epc) + sum(sum(sum(self.eps_pc[i,j,k] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc))
             
         self.eobj = Objective(rule=_obj,sense=minimize)
         

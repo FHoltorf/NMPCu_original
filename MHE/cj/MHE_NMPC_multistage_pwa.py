@@ -26,7 +26,7 @@ from main.noise_characteristics_cj import *
 ###############################################################################
 
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
-x_noisy = ["PO","MX","MY","Y","W","PO_fed","T"] # all the states are noisy  
+x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)],"T":[()],"T_cw":[()]}
 p_noisy = {"A":['p','i'],'kA':[()]}
 u = ["u1", "u2"]
@@ -35,7 +35,7 @@ u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)}
 y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
 y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
 nfe = 24
-tf_bounds = [10.0*24.0/nfe, 20.0*24.0/nfe]
+tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
 
 pc = ['Tad','T']
 
@@ -95,7 +95,7 @@ e = MheGen(d_mod=SemiBatchPolymerization_multistage,
            obj_type='economic',
            nfe_t=nfe,
            sens=None,
-           diag_QR=True,
+           diag_QR=False,
            del_ics=False,
            path_constraints=pc)
 ###############################################################################
@@ -126,7 +126,7 @@ for i in range(1,nfe):
     
     # here measurement becomes available
     previous_mhe = e.solve_mhe(fix_noise=False) # solves the mhe problem
-      
+    #sys.exit()
     # solve the advanced step problems
     e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
     
