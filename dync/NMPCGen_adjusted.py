@@ -992,7 +992,7 @@ class NmpcGen(DynGen):
         f.close()
         
         # enable l1-relaxation but set relaxation parameters to 0
-        self.olnmpc.eps.unfix()
+        #self.olnmpc.eps.unfix()
         for i in self.olnmpc.eps.index_set():
             self.olnmpc.eps[i].value = 0 
             

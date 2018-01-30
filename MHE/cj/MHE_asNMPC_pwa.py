@@ -28,7 +28,7 @@ from copy import deepcopy
 ###############################################################################
 
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
-x_noisy = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # all the states are noisy  
+x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)], "T":[()], "T_cw":[()]}
 p_noisy = {"A":['p','i'],'kA':[()]}
 u = ["u1", "u2"]
@@ -51,10 +51,10 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            u=u,
            tf_bounds=tf_bounds,
            noisy_inputs = False,
-           noisy_params = False,
+           noisy_params = True,
            adapt_params = False,
            u_bounds=u_bounds,
-           diag_QR=True,
+           diag_QR=False,
            nfe_t=nfe,
            del_ics=False,
            sens=None,
@@ -100,7 +100,7 @@ for i in range(1,nfe):
     e.sens_k_aug_nmpc()
     
     #solve mhe problem
-    e.solve_mhe(fix_noise=False) # solves the mhe problem
+    e.solve_mhe(fix_noise=True) # solves the mhe problem
     previous_mhe = e.store_results(e.lsmhe)
     
     # update state estimate 

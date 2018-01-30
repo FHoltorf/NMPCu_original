@@ -19,10 +19,13 @@ from main.noise_characteristics_cj import *
 import numpy.linalg as linalg
 from scipy.stats import chi2
 from copy import deepcopy
+#redirect system output to a file:
+#sys.stdout = open('consol_output.txt','w')
+
 
 def run():
     states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
-    x_noisy = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # all the states are noisy  
+    x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
     x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)], "T":[()], "T_cw":[()]}
     p_noisy = {"A":['p','i'],'kA':[()]}
     u = ["u1", "u2"]
@@ -45,10 +48,10 @@ def run():
                u=u,
                tf_bounds=tf_bounds,
                noisy_inputs = False,
-               noisy_params = False,
+               noisy_params = True,
                adapt_params = False,
                u_bounds=u_bounds,
-               diag_QR=True,
+               diag_QR=False,
                nfe_t=nfe,
                del_ics=False,
                sens=None,
@@ -94,7 +97,7 @@ def run():
         e.sens_k_aug_nmpc()
         
         #solve mhe problem
-        e.solve_mhe(fix_noise=False) # solves the mhe problem
+        e.solve_mhe(fix_noise=True) # solves the mhe problem
         previous_mhe = e.store_results(e.lsmhe)
         
         # update state estimate 
@@ -130,8 +133,7 @@ def run():
         print(e.plant_trajectory[i,'solstat'])
         print('forward_simulation: ',end='')
         print(e.simulation_trajectory[i,'solstat'], e.simulation_trajectory[i,'obj_fun'])
-    
-    
+
     e.plant_simulation(e.store_results(e.olnmpc))
     tf = e.nmpc_trajectory[k, 'tf']
     if k == 24 and e.plant_trajectory[24,'solstat'] == ['ok','optimal']:

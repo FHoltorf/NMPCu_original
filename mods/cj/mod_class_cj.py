@@ -877,7 +877,7 @@ class SemiBatchPolymerization(ConcreteModel):
         #self.tf.setlb(3*60/self.nfe)
         self.tf.setlb(min(10.0,10.0*24.0/self.nfe))
         #self.tf.setub(14*60/self.nfe)
-        self.tf.setub(min(50.0,50.0*24/self.nfe))#14*60/24)
+        self.tf.setub(min(20.0,20.0*24/self.nfe))#14*60/24)
         for i in self.fe_t:
             self.Q_C[i].setlb(0.0)
             self.u1[i].setlb(0.0)
@@ -888,8 +888,8 @@ class SemiBatchPolymerization(ConcreteModel):
             self.F[i].setub(3.0)
             self.u2[i].setub(3.0)
             for j in self.cp:
-                self.T[i,j].setlb((100 + self.Tb)/self.T_scale)
-                self.T[i,j].setub((170 + self.Tb)/self.T_scale)
+                self.T[i,j].setlb((25 + self.Tb)/self.T_scale)
+                self.T[i,j].setub((225 + self.Tb)/self.T_scale)
                 self.int_T[i,j].setlb((1.1*(100+self.Tb) + 2.72*(100+self.Tb)**2/2000)/self.int_T_scale)
                 self.int_T[i,j].setub((1.1*(170+self.Tb) + 2.72*(170+self.Tb)**2/2000)/self.int_T_scale)
                 self.Vi[i,j].setlb(0.9/self.Vi_scale*(1e3)/((self.m_KOH + self.m_PG + self.m_PO + self.m_H2O)*(1 + 0.0007576*((170+self.Tb)-298.15))))

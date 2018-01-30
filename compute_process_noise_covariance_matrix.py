@@ -20,6 +20,7 @@ ip = SolverFactory('ipopt')
 ip.options["linear_solver"] = "ma57"
 m = SemiBatchPolymerization(24,3)
 m.initialize_element_by_element()
+m.create_output_relations()
 m.create_bounds()
 m.clear_aux_bounds()
 ip.solve(m,tee=True)
@@ -40,7 +41,14 @@ m.var_order = Suffix(direction=Suffix.EXPORT)
 m.dcdp = Suffix(direction=Suffix.EXPORT)
 
 i = 1
-p_noisy = {'A':['p','i'],'kA':[()]}
+p_noisy = {'A':['p','i'],
+           'kA':[()],
+           'T_ic':[()],
+           'W_ic':[()],
+           'PO_ic':[()],
+           'Y_ic':[()],
+           'MY_ic':[()],
+           'MX_ic':["0","1"]}
 reverse_dict_pars = {}
 for p in p_noisy:
     for key in p_noisy[p]:
@@ -55,8 +63,7 @@ for p in p_noisy:
             i += 1
             
 i = 1
-states = {"Y":[()],"PO":[()], "W":[()], "MY":[()],"MX":[(0,),(1,)],"PO_fed":[()],"T":[()]} #, "PO_fed":[()] removed since not subject to disturbances
-
+states = {"Y":[()],"PO":[()], "W":[()], "MY":[()],"MX":[(0,),(1,)],"T":[()]} 
 reverse_dict_cons = {}
 for x in states:
     xvar = getattr(m,x)
@@ -89,11 +96,10 @@ for key in dfdp:
 
 #########################
 # matrix dfdp[t]
-row_order = {0:("Y",()),1:("PO",()),2:("T",())}#,4:("T",())} #1:("PO",()),
-# 2:("W",()),3:("MX",(0,)),3:("MX",(1,)),2:("MY",()), ,4:("T",()),2:("MX",(1,)),
+row_order = {0:("Y",()),1:("PO",()),2:("MY",()),3:("T",()),4:("MX",(1,))} #,4:("MX",(0,)),,2:("W",())
 _dfdp = {}
 n_x = len(row_order)
-n_p = 3
+n_p = 10
 for t in range(24):
     _dfdp[t] = np.zeros((n_x,n_p))
     for i in range(n_x):
@@ -106,7 +112,7 @@ for t in range(24):
             _dfdp[t][i][j] = dfdp[(x,p)]
             
 # covariance matrix of parameters
-_Vp = np.diag([0.2**2,0.2**2,0.2**2])
+_Vp = np.diag([0.2**2,0.2**2,0.2**2]+[0.05**2]*7)#
 _Q = {}
 _Q_inv = {}
 for t in range(24):

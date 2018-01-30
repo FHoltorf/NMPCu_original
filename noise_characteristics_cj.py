@@ -5,27 +5,28 @@ Created on Wed Nov  1 13:49:10 2017
 
 @author: flemmingholtorf
 """
+import pickle
 # relative standard deviation that is associated with disturbances
 disturbance_error = 0.05
 measurement_error = 0.05
 disturbance_error_1 = 0.0
 disturbance_error_2 = 0.0
 
-qcov = {}
-qcov_a = {}
-qcov_a[("PO",()), ("PO",())] = 0.1
-qcov_a[("MX",(0,)), ("MX",(0,))] = 0.0
-qcov_a[("MX",(1,)), ("MX",(1,))] = 0.0
-qcov_a[("X",()), ("X",())] = 0.0
-qcov_a[("MY",()), ("MY",())] = 0.0
-qcov_a[("Y",()), ("Y",())] = 0.1
-qcov_a[("W",()), ("W",())] = 0.0
-qcov_a[("m_tot",()), ("m_tot",())] = 0.0
-qcov_a[("PO_fed",()), ("PO_fed",())] = 0.0
-qcov_a[("T",()),("T",())] = 0.1
-qcov_a[("T_cw",()),("T_cw",())] = 0.0
-
-qcov[0] = qcov_a 
+f = open('main/qcov_cj.pckl', 'rb')
+qcov = pickle.load(f)
+f.close()
+#qcov_a = {}
+#qcov_a[("PO",()), ("PO",())] = 0.0 #0.1
+#qcov_a[("MX",(0,)), ("MX",(0,))] = 0.0
+#qcov_a[("MX",(1,)), ("MX",(1,))] = 0.0
+#qcov_a[("X",()), ("X",())] = 0.0
+#qcov_a[("MY",()), ("MY",())] = 0.0
+#qcov_a[("Y",()), ("Y",())] = 0.0 #0.1
+#qcov_a[("W",()), ("W",())] = 0.0
+#qcov_a[("m_tot",()), ("m_tot",())] = 0.0
+#qcov_a[("PO_fed",()), ("PO_fed",())] = 0.0
+#qcov_a[("T",()),("T",())] = 0.0 #0.1
+#qcov[0] = qcov_a 
 
 # process disturbances
 v_disturbances = {}

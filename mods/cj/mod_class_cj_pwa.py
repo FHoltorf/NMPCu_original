@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 from six import itervalues, iterkeys, iteritems
 import sys
 import pickle
+from objective import *
 # specify discretization
 #nfe = 24 # number of finite elements
 #ncp = 3 # number collocation points
@@ -97,7 +98,7 @@ class SemiBatchPolymerization(ConcreteModel):
         
         # parameters for l1-relaxation of endpoint-constraints
         self.eps = Var(self.epc, initialize=0.0, bounds=(0,None))
-        self.eps.fix()
+        #self.eps.fix()
         self.eps_pc = Var(self.fe_t, self.cp, self.pc, initialize=0.0, bounds=(0,None))
         self.rho = Param(initialize=1e3, mutable=True)
         
@@ -159,7 +160,8 @@ class SemiBatchPolymerization(ConcreteModel):
         self.max_heat_removal = Param(initialize=2.2e3/self.Hrxn['p']*60, mutable=True) # [kmol (PO)/min] maximum amount of heat removal rate scaled by Hrxn('p') (see below)s
         
         # heat transfer
-        self.kA = Param(initialize=2200.0/self.Hrxn['p']*60.0/20.0, mutable=True) # 100 [kW/K]
+        self.kA = Var(initialize=2200.0/self.Hrxn['p']*60.0/20.0) # 100 [kW/K]
+        self.kA.fix()
         
         # parameters for initializing differential variabales
         self.W_ic = Param(initialize=self.n_H2O/self.W_scale, mutable=True)
@@ -370,77 +372,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.PO_fed_icc = Constraint(rule=lambda self: self.PO_fed_ice == 0.0)
         #dynamics_PO_fed(k,q)$(ak(k))..
         #        PO_feddot(k,q) =e= F(k,q)*time_horizon;
-        #  !!!!!!!!!!!!!!!!!!!!!!!!!! why * time_horizon?! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#        def _ode_m_tot(self,i,j):
-#            if j > 0:
-#                return self.dm_tot_dt[i,j] == self.mw_PO*self.F[i]*self.tf*self.fe_dist[i]/self.m_tot_scale
-#            else:
-#                return Constraint.Skip
-#        
-#        self.de_m_tot = Constraint(self.fe_t, self.cp, rule=_ode_m_tot)
-#          
-#        def _collocation_m_tot(self,i,j):  
-#            if j > 0:
-#                return self.dm_tot_dt[i, j] == \
-#                       sum(self.ldot_t[j, k] * self.m_tot[i, k] for k in self.cp)
-#            else:
-#                return Constraint.Skip
-#                
-#        self.dvar_t_m_tot= Constraint(self.fe_t, self.cp, rule=_collocation_m_tot)
-#            
-#        def _continuity_m_tot(self, i):#cont_W
-#            if i < nfe and nfe > 1:
-#                return self.m_tot[i + 1, 0] - sum(self.l1_t[j] * self.m_tot[i, j] for j in self.cp)
-#            else:
-#                return Expression.Skip
-#        
-#        self.noisy_m_tot = Expression(self.fe_t, rule=_continuity_m_tot)
-#        self.cp_m_tot = Constraint(self.fe_t, rule=lambda self,i:self.noisy_m_tot[i] == 0.0 if i < nfe and nfe > 1 else Constraint.Skip)
-#        
-#        def _init_m_tot(self):#acW(self, t):
-#            return self.m_tot[1, 0] - self.m_tot_ic
-#        
-#        self.m_tot_ice = Expression(rule=_init_m_tot)
-#        self.m_tot_icc = Constraint(rule=lambda self: self.m_tot_ice == 0.0)
-#        
-        #dynamics_m(k,q)$(ak(k))..
-        #        mdot(k,q) =e= time_horizon*mw_PO*F(k,q);
-        #  !!!!!!!!!!!!!!!!!!!!!!!!!! why * time_horizon?! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#        def _ode_X(self,i,j):
-#            if j > 0:
-#                return self.dX_dt[i,j] == (2*self.kr[i,j,'a']*self.W[i,j] - self.kr[i,j,'i']*self.G[i,j]*self.G_scale)*self.PO[i,j]*self.PO_scale*self.Vi[i,j]*self.Vi_scale
-#            else:
-#                return Constraint.Skip
-#        self.de_X = Constraint(self.fe_t, self.cp, rule=_ode_X)
-#        
-#        
-#        def _collocation_X(self, i, j):#X_COLL
-#            if j > 0:
-#                return self.dX_dt[i, j] == \
-#                       sum(self.ldot_t[j, k] * self.X[i, k] for k in self.cp)
-#            else:
-#                return Constraint.Skip
-#        
-#        self.dvar_t_X = Constraint(self.fe_t, self.cp, rule=_collocation_X)
-#        
-#        
-#        def _continuity_X(self, i):#cont_X
-#            if i < nfe and nfe > 1:
-#                return self.X[i + 1, 0] - sum(self.l1_t[j] * self.X[i, j] for j in self.cp)
-#            else:
-#                return Expression.Skip
-#        
-#        self.noisy_X = Expression(self.fe_t, rule=_continuity_X)
-#        self.cp_X = Constraint(self.fe_t, rule=lambda self,i:self.noisy_X[i] == 0.0 if i < nfe and nfe > 1 else Constraint.Skip)
-#        
-#        def _init_X(self):#acW(self, t):
-#            return self.X[1, 0] - self.X_ic
-#        
-#        self.X_ice = Expression(rule=_init_X)
-#        self.X_icc = Constraint(rule= lambda self: self.X_ice == 0.0)
-#        
-        #dynamics_X(k,q)$(ak(k))..
-        #        Xdot(k,q) =e= (2*kr('a',k,q)*W(k,q) - kr('i',k,q)*G(k,q))*PO(k,q)*Vi(k,q);
+        
         def _ode_MX(self,i,j,o):
             if j > 0:   
                 if o == 0:
@@ -827,8 +759,19 @@ class SemiBatchPolymerization(ConcreteModel):
         self.u2_c = Constraint(self.fe_t, rule = lambda self, i: self.u2_e[i] == self.u2[i])
         
         # objective
-        def _obj(self):
-            return self.tf + self.rho*(sum(self.eps[i] for i in self.epc) + sum(sum(sum(self.eps_pc[i,j,k] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc))
+        if obj_key == 'eobj':
+            def _obj(self):
+                return self.tf + self.rho*(sum(self.eps[i] for i in self.epc) + sum(sum(sum(self.eps_pc[i,j,k] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc))
+        else:
+            self.tf.fix(15.0)
+            self.eps.fix(0.0) 
+            self.s_mw.setlb(None)
+            self.s_mw_ub.setlb(None)
+            self.s_unsat.setlb(None)
+            self.s_PO_ptg.setlb(None)
+            def _obj(self):
+                return self.tf + 10*(self.s_unsat**2.0 + self.s_mw**2.0 + self.s_PO_ptg**2.0) + self.rho*sum(sum(sum(self.eps_pc[i,j,k] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc)
+            
         self.eobj = Objective(rule=_obj,sense=minimize)
         
         #Suffixes
@@ -838,102 +781,35 @@ class SemiBatchPolymerization(ConcreteModel):
         self.ipopt_zL_in = Suffix(direction=Suffix.EXPORT)
         self.ipopt_zU_in = Suffix(direction=Suffix.EXPORT)                  
        
-    def magic(self, p_nom):
-    # write new objective function that minimizes ||self.dT_dt||_1
-    #        self.u1_nom = Param(initialize=self.u1[1].value)
-    #        self.u2_nom = Param(initialize=self.u2[1].value)
-    #        self.dummy_obj = Objective(rule=lambda self: (self.u1[1]-self.u1_nom)**2.0/(self.u1[1].ub-self.u1[1].lb) + (self.u2[1]-self.u2_nom)**2.0/(self.u2[1].ub-self.u2[1].lb))
-    #        self.u1.unfix()
-    #        self.u2.unfix()
-    #        ip = SolverFactory('ipopt')
-    #        ip.solve(self, tee=True)
-    #        
-    #        for index in self.dT_dt.index_set():
-    #            self.dT_dt[index].setlb(None)
-    #            self.dT_dt[index].setub(None)
-    #        del self.u1_nom
-    #        del self.u2_nom
-    #        del self.dummy_obj
-    #        u1_nom = self.u1[1].value
-    #        u2_nom = self.u2[1].value
-    #        self.initialize_element_by_element()
-    #        self.u1[1].value = u1_nom
-    #        self.u2[1].value = u2_nom
-    
-    
-    
-    # continuation approach
-#        p_real = {}
-#        # save real parameter values
-#        for key in p_nom:
-#            p = key[0]
-#            i = key[1]
-#            par = getattr(self, p)
-#            if i != ():
-#                p_real[key] = par[i].value
-#            else:
-#                p_real[key] = par.value
-#            
-#        # iteratively solve
-#        # empirically 5 steps are ok
-#        steps = 2
-#        results = {}
-#        for k in range(steps+1):
-#            for key in p_nom:
-#                p = key[0]
-#                i = key[1]
-#                par = getattr(self, p)
-#                if i != ():
-#                    par[i].value = p_nom[key] - k/(1.0*steps)*(p_real[key]-p_nom[key])   
-#                else:
-#                    par.value = p_nom[key] - k/(1.0*steps)*(p_real[key]-p_nom[key])
-#    
-#        
-#            ip = SolverFactory('ipopt')
-#            res = ip.solve(self,tee=False)
-#            results[k] = str(res.solver.status)
-#            print(k)
-#        
-#        print(results)
-    
-    # simulate 2 elements
-        m_aux = SemiBatchPolymerization(2,3)
-        m_aux.create_bounds()
-        m_aux.clear_aux_bounds()
-        for var in m_aux.component_objects(Var):
-            for key in var.index_set():
-                var_ref = getattr(self, var.name)
-                try:
-                    var[key].value = var_ref[key].value#
-                except KeyError:
-                    if type(key) == tuple:
-                        var[key].value = var_ref[(1,3) + key[2:]].value
-                    else:
-                        var[key].value = var_ref[1].value
-#        for par in m_aux.component_objects(Param, active=True):
-#            for key in par.index_set():
-#                par_ref = getattr(self, par.name)
-#                try:
-#                    print(par.name)
-#                    par[key].value = par_ref[key].value#
-#                except KeyError:
-#                    continue
-        m_aux.T_ic.value = self.T_ic.value
-        m_aux.W_ic.value = self.W_ic.value
-        m_aux.PO_ic.value = self.PO_ic.value
-        m_aux.MX_ic[0].value = self.MX_ic[0].value 
-        m_aux.MX_ic[1].value = self.MX_ic[1].value
-        m_aux.MY_ic.value = self.MY_ic.value
-        m_aux.PO_fed_ic.value = self.PO_fed_ic.value
-        m_aux.T_cw_ic = self.T_cw_ic.value
-        m_aux.u1.fix()
-        m_aux.u2.fix()           
-        m_aux.eobj.deactivate()
-        m_aux.deactivate_pc()
-        ip = SolverFactory('ipopt')
-        res = ip.solve(m_aux,tee=True)
-       
-                
+    def e_state_relation(self):
+        # uses implicit assumption of 
+        self.add_component('W_e', Var(initialize=self.W[self.nfe,self.ncp].value))
+        self.add_component('PO_e', Var(initialize=self.PO[self.nfe,self.ncp].value))
+        self.add_component('T_e', Var(initialize=self.T[self.nfe,self.ncp].value))
+        self.add_component('Y_e', Var(initialize=self.Y[self.nfe,self.ncp].value))
+        self.add_component('MY_e', Var(initialize=self.MY[self.nfe,self.ncp].value))
+        self.add_component('MX_e', Var(self.o, initialize={0:self.MX[self.nfe,self.ncp,0].value,1:self.MX[self.nfe,self.ncp,1].value}))
+        self.add_component('PO_fed_e', Var(initialize=self.W[self.nfe,self.ncp].value))
+        self.add_component('T_cw_e', Var(initialize=self.T_cw[self.nfe,self.ncp].value))
+        
+        self.add_component('W_e_expr', Expression(rule=lambda self: self.W_e - self.W[self.nfe,self.ncp]))
+        self.add_component('PO_e_expr', Expression(rule=lambda self: self.PO_e - self.PO[self.nfe,self.ncp]))
+        self.add_component('T_e_expr', Expression(rule=lambda self: self.T_e - self.T[self.nfe,self.ncp]))
+        self.add_component('Y_e_expr', Expression(rule=lambda self: self.Y_e - self.Y[self.nfe,self.ncp]))
+        self.add_component('MY_e_expr', Expression(rule=lambda self: self.MY_e - self.MY[self.nfe,self.ncp]))
+        self.add_component('MX_e_expr', Expression(self.o, rule=lambda self,o: self.MX_e[o] - self.MX[self.nfe,self.ncp,o]))
+        self.add_component('PO_fed_e_expr', Expression(rule=lambda self: self.PO_fed_e - self.PO_fed[self.nfe,self.ncp])) 
+        self.add_component('T_cw_e_expr', Expression(rule=lambda self: self.T_cw_e - self.T_cw[self.nfe,self.ncp]))
+        
+        self.W_e_c = Constraint(rule=lambda self: self.W_e_expr == 0.0)
+        self.PO_e_c = Constraint(rule=lambda self: self.PO_e_expr == 0.0)
+        self.T_e_c = Constraint(rule=lambda self: self.T_e_expr == 0.0)
+        self.Y_e_c = Constraint(rule=lambda self: self.Y_e_expr == 0.0)
+        self.MY_e_c = Constraint(rule=lambda self: self.MY_e_expr == 0.0)
+        self.MX_e_c = Constraint(self.o, rule=lambda self,o: self.MX_e_expr[o] == 0.0)
+        self.PO_fed_e_c = Constraint(rule=lambda self: self.PO_fed_e_expr == 0.0)
+        self.T_cw_e_c = Constraint(rule=lambda self: self.T_cw_e_expr == 0.0)
+        
     def par_to_var(self):
         self.A['i'].setlb(self.A['i'].value*0.5)
         self.A['i'].setub(self.A['i'].value*2.0) 
@@ -941,6 +817,8 @@ class SemiBatchPolymerization(ConcreteModel):
         self.A['p'].setub(self.A['p'].value*2.0)
         self.Hrxn_aux['p'].setlb(0.5)
         self.Hrxn_aux['p'].setub(2.0)
+        self.kA.setlb(0.5*self.kA.value)
+        self.kA.setub(2.0*self.kA.value)
         #self.Hrxn_aux['p'].unfix()
         #self.A['i'].unfix()
         #self.A['p'].unfix()
@@ -1009,8 +887,8 @@ class SemiBatchPolymerization(ConcreteModel):
             for j in self.cp:
                 self.T_cw[i,j].setlb(293.15/self.T_scale)
                 self.T_cw[i,j].setub((170.0 + self.Tb)/self.T_scale)
-                self.T[i,j].setlb((75.0 + self.Tb)/self.T_scale)
-                self.T[i,j].setub((190.0 + self.Tb)/self.T_scale)
+                self.T[i,j].setlb((25.0 + self.Tb)/self.T_scale)
+                self.T[i,j].setub((225.0 + self.Tb)/self.T_scale)
                 self.int_T[i,j].setlb((1.1*(100+self.Tb) + 2.72*(100+self.Tb)**2/2000)/self.int_T_scale)
                 self.int_T[i,j].setub((1.1*(170+self.Tb) + 2.72*(170+self.Tb)**2/2000)/self.int_T_scale)
                 self.Vi[i,j].setlb(0.9/self.Vi_scale*(1e3)/((self.m_KOH + self.m_PG + self.m_PO + self.m_H2O)*(1 + 0.0007576*((170+self.Tb)-298.15))))
@@ -1046,7 +924,7 @@ class SemiBatchPolymerization(ConcreteModel):
         m_aux.eobj.deactivate()
         m_aux.deactivate_epc()        
         m_aux.deactivate_pc()
-        m_aux.F[1] = 0.5
+        m_aux.F[1] = 1.2
         m_aux.dvar_t_T_cw.deactivate()
         m_aux.T_cw_icc.deactivate()
         m_aux.T_cw.fix(397.0/self.T_scale)
@@ -1306,9 +1184,11 @@ class SemiBatchPolymerization(ConcreteModel):
 #
 #e = SemiBatchPolymerization(24,3)
 #m = e.initialize_element_by_element()
+#e.create_output_relations()
 #e.create_bounds()
 #e.clear_aux_bounds()
-#e.create_output_relations()
+#
+#
 ##e.T_icc.deactivate()
 ##e.T_cw_icc.deactivate()
 ##e.T_icc.deactivate()
@@ -1317,7 +1197,6 @@ class SemiBatchPolymerization(ConcreteModel):
 ##for index in e.F.index_set():
 ##    e.F[index].setlb(0)
 ##    e.F[index].setub(4.0)
-#
 #res=Solver.solve(e,tee=True)
 #e.plot_profiles([e.PO,e.W,e.Y,e.PO_fed,e.MY,e.T,e.T_cw,e.F,e.dT_cw_dt,e.Tad])
 #h = e.save_results(res)

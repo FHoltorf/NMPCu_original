@@ -5,19 +5,21 @@ Created on Fri Sep 29 21:51:51 2017
 
 @author: flemmingholtorf
 """
-####
+#### 
+
 from __future__ import print_function
 from pyomo.environ import *
-from scipy.stats import chi2
-from copy import deepcopy
+# from nmpc_mhe.dync.MHEGen import MheGen
 from main.dync.MHEGen_adjusted import MheGen
-from main.mods.cj.mod_class_cj_pwa import *
-from main.noise_characteristics_cj import * 
-import itertools, sys, csv
+from main.mods.cj.mod_class_cj_pwc import *
+import sys
+import itertools, sys
 import numpy as np
 import matplotlib.pyplot as plt
+from main.noise_characteristics_cj import *
 import numpy.linalg as linalg
-
+from scipy.stats import chi2
+from copy import deepcopy
 #redirect system output to a file:
 #sys.stdout = open('consol_output.txt','w')
 
@@ -25,41 +27,40 @@ import numpy.linalg as linalg
 ###############################################################################
 ###                               Specifications
 ###############################################################################
-# all states + states that are subject to process noise (directly drawn from e.g. a gaussian distribution)
-states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
-x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
-x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)], "T":[()], "T_cw":[()]}
-p_noisy = {"A":['p','i'],'kA':[()],'Hrxn_aux':['p']}
-u = ["u1", "u2"]
-u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)} 
 
-y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
-y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
+# all states + states that are subject to process noise (directly drawn from e.g. a gaussian distribution)
+states = ["PO","MX","MY","Y","W","PO_fed","T"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
+x_noisy = ["PO","MX","MY","Y","W","PO_fed","T"] # all the states are noisy  
+x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)], "T":[()]}
+p_noisy = {"A":['p','i']}
+u = ["u1", "u2"]
+u_bounds = {"u1": (3.2315,4.4315), "u2": (0, 3.0)} # 14.5645661157
+
+# measured variables
+#y = {"heat_removal","Y","PO", "W", "MY", "MX", "MW","m_tot"}
+#y_vars = {"heat_removal":[()],"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()]}
 nfe = 24
-tf_bounds = [10.0*24.0/nfe, 20.0*24.0/nfe]
 
 pc = ['Tad','T']
+
 e = MheGen(d_mod=SemiBatchPolymerization,
            x_noisy=x_noisy,
            x_vars=x_vars,
-           y=y,
-           y_vars=y_vars,
            states=states,
            p_noisy=p_noisy,
            u=u,
            noisy_inputs = False,
-           noisy_params = True,
+           noisy_params = False,
            adapt_params = False,
            u_bounds=u_bounds,
-           tf_bounds = tf_bounds,
-           diag_QR=False,
+           diag_QR=True,
            nfe_t=nfe,
            del_ics=False,
            sens=None,
-           obj_type='tracking',
+           obj_type='economic',
            path_constraints=pc)
-delta_u = True
 
+e.delta_u = True
 ###############################################################################
 ###                                     NMPC
 ###############################################################################
@@ -67,38 +68,26 @@ e.recipe_optimization()
 e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
 e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
 e.generate_state_index_dictionary()
-e.create_nmpc() # with tracking-type regularization
-e.load_reference_trajectories()
+e.create_enmpc() # with tracking-type regularization
+#e.load_reference_trajectories()
 
 k = 1
 for i in range(1,nfe):
     print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
-    e.create_mhe()
     if i == 1:
         e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
-        e.set_measurement_prediction(e.store_results(e.recipe_optimization_model))
-        e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
-        e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov) #adjusts the mhe problem according to new available measurements
         e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
         e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
-        e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
-        e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
-        e.cycle_mhe(previous_mhe,mcov,qcov,ucov) 
-        e.cycle_nmpc(e.store_results(e.olnmpc))     
+        e.cycle_nmpc(e.store_results(e.olnmpc))   
 
-    # here measurement becomes available
-    previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-      
-    # solve the advanced step problems
     e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
 
-    e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
-    e.set_regularization_weights(R_w=2.0,Q_w=2.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
+    #e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
+    #e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
     e.solve_olnmpc() # solves the olnmpc problem
     e.olnmpc.write_nl()
     
-
     e.cycle_iterations()
     k += 1
 
@@ -106,6 +95,9 @@ for i in range(1,nfe):
         e.plant_trajectory[i,'solstat'] != ['ok','optimal']:
         break
     
+# simulate the last step too
+e.plant_simulation_model.troubleshooting()
+
 for i in range(1,k):
     print('iteration: %i' % i)
     print('open-loop optimal control: ', end='')
@@ -114,21 +106,11 @@ for i in range(1,k):
     print('plant: ',end='')
     print(e.plant_trajectory[i,'solstat'])
 
+
+
 e.plant_simulation(e.store_results(e.olnmpc))
 
 
-
-
-# Uncertainty Realization
-print('uncertainty realization')
-for p in p_noisy:
-    pvar_r = getattr(e.plant_simulation_model, p)
-    pvar_m = getattr(e.recipe_optimization_model, p)
-    for key in p_noisy[p]:
-        if key != ():
-            print('delta_p ',p,key,': ',(pvar_r[key].value-pvar_m[key].value)/pvar_m[key].value)
-        else:
-            print('delta_p ',p,key,': ',(pvar_r.value-pvar_m.value)/pvar_m.value)
 ###############################################################################
 ####                        plot results comparisons   
 ###############################################################################
@@ -160,8 +142,7 @@ for m in moment:
         plt.legend()
         l += 1
 
-plots = [('Y',()),('PO',()),('PO_fed',()),('W',()),('MY',()),('T_cw',()),('T',())]
-#plots = [('PO',()),('T_cw',()),('T',())]
+plots = [('Y',()),('PO',()),('PO_fed',()),('W',()),('MY',())]
 for p in plots: 
     state_traj_ref = np.array([e.reference_state_trajectory[(p[0],(i,3))] for i in range(1,nfe+1)]) 
     state_traj_nmpc = np.array([e.nmpc_trajectory[i,p] for i in range(1,k)])
@@ -209,9 +190,6 @@ for b in plots:
     
 e.plant_simulation_model.check_feasibility(display=True)
 
-# print uncertatinty realization
-
-
 ###############################################################################
 ###         Plotting path constraints
 ###############################################################################
@@ -228,7 +206,7 @@ for i in range(1): # loop over all runs
     heat_removal[i] = []
     t[i] = []
     Tad[i] = []
-    for fe in range(1,k+1):
+    for fe in range(1,25):
         for cp in range(1,4):        
             heat_removal[i].append(path_constraints[i]['T',(fe,(cp,))])
             Tad[i].append(path_constraints[i]['Tad',(fe,(cp,))])
