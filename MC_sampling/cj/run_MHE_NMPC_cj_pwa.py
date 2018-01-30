@@ -88,7 +88,7 @@ def run():
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
     
         e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
-        e.set_regularization_weights(R_w=2.0,Q_w=2.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
+        e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
         e.solve_olnmpc() # solves the olnmpc problem
         e.olnmpc.write_nl()
         

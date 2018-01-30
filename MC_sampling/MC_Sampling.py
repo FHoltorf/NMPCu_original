@@ -22,14 +22,14 @@ import matplotlib.pyplot as plt
 
 # model with cooling jacket
 #from main.MC_sampling.cj.run_NMPC_cj_pwa import *
-#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
-from main.MC_sampling.cj.run_MHE_asNMPC_cj_pwa import *
+from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
+#from main.MC_sampling.cj.run_MHE_asNMPC_cj_pwa import *
 #from main.MC_sampling.cj.run_MHE_NMPC_multistage_cj_pwa import *
 #from main.MC_sampling.cj.run_MHE_asNMPC_multistage_cj_pwa import *
 
 
 # inputs
-sample_size = 10
+sample_size = 100
 # specifiy directory where to save the resulting files
 path = 'results/' 
 # colors
