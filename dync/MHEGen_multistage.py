@@ -353,7 +353,7 @@ class MheGen(NmpcGen):
                 vni = self.yk_key[(y,j)]
                 self.lsmhe.yk0_mhe[self.nfe_mhe,vni] = self.measurement[self.nfe_mhe][(y,j)]
                 
-    def cycle_mhe(self,initialguess,m_cov,q_cov,u_cov,first_call=False):
+    def cycle_mhe(self,initialguess,m_cov,q_cov,u_cov,p_cov={},first_call=False):
         # open the parameters as degree of freedom
         if self.noisy_params: 
             self.lsmhe.par_to_var()
@@ -432,6 +432,8 @@ class MheGen(NmpcGen):
         self.set_covariance_meas(m_cov)
         self.set_covariance_disturb(q_cov)
         self.set_covariance_u(u_cov)
+        if self.process_noise_model == 'params':
+            self.set_covariance_pnoise(p_cov)
         
         # activate whats necessary + leggo:
         self.lsmhe.obfun_mhe.activate() # objective function!
@@ -833,7 +835,7 @@ class MheGen(NmpcGen):
 #                                w[t,v_i].setlb(-0.5*self.nmpc_trajectory[t,vni])
 #                                w[t,v_i].setub(0.5*self.nmpc_trajectory[t,vni])
             else:
-                print(key[0], ' is not a state variable')
+                print(key[0], ' is not a noisy state variable')
 
     def set_covariance_u(self, cov_dict):
         """Sets covariance(inverse) for the states.
@@ -855,7 +857,16 @@ class MheGen(NmpcGen):
                 except ZeroDivisionError:
                     utarget[_t, vni] = 1
                 #qtarget[_t, vni] = 1 / cov_dict[key]
-
+    
+    def set_covariance_pnoise(self, cov_dict, set_bounds=True):
+        ptarget = getattr(self.lsmhe, "P_mhe")
+        for key in cov_dict:
+            # only 
+            p = key[0][0]
+            index = key[0][1]
+            k = self.pkN_key[(p,index)]
+            ptarget[k] = 1/cov_dict[key]**2.0
+            
     def shift_mhe(self):
         """Shifts current initial guesses of variables for the mhe problem"""
         for v in self.lsmhe.component_objects(Var, active=True):

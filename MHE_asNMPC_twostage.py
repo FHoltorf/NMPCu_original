@@ -72,7 +72,7 @@ sr = s_max**nr
 
 shape_matrix = np.diag([1.0/0.2**2,1.0/0.2**2])
 shape_matrix_indices = {('A', ('i',)): 0, ('A', ('p',)): 1}
-
+p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2)}
 e = MheGen(d_mod=SemiBatchPolymerization_twostage,
            d_mod_mhe=SemiBatchPolymerization,
            y=y,
@@ -86,7 +86,8 @@ e = MheGen(d_mod=SemiBatchPolymerization_twostage,
            robust_horizon = nr,
            s_max = sr,
            noisy_inputs = False,
-           noisy_params = True,
+           noisy_params = False,
+           process_noise_model = 'params',
            adapt_params = True,
            update_scenario_tree = False,
            confidence_threshold = 0.2,
@@ -127,20 +128,19 @@ for i in range(1,nfe):
     if i == 1:
         e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call=True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
         e.set_measurement_prediction(e.store_results(e.recipe_optimization_model)) # only required for asMHE
-        e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov, first_call=True) #adjusts the mhe problem according to new available measurements
+        e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,p_cov=pcov, first_call=True) #adjusts the mhe problem according to new available measurements
         e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
         e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
         e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_noise",parameter_disturbance = v_param)
         e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
-        e.cycle_mhe(previous_mhe,mcov,qcov,ucov) # only required for asMHE
+        e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE
         e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
-        e.SBSG_hyell(cons=cons,epsilon = 0.1, shape_matrix = shape_matrix, shape_matrix_indices=shape_matrix_indices)
-        e.cycle_nmpc(e.store_results(e.olnmpc))   
-
+        e.st_adaption(set_type='rectangle',cons=cons,par_bounds=p_bounds)
+        e.cycle_nmpc(e.store_results(e.olnmpc))           
     # solve the advanced step problem
     e.load_reference_trajectories()
-    e.set_regularization_weights(K_w = 1.0, Q_w = 0.0, R_w = 0.0)
+    e.set_regularization_weights(K_w = 0.0, Q_w = 0.0, R_w = 0.0)
     e.solve_olnmpc() # solves the olnmpc problem
     e.create_suffixes_nmpc()
     e.sens_k_aug_nmpc()
@@ -149,7 +149,7 @@ for i in range(1,nfe):
 
     # solve mhe problem
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-    e.compute_confidence_ellipsoid()
+    #e.compute_confidence_ellipsoid()
 
     # update state estimate 
     e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True

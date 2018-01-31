@@ -1328,15 +1328,24 @@ class NmpcGen(DynGen):
         m.sens_sol_state_1  = Suffix(direction=Suffix.IMPORT) # holds the updated variables and lagrange multipliers for inequalities (and equalities (would be relatively meaninglessS?)) 
         m.sens_init_constr  = Suffix(direction=Suffix.EXPORT) # flag constraint that are artificial Var(actual paramter) == Param(nominal_parameter_value)
         
+    def SBWCS(self):
+        # sensitivity-based worst-case scenario detection
+        # either hyperrectangle or hyperellipsoid
+        pass
+    
     def st_adaption(self, set_type=None, cons = [], **kwargs):
-        if set_type == 'ellipsoid':
-            epsilon = kwargs.pop('epsilon',0.2)
-            shape_matrix = kwargs.pop('shape_matrix',self._scaled_shape_matrix)
-            shape_matrix_indices = kwargs.pop('shape_matrix_indices',self.PI_indices)
-            self.SBSG_hyell(cons=cons,shape_matrix=shape_matrix,shape_matrix_indices=shape_matrix_indices)
+        epsilon = kwargs.pop('epsilon',0.2)
+        shape_matrix = kwargs.pop('shape_matrix',self._scaled_shape_matrix)
+        shape_matrix_indices = kwargs.pop('shape_matrix_indices',self.PI_indices)
+        bounds = kwargs.pop('par_bounds')
+        if set_type == 'ellipsoid':  
+            self.SBSG_hyell(cons=cons,
+                            shape_matrix=shape_matrix,
+                            shape_matrix_indices=shape_matrix_indices,
+                            epsilon=epsilon)
         elif set_type == 'rectangle':
-            epsilon = kwargs.pop('epsilon',0.2)
-            self.SBSG_hyell()
+            self.SBSG_hyrec(cons=cons,
+                            par_bounds=bounds)
         else:
             sys.exit('unknown uncertainty set type')
             
@@ -1359,7 +1368,7 @@ class NmpcGen(DynGen):
             #           
             # repeat until as many scenarios as posisble are included
 
-        bounds = kwargs.pop('uncertainty_bounds',{}) # uncertainty bounds
+        bounds = kwargs.pop('par_bounds',{}) # uncertainty bounds
         
         # prepare sensitivity computation
         self.olnmpc.eps_pc.fix()
@@ -1384,7 +1393,10 @@ class NmpcGen(DynGen):
         cols ={}
         for p in self.p_noisy:
             for key in self.p_noisy[p]:
-                dummy = 'dummy_constraint_p_' + p + '_' + key
+                if key != ():
+                    dummy = 'dummy_constraint_p_' + p + '_' + str(key[0])
+                else:
+                    dummy = 'dummy_constraint_p_' + p
                 dummy_con = getattr(self.olnmpc, dummy)
                 for index in dummy_con.index_set():
                     if type(index) == tuple:
@@ -1393,7 +1405,7 @@ class NmpcGen(DynGen):
                             cols[i] = (p,key)
                             i += 1
                     else:
-                        if index == 1:
+                        if index == 1: # only take the nominal trajectory
                             self.olnmpc.dcdp.set_value(dummy_con[index], i+1)
                             cols[i] = (p,key)
                             i += 1
@@ -1470,8 +1482,10 @@ class NmpcGen(DynGen):
                 # bounds[par][1]: upper bound
                 delta_p_wc[con][par] = bounds[par][0] if dsdp[j] < 0.0 else bounds[par][1]
                 aux += dsdp[j]*delta_p_wc[con][par]
+            s = getattr(self.olnmpc, con[0])
             con_vio[con] = -s[con[1]].value + aux 
-            
+                     
+        
         scenarios = {}
         con_vio_copy = deepcopy(con_vio)
         for s in range(2,self.s_max+1): # scenario 1 is reserved for the nomnal sscenario
@@ -1481,7 +1495,21 @@ class NmpcGen(DynGen):
             con_vio_copy = {key: value for key, value in con_vio_copy.items() if (delta_p_wc[key] != delta_p_wc[wc_scenario])}
             if len(con_vio_copy) == 0:
                 break
-            
+        
+        self.s_used = s
+        self.nmpc_trajectory[self.iterations, 's_max'] = s
+
+        for i in range(1,self.nfe_t+1):
+            if i == 1:
+                for s in range(1,self.s_used**i+1):
+                    if s == 1:
+                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(self.s_max))),True,{(p,key) : 1.0 for p in self.p_noisy for key in self.p_noisy[p]})
+                    else:
+                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(self.s_max))),False,{(p,key) : 1.0 + scenarios[s][(p,key)] for p in self.p_noisy for key in self.p_noisy[p]})
+            else:
+                for s in range(1,self.s_used**self.nr+1):
+                    self.st[(i,s)] = (i-1,s,True,self.st[(i-1,s)][3])
+                    
     def SBSG_hyell(self, cons = [], **kwargs):
         # for ellipsoidal sets:
         # solve for all constraints (all timepoints) the optimization problem:
@@ -1535,7 +1563,7 @@ class NmpcGen(DynGen):
         for p in self.p_noisy:
             for key in self.p_noisy[p]:
                 if key != ():
-                    dummy = 'dummy_constraint_p_' + p + '_' + key[0]
+                    dummy = 'dummy_constraint_p_' + p + '_' + str(key[0])
                 else:
                     dummy = 'dummy_constraint_p_' + p
                 dummy_con = getattr(self.olnmpc, dummy)

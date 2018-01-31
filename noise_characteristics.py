@@ -59,6 +59,11 @@ mcov[("heat_removal",()),("heat_removal",())] =  measurement_error
 mcov[("T",()),("T",())] = 0.01
 mcov[("T_cw",()),("T_cw",())] = 0.0
 
+# relative variance that is associated with the parameters (only diagonal)
+pcov = {}
+pcov[('A',('i',)),('A',('i',))] = 0.1
+pcov[('A',('p',)),('A',('p',))] = 0.1
+
 # actual measurement noise from which measurement noise is generated
 x_measurement = {}
 x_measurement[("PO",())] = measurement_error
@@ -94,8 +99,8 @@ v_init[("T",())] = 0.0
 # uncertainty in parameters
 v_param = {} #[relative standard deviation, frequency for changes (measured in intervalls)]
 v_param[('A',('a',))] = [0.0,200]
-v_param[('A',('i',))] = [0.1,100]
-v_param[('A',('p',))] = [0.1,100]
+v_param[('A',('i',))] = [0.1,1]
+v_param[('A',('p',))] = [0.1,1]
 v_param[('A',('t',))] = [0.0,200]
 v_param[('Ea',('a',))] = [0.0,200] 
 v_param[('Ea',('i',))] = [0.0,200]  # have such strong impact that there is no way of makeing these uncertain
