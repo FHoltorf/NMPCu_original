@@ -43,7 +43,7 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
             
         dummy_tree = {}
         for i in range(1,self.nfe+1):
-            dummy_tree[i,1] = (i-1,1,1,{('A','p'):1.0,('A','i'):1.0})
+            dummy_tree[i,1] = (i-1,1,1,{('A',('p',)):1.0,('A',('i',)):1.0})
         self.scenario_tree = kwargs.pop('scenario_tree',dummy_tree) # default should be a symmetric scenario tree
         
         # scaling factors
@@ -977,11 +977,11 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         self.fix_element_size = Constraint(self.fe_t, self.cp, rule = _fix_element_size)
                
         # dummy_constraints    
-        if ('A','p') in self.scenario_tree[1,1][3]:
+        if ('A',('p',)) in self.scenario_tree[1,1][3]:
             self.dummy_constraint_p_A_p = Constraint(self.s, rule = lambda self,s: self.p_A['p',s] == self.p_A_par['p',s])
-        if ('A','i') in self.scenario_tree[1,1][3]:
+        if ('A',('i',)) in self.scenario_tree[1,1][3]:
             self.dummy_constraint_p_A_i = Constraint(self.s, rule = lambda self,s: self.p_A['i',s] == self.p_A_par['i',s])
-        if ('Hrxn_aux','p') in self.scenario_tree[1,1][3]:
+        if ('Hrxn_aux',('p',)) in self.scenario_tree[1,1][3]:
             self.dummy_constraint_p_Hrxn_aux_p = Constraint(self.s, rule = lambda self,s: self.p_Hrxn_aux['p',s] == self.p_Hrxn_aux_par['p',s])
 
         
@@ -999,6 +999,10 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         self.ipopt_zL_in = Suffix(direction=Suffix.EXPORT)
         self.ipopt_zU_in = Suffix(direction=Suffix.EXPORT)                  
             
+    def e_state_relation(self):
+        # uses implicit assumption of 
+        pass
+    
     def par_to_var(self):
         self.A['i'].setlb(self.A['i'].value*0.5)
         self.A['i'].setub(self.A['i'].value*2.0)

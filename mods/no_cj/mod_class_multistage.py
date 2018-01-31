@@ -982,6 +982,8 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.ipopt_zL_in = Suffix(direction=Suffix.EXPORT)
         self.ipopt_zU_in = Suffix(direction=Suffix.EXPORT)                  
             
+    def e_state_relation(self):
+        pass
         
     def multimodel(self):
         self.non_anticipativity_tf.deactivate()

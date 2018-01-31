@@ -22,14 +22,14 @@ import matplotlib.pyplot as plt
 
 # model with cooling jacket
 #from main.MC_sampling.cj.run_NMPC_cj_pwa import *
-from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
+#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
 #from main.MC_sampling.cj.run_MHE_asNMPC_cj_pwa import *
-#from main.MC_sampling.cj.run_MHE_NMPC_multistage_cj_pwa import *
+from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
 #from main.MC_sampling.cj.run_MHE_asNMPC_multistage_cj_pwa import *
 
 
 # inputs
-sample_size = 100
+sample_size = 50
 # specifiy directory where to save the resulting files
 path = 'results/' 
 # colors
@@ -140,7 +140,7 @@ for i in path_constraints: # loop over all runs
     Tad[i] = []
     for fe in range(1,25):
         for cp in range(1,4):        
-            heat_removal[i].append(path_constraints[i]['heat_removal',(fe,(cp,))])
+            heat_removal[i].append(path_constraints[i]['T',(fe,(cp,))])
             Tad[i].append(path_constraints[i]['Tad',(fe,(cp,))])
             if fe > 1:
                 t[i].append(t[i][-cp]+path_constraints[i]['tf',(fe,cp)])
@@ -161,9 +161,9 @@ plt.ylabel('Tad')
 plt.figure(6)
 for i in Tad:
     plt.plot(t[i],heat_removal[i], color='grey')
-plt.plot([0,max_tf],[1.43403,1.43403], color='red', linestyle='dashed')
-#plt.plot([0,max_tf],[4.4315,4.4315], color='red', linestyle='dashed')
-#plt.plot([0,max_tf],[3.7315,3.7315], color='red', linestyle='dashed')
+#plt.plot([0,max_tf],[1.43403,1.43403], color='red', linestyle='dashed')
+plt.plot([0,max_tf],[4.4315,4.4315], color='red', linestyle='dashed')
+plt.plot([0,max_tf],[3.7315,3.7315], color='red', linestyle='dashed')
 plt.xlabel('t [min]')
 plt.ylabel('T')
 plt.figure(6).savefig(path+'T.pdf')

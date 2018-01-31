@@ -9,8 +9,8 @@ from __future__ import print_function
 from pyomo.environ import *
 # from nmpc_mhe.dync.MHEGen import MheGen
 from main.dync.MHEGen_multistage import MheGen
-from main.mods.mod_class import *
-from main.mods.mod_class_twostage import *
+from main.mods.no_cj.mod_class import *
+from main.mods.no_cj.mod_class_twostage import *
 import sys
 import itertools, sys
 import numpy as np
@@ -27,9 +27,9 @@ from main.noise_characteristics import *
 ###############################################################################
 
 states = ["PO","MX","MY","Y","W","PO_fed"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
-x_noisy = ["PO","MX","MY","Y","W","PO_fed"] # all the states are noisy  
+x_noisy = ["PO","MX","MY","Y","W"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)]}
-p_noisy = {"A":['p','i']}
+p_noisy = {"A":[('p',),('i',)]}
 #p_noisy = {"A":['p','i']}
 u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
@@ -55,15 +55,15 @@ for i in range(1,nfe+1):
     if i < nr + 1:
         for s in range(1,s_max**i+1):
             if s%s_max == 1:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A','p'):1.0,('A','i'):1.0})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A',('p',)):1.0,('A',('i',)):1.0})
             elif s%s_max == 2:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0+alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0+alpha})
             elif s%s_max == 3:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0+alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0+alpha})
             elif s%s_max == 4:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0-alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha})
             else:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0-alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha})
     else:
         for s in range(1,s_max**nr+1):
             st[(i,s)] = (i-1,s,True,st[(i-1,s)][3])
@@ -71,7 +71,7 @@ for i in range(1,nfe+1):
 sr = s_max**nr
 
 shape_matrix = np.diag([1.0/0.2**2,1.0/0.2**2])
-shape_matrix_indices = {('A', 'i'): 0, ('A', 'p'): 1}
+shape_matrix_indices = {('A', ('i',)): 0, ('A', ('p',)): 1}
 
 e = MheGen(d_mod=SemiBatchPolymerization_twostage,
            d_mod_mhe=SemiBatchPolymerization,
@@ -135,7 +135,7 @@ for i in range(1,nfe):
         e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov) # only required for asMHE
         e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
-        e.SB_scenario_generation(cons=cons,epsilon = 0.1, shape_matrix = shape_matrix, shape_matrix_indices=shape_matrix_indices)
+        e.SBSG_hyell(cons=cons,epsilon = 0.1, shape_matrix = shape_matrix, shape_matrix_indices=shape_matrix_indices)
         e.cycle_nmpc(e.store_results(e.olnmpc))   
 
     # solve the advanced step problem

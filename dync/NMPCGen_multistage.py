@@ -1328,7 +1328,161 @@ class NmpcGen(DynGen):
         m.sens_sol_state_1  = Suffix(direction=Suffix.IMPORT) # holds the updated variables and lagrange multipliers for inequalities (and equalities (would be relatively meaninglessS?)) 
         m.sens_init_constr  = Suffix(direction=Suffix.EXPORT) # flag constraint that are artificial Var(actual paramter) == Param(nominal_parameter_value)
         
-    def SB_scenario_generation(self, cons = [], **kwargs):
+    def st_adaption(self, set_type=None, cons = [], **kwargs):
+        if set_type == 'ellipsoid':
+            epsilon = kwargs.pop('epsilon',0.2)
+            shape_matrix = kwargs.pop('shape_matrix',self._scaled_shape_matrix)
+            shape_matrix_indices = kwargs.pop('shape_matrix_indices',self.PI_indices)
+            self.SBSG_hyell(cons=cons,shape_matrix=shape_matrix,shape_matrix_indices=shape_matrix_indices)
+        elif set_type == 'rectangle':
+            epsilon = kwargs.pop('epsilon',0.2)
+            self.SBSG_hyell()
+        else:
+            sys.exit('unknown uncertainty set type')
+            
+    def SBSG_hyrec(self,cons = [], **kwargs):    
+        # for hyperrectangles:
+        # solve for all constraints (all timepoints) the optimization problem:
+        #           max ds/dp^T * delta_p
+        #    s.t. 
+        #           delta_p_min <= delta_p <= delta_p_max
+        #           
+        # solution analytically derivable:
+        #       delta_p^*_i =  delta_p_max if ds/dp_i > 0 else delta_p_min
+    
+        # Iteratively populate scenarios:
+            # include scenario that would result in maximum constraint violation in first order approximation:
+            #           - approx. violation: \\ scaling ds/dp \\_{1}
+            #           - always a corner point
+            #
+            # exclude the corner
+            #           
+            # repeat until as many scenarios as posisble are included
+
+        bounds = kwargs.pop('uncertainty_bounds',{}) # uncertainty bounds
+        
+        # prepare sensitivity computation
+        self.olnmpc.eps_pc.fix()
+        self.olnmpc.eps.fix()
+        for u in self.u:
+            u_var = getattr(self.olnmpc,u)
+            u_var.fix()
+        self.olnmpc.tf.fix()
+        self.olnmpc.clear_all_bounds()
+        
+        # deactivate nonanticipativity
+        for u in self.u:
+            non_anti = getattr(self.olnmpc, 'non_anticipativity_' + u)
+            non_anti.deactivate()
+        self.olnmpc.fix_element_size.deactivate()
+        self.olnmpc.non_anticipativity_tf.deactivate()
+            
+        # set suffixes
+        self.olnmpc.var_order = Suffix(direction=Suffix.EXPORT)
+        self.olnmpc.dcdp = Suffix(direction=Suffix.EXPORT)
+        i = 0
+        cols ={}
+        for p in self.p_noisy:
+            for key in self.p_noisy[p]:
+                dummy = 'dummy_constraint_p_' + p + '_' + key
+                dummy_con = getattr(self.olnmpc, dummy)
+                for index in dummy_con.index_set():
+                    if type(index) == tuple:
+                        if index[-1] == 1: # only take the nominal trajectory
+                            self.olnmpc.dcdp.set_value(dummy_con[index], i+1)
+                            cols[i] = (p,key)
+                            i += 1
+                    else:
+                        if index == 1:
+                            self.olnmpc.dcdp.set_value(dummy_con[index], i+1)
+                            cols[i] = (p,key)
+                            i += 1
+                            
+        # column i in sensitivity matrix corresponds to paramter p
+        cols_r = {value:key for key, value in cols.items()}
+        tot_cols = i
+        
+        i = 0
+        rows = {}
+        for k in cons:
+            s = getattr(self.olnmpc, 's_'+k)
+            for index in s.index_set():
+                if not(s[index].stale): # only take
+                    if type(index) == tuple:
+                        if index[-1] == 1: # only take the nominal trajectory
+                            self.olnmpc.var_order.set_value(s[index], i+1)
+                            rows[i] = ('s_'+ k,index)
+                            i += 1
+                    else:
+                        if index == 1:
+                            self.olnmpc.var_order.set_value(s[index], i+1)
+                            rows[i] = ('s_'+ k,index)
+                            i += 1  
+        # row j in sensitivity matrix corresponds to rhs of constraint x 
+        rows_r = {value:key for key, vale in cols.items()}
+        tot_rows = i
+        
+        # compute sensitivity matrix (ds/dp , rows = s const., cols = p const.)
+        k_aug = SolverFactory("k_aug",executable="/home/flemmingholtorf/KKT_matrix/k_aug/src/kmatrix/k_aug")
+        k_aug.options["compute_dsdp"] = ""
+        k_aug.solve(self.olnmpc, tee=False)
+        
+        # no idea if necessery, I am lost in the code
+        self.olnmpc.eps.unfix()
+        for u in self.u:
+            u_var = getattr(self.olnmpc,u)
+            u_var.unfix()
+        self.olnmpc.tf.unfix()
+        self.olnmpc.create_bounds()
+        self.create_tf_bounds(self.olnmpc)
+        self.olnmpc.clear_aux_bounds()
+        
+        # activate non_anticipativity
+        for u in self.u:
+            non_anti = getattr(self.olnmpc, 'non_anticipativity_' + u)
+            non_anti.activate()
+        self.olnmpc.fix_element_size.activate()    
+        self.olnmpc.non_anticipativity_tf.activate()
+
+        # compute sensitivity matrix
+        sens = np.zeros((tot_rows,tot_cols))
+        with open('dxdp_.dat') as f:
+            reader = csv.reader(f, delimiter="\t")
+            i = 1
+            for row in reader:
+                k = 1
+                for col in row[1:]:
+                    sens[i-1][k-1] = -float(col) #indices start at 0
+                    k += 1                       #different sign since g(x) == -slack
+                i += 1 
+        
+        # compute solution vertices and constraint violations
+        delta_p_wc = {}
+        con_vio = {}
+        for i in rows: # constraints
+            con = rows[i] # ('s_name', index)
+            dsdp = sens[i][:].transpose()
+            delta_p_wc[con] = {}
+            aux = 0.0
+            for j in cols: # parameters
+                par = cols[j] #('p_name', key)
+                # bounds[par][0]: lower bound
+                # bounds[par][1]: upper bound
+                delta_p_wc[con][par] = bounds[par][0] if dsdp[j] < 0.0 else bounds[par][1]
+                aux += dsdp[j]*delta_p_wc[con][par]
+            con_vio[con] = -s[con[1]].value + aux 
+            
+        scenarios = {}
+        con_vio_copy = deepcopy(con_vio)
+        for s in range(2,self.s_max+1): # scenario 1 is reserved for the nomnal sscenario
+            wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
+            scenarios[s] = delta_p_wc[wc_scenario]
+            # remove scenario from scenarios:
+            con_vio_copy = {key: value for key, value in con_vio_copy.items() if (delta_p_wc[key] != delta_p_wc[wc_scenario])}
+            if len(con_vio_copy) == 0:
+                break
+            
+    def SBSG_hyell(self, cons = [], **kwargs):
         # for ellipsoidal sets:
         # solve for all constraints (all timepoints) the optimization problem:
         #           max ds/dp^T * delta_p
@@ -1358,6 +1512,7 @@ class NmpcGen(DynGen):
         shape_matrix_indices = kwargs.pop('shape_matrix_indices',self.PI_indices)
         # set shape matrix             
         # prepare sensitivity computation
+        self.olnmpc.eps_pc.fix()
         self.olnmpc.eps.fix()
         for u in self.u:
             u_var = getattr(self.olnmpc,u)
@@ -1379,7 +1534,10 @@ class NmpcGen(DynGen):
         cols ={}
         for p in self.p_noisy:
             for key in self.p_noisy[p]:
-                dummy = 'dummy_constraint_p_' + p + '_' + key
+                if key != ():
+                    dummy = 'dummy_constraint_p_' + p + '_' + key[0]
+                else:
+                    dummy = 'dummy_constraint_p_' + p
                 dummy_con = getattr(self.olnmpc, dummy)
                 for index in dummy_con.index_set():
                     if type(index) == tuple:
@@ -1468,7 +1626,8 @@ class NmpcGen(DynGen):
             delta_p_wc[con] = np.dot(A_inv,dsdp)/aux
             # get current constraint violation (slack)
             s = getattr(self.olnmpc, con[0])
-            con_vio[con] =  -s[con[1]].value + aux
+            # slack with different sign than rhs g(x) + s == 0.0
+            con_vio[con] = -s[con[1]].value + aux
             
         # generate new set of worst case scenarios
         scenarios = {}
@@ -1477,7 +1636,8 @@ class NmpcGen(DynGen):
             wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
             scenarios[s] = delta_p_wc[wc_scenario]
             # What to do if con_vio_copy is empty?
-            # A) remove all scenarios that are in epsilon-neighborhood of the just utilized scenario
+            
+            # a) remove all scenarios that are in epsilon-neighborhood of the just utilized scenario
             #while(True):
             #    con_vio_dummy = {key: value for key, value in con_vio_copy.items() if np.linalg.norm(delta_p_wc[key]-delta_p_wc[wc_scenario]) >= epsilon}
             #    if len(con_vio_dummy) < self.s_max + 1 - s:
@@ -1493,22 +1653,6 @@ class NmpcGen(DynGen):
         self.s_used = s
         self.nmpc_trajectory[self.iterations, 's_max'] = s
             
-            
-        
-        # truncate scenarios that are unreasonable
-        
-#        for s in scenarios:
-#            for i in range(tot_cols):
-#                if abs(scenarios[s][i]) > self.confidence_threshold:
-#                    if np.sign(scenarios[s][i]) == 1:
-#                        scenarios[s][i] = self.confidence_threshold
-#                    else:
-#                        scenarios[s][i] = self.confidence_threshold
-#                elif abs(scenarios[s][i]) < self.robustness_threshold:
-#                    if np.sign(scenarios[s][i]) == 1:
-#                        scenarios[s][i] = self.robustness_threshold
-#                    else:
-#                        scenarios[s][i] = self.robustness_threshold
         # update scenario tree
         # tailored to 2 stage stochastic programming currently
         for i in range(1,self.nfe_t+1):
@@ -1521,27 +1665,7 @@ class NmpcGen(DynGen):
             else:
                 for s in range(1,self.s_used**self.nr+1):
                     self.st[(i,s)] = (i-1,s,True,self.st[(i-1,s)][3])
-            
-            
-        # enough for today!
-            
-        # for hypercubes:
-        # solve for all constraints (all timepoints) the optimization problem:
-        #           max ds/dp^T * delta_p
-        #    s.t. 
-        #           delta_p_min <= delta_p <= delta_p_max
-        #           
-        # solution analytically derivable:
-        #       delta_p^*_i =  delta_p_max if ds/dp_i > 0 else delta_p_min
-    
-        # Iteratively populate scenarios:
-            # include scenario that would result in maximum constraint violation in first order approximation:
-            #           - approx. violation: \\ scaling ds/dp \\_{1}
-            #           - always a corner point
-            #
-            # exclude the corner
-            #           
-            # repeat until as many scenarios as posisble are included
+
             
             
         

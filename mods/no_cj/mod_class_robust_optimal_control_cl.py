@@ -921,7 +921,31 @@ class SemiBatchPolymerization(ConcreteModel):
         self.ipopt_zU_out = Suffix(direction=Suffix.IMPORT)
         self.ipopt_zL_in = Suffix(direction=Suffix.EXPORT)
         self.ipopt_zU_in = Suffix(direction=Suffix.EXPORT)                  
-            
+    
+    def e_state_relation(self):
+        # uses implicit assumption of 
+        self.add_component('W_e', Var(self.s, initialize=self.W[self.nfe,self.ncp,1].value))
+        self.add_component('PO_e', Var(self.s, initialize=self.PO[self.nfe,self.ncp,1].value))
+        self.add_component('Y_e', Var(self.s, initialize=self.Y[self.nfe,self.ncp,1].value))
+        self.add_component('MY_e', Var(self.s, initialize=self.MY[self.nfe,self.ncp,1].value))
+        self.add_component('MX_e', Var(self.s, self.o, initialize={0:self.MX[self.nfe,self.ncp,0,1].value,1:self.MX[self.nfe,self.ncp,1,1].value}))
+        self.add_component('PO_fed_e', Var(self.s, initialize=self.W[self.nfe,self.ncp,1].value))
+        
+        self.add_component('W_e_expr', Expression(self.s, rule=lambda self,s: self.W_e[s] - self.W[self.nfe,self.ncp,s]))
+        self.add_component('PO_e_expr', Expression(self.s, rule=lambda self,s: self.PO_e[s] - self.PO[self.nfe,self.ncp,s]))
+        self.add_component('Y_e_expr', Expression(self.s, rule=lambda self,s: self.Y_e[s] - self.Y[self.nfe,self.ncp,s]))
+        self.add_component('MY_e_expr', Expression(self.s, rule=lambda self,s: self.MY_e[s] - self.MY[self.nfe,self.ncp,s]))
+        self.add_component('MX_e_expr', Expression(self.s, self.o, rule=lambda self,o,s: self.MX_e[o,s] - self.MX[self.nfe,self.ncp,o,s]))
+        self.add_component('PO_fed_e_expr', Expression(self.s, rule=lambda self,s: self.PO_fed_e[s] - self.PO_fed[self.nfe,self.ncp,s])) 
+        
+        self.W_e_c = Constraint(self.s, rule=lambda self,s: self.W_e_expr[s] == 0.0)
+        self.PO_e_c = Constraint(self.s, rule=lambda self,s: self.PO_e_expr[s] == 0.0)
+        self.Y_e_c = Constraint(self.s, rule=lambda self,s: self.Y_e_expr[s] == 0.0)
+        self.MY_e_c = Constraint(self.s, rule=lambda self,s: self.MY_e_expr[s] == 0.0)
+        self.MX_e_c = Constraint(self.s, self.o, rule=lambda self,o,s: self.MX_e_expr[o,s] == 0.0)
+        self.PO_fed_e_c = Constraint(self.s, rule=lambda self,s: self.PO_fed_e_expr[s] == 0.0)
+    
+    
     def par_to_var(self):
         self.A['i'].setlb(self.A['i'].value*0.5)
         self.A['i'].setub(self.A['i'].value*2.0) 

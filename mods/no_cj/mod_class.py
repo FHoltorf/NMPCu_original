@@ -152,10 +152,15 @@ class SemiBatchPolymerization(ConcreteModel):
         #self.A = Param(self.r,initialize=({'a':aux[0],'i':aux[1],'p':aux[2],'t':aux[3]}), mutable=True) # [m^3/kmol/min] pre-exponential factors
         self.A = Var(self.r,initialize=({'a':aux[0]/self.scale,'i':aux[1]/self.scale,'p':aux[2]/self.scale,'t':aux[3]/self.scale}), bounds = (1e4,None)) #
         self.A.fix()
+        self.p_A = Var(self.fe_t, self.r,initialize=1.0)
+        self.p_A.fix()
         self.Ea = Param(self.r,initialize=({'a':82.425,'i':77.822,'p':69.172,'t':105.018}), mutable=True) # [kJ/mol] activation engergy 
         self.Hrxn = Param(self.r, initialize=({'a':0, 'i':92048, 'p':92048,'t':0}), mutable=True)
         self.Hrxn_aux = Var(self.r, initialize=({'a':1.0, 'i':1.0, 'p':1.0,'t':1.0}))
         self.Hrxn_aux.fix()
+        self.p_Hrxn_aux = Var(self.fe_t, self.r, initialize=1.0)
+        self.p_Hrxn_aux.fix()
+        
         self.max_heat_removal = Param(initialize=2.2e3/self.Hrxn['p']*60, mutable=True) # [kmol (PO)/min] maximum amount of heat removal rate scaled by Hrxn('p') (see below)s
         
         # parameters for initializing differential variabales
@@ -551,7 +556,7 @@ class SemiBatchPolymerization(ConcreteModel):
         # kinetics
         def _rxn_rate_r_a(self,i,j,r):
             if j > 0:
-                return 0.0 == (self.T[i]*self.T_scale*log(self.A[r]*self.scale*60*1000) - self.Ea[r]/self.Rg - self.T[i]*self.T_scale*self.k_l[i,j,r])
+                return 0.0 == (self.T[i]*self.T_scale*log(self.A[r]*self.p_A[i,r]*self.scale*60*1000) - self.Ea[r]/self.Rg - self.T[i]*self.T_scale*self.k_l[i,j,r])
             else:
                 return Constraint.Skip
             
@@ -635,7 +640,7 @@ class SemiBatchPolymerization(ConcreteModel):
             if j == 0:
                 return Constraint.Skip
             else:
-                return 0.0 == self.m_tot[i,j]*self.m_tot_scale*(self.int_Tad[i,j]*self.int_Tad_scale - self.int_T[i,j]*self.int_T_scale) - self.PO[i,j]*self.PO_scale*self.Hrxn['p']*self.Hrxn_aux['p']
+                return 0.0 == self.m_tot[i,j]*self.m_tot_scale*(self.int_Tad[i,j]*self.int_Tad_scale - self.int_T[i,j]*self.int_T_scale) - self.PO[i,j]*self.PO_scale*self.Hrxn['p']*self.Hrxn_aux['p']*self.p_Hrxn_aux[i,'p']
         
         self.pc_temp_a = Constraint(self.fe_t, self.cp, rule=_pc_temp_a)
         #process_constraint_temp_a(k,q)$(ak(k))..
@@ -667,7 +672,7 @@ class SemiBatchPolymerization(ConcreteModel):
             if j == 0:
                 return Constraint.Skip
             else:
-                return 0.0 == ((((self.kr[i,j,'i']-self.kr[i,j,'p'])*(self.G[i,j]*self.G_scale + self.U[i,j]*self.U_scale) + (self.kr[i,j,'p'] + self.kr[i,j,'t'])*self.n_KOH + self.kr[i,j,'a']*self.W[i,j]*self.W_scale)*self.PO[i,j]*self.PO_scale*self.Vi[i,j]*self.Vi_scale) + self.dW_dt[i,j]*self.W_scale - (self.heat_removal[i,j]/self.Hrxn_aux['p'] + self.F[i]*self.mw_PO*self.monomer_cooling[i,j]*self.monomer_cooling_scale)*self.tf*self.fe_dist[i])
+                return 0.0 == ((((self.kr[i,j,'i']-self.kr[i,j,'p'])*(self.G[i,j]*self.G_scale + self.U[i,j]*self.U_scale) + (self.kr[i,j,'p'] + self.kr[i,j,'t'])*self.n_KOH + self.kr[i,j,'a']*self.W[i,j]*self.W_scale)*self.PO[i,j]*self.PO_scale*self.Vi[i,j]*self.Vi_scale) + self.dW_dt[i,j]*self.W_scale - (self.heat_removal[i,j]/(self.Hrxn_aux['p']*self.p_Hrxn_aux[i,'p']) + self.F[i]*self.mw_PO*self.monomer_cooling[i,j]*self.monomer_cooling_scale)*self.tf*self.fe_dist[i])
         
         self.pc_heat_removal_b = Constraint(self.fe_t, self.cp, rule=_pc_heat_removal_b)      
         #process_constraint_heat_removal_b(k,q)$(ak(k))..
@@ -758,7 +763,31 @@ class SemiBatchPolymerization(ConcreteModel):
         self.ipopt_zU_out = Suffix(direction=Suffix.IMPORT)
         self.ipopt_zL_in = Suffix(direction=Suffix.EXPORT)
         self.ipopt_zU_in = Suffix(direction=Suffix.EXPORT)                  
-            
+    
+    def e_state_relation(self):
+        # uses implicit assumption of 
+        self.add_component('W_e', Var(initialize=self.W[self.nfe,self.ncp].value))
+        self.add_component('PO_e', Var(initialize=self.PO[self.nfe,self.ncp].value))
+        self.add_component('Y_e', Var(initialize=self.Y[self.nfe,self.ncp].value))
+        self.add_component('MY_e', Var(initialize=self.MY[self.nfe,self.ncp].value))
+        self.add_component('MX_e', Var(self.o, initialize={0:self.MX[self.nfe,self.ncp,0].value,1:self.MX[self.nfe,self.ncp,1].value}))
+        self.add_component('PO_fed_e', Var(initialize=self.W[self.nfe,self.ncp].value))
+        
+        self.add_component('W_e_expr', Expression(rule=lambda self: self.W_e - self.W[self.nfe,self.ncp]))
+        self.add_component('PO_e_expr', Expression(rule=lambda self: self.PO_e - self.PO[self.nfe,self.ncp]))
+        self.add_component('Y_e_expr', Expression(rule=lambda self: self.Y_e - self.Y[self.nfe,self.ncp]))
+        self.add_component('MY_e_expr', Expression(rule=lambda self: self.MY_e - self.MY[self.nfe,self.ncp]))
+        self.add_component('MX_e_expr', Expression(self.o, rule=lambda self,o: self.MX_e[o] - self.MX[self.nfe,self.ncp,o]))
+        self.add_component('PO_fed_e_expr', Expression(rule=lambda self: self.PO_fed_e - self.PO_fed[self.nfe,self.ncp])) 
+        
+        self.W_e_c = Constraint(rule=lambda self: self.W_e_expr == 0.0)
+        self.PO_e_c = Constraint(rule=lambda self: self.PO_e_expr == 0.0)
+        self.Y_e_c = Constraint(rule=lambda self: self.Y_e_expr == 0.0)
+        self.MY_e_c = Constraint(rule=lambda self: self.MY_e_expr == 0.0)
+        self.MX_e_c = Constraint(self.o, rule=lambda self,o: self.MX_e_expr[o] == 0.0)
+        self.PO_fed_e_c = Constraint(rule=lambda self: self.PO_fed_e_expr == 0.0)
+
+    
     def par_to_var(self):
         self.A['i'].setlb(self.A['i'].value*0.5)
         self.A['i'].setub(self.A['i'].value*2.0) 

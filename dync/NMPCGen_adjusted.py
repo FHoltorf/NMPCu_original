@@ -1131,7 +1131,10 @@ class NmpcGen(DynGen):
                 reverse_dict_pars ={}
                 for p in self.p_noisy:
                     for key in self.p_noisy[p]:
-                        dummy = 'dummy_constraint_p_' + p + '_' + key
+                        if key == ():
+                            dummy = 'dummy_constraint_p_' + p 
+                        else:
+                            dummy = 'dummy_constraint_p_' + p + '_' + key[0]
                         dummy_con = getattr(self.olnmpc, dummy)
                         for index in dummy_con.index_set():
                             self.olnmpc.dcdp.set_value(dummy_con[index], i)
