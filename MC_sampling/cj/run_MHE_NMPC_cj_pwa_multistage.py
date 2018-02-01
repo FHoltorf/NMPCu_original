@@ -136,9 +136,9 @@ def run():
        
         #troubleshooting
         if  e.nmpc_trajectory[i,'solstat'] != ['ok','optimal'] or \
+            e.nmpc_trajectory[i,'solstat_mhe'] != ['ok','optimal'] or \
             e.plant_trajectory[i,'solstat'] != ['ok','optimal']:
             break
-    
     # simulate the last step too
     
     for i in range(1,k):

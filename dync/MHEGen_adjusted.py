@@ -256,7 +256,7 @@ class MheGen(NmpcGen):
         
         # process_noise_model == time variant paramters
         self.lsmhe.P_e_mhe = Expression(expr= 0.0)
-        if self.process_noise_model == 'params':
+        if self.process_noise_model == 'param_noise':
             self.pkN_l = []
             self.pkN_nexcl = []
             self.pkN_key = {}
@@ -285,7 +285,40 @@ class MheGen(NmpcGen):
             self.lsmhe.P_e_mhe.expr = 1.0/2.0 * sum(sum(self.lsmhe.P_mhe[k] * self.lsmhe.xik_mhe[i, k]**2 \
                                                         for k in self.lsmhe.pkNk_mhe) \
                                                     for i in self.lsmhe.fe_t)
-                
+        
+        elif self.process_noise_model == 'param_disturbance':
+            self.pkN_l = []
+            self.pkN_nexcl = []
+            self.pkN_key = {}
+            k = 0
+            for p in self.p_noisy:
+                par = getattr(self.lsmhe, 'p_' + p)  #: Noisy param
+                for jth in self.p_noisy[p]:  #: the jth variable
+                    self.pkN_l.append(par[(1,) + jth])
+                    self.pkN_nexcl.append(1)  #: non-exclusion list for active bounds
+                    self.pkN_key[(p, jth)] = k
+                    k += 1
+    
+            self.lsmhe.pkNk_mhe = Set(initialize=[i for i in range(0, len(self.pkN_l))])  #: Create set of noisy_states
+            self.lsmhe.xik_mhe = Var(self.lsmhe.fe_t, self.lsmhe.pkNk_mhe, initialize=0.0, bounds=(-1.0,1.0))
+            self.lsmhe.P_mhe = Param(self.lsmhe.pkNk_mhe, initialize=1.0, mutable=True)
+            self.lsmhe.noisy_pars = ConstraintList()
+            j = 0
+            for p in self.p_noisy:
+                par = getattr(self.lsmhe, 'p_' + p)
+                for key in self.p_noisy[p]:
+                    for t in range(1,self.nfe_mhe + 1):
+                        self.lsmhe.noisy_pars.add(par[(t,)+key] - 1.0 - self.lsmhe.xik_mhe[t,j] == 0.0)
+                        par[(t,)+key].unfix()
+                    j += 1
+                    
+            self.lsmhe.P_e_mhe.expr = 1.0/2.0 * sum(sum(self.lsmhe.P_mhe[k] * (self.lsmhe.xik_mhe[i, k]-self.lsmhe.xik_mhe[i-1,k])**2 \
+                                                        for k in self.lsmhe.pkNk_mhe) \
+                                                    for i in range(2,self.nfe_mhe+1))
+        else:
+            pass # use standard approach
+            
+            
         expr_u_obf = 0.0
         
         if self.noisy_inputs:
@@ -864,16 +897,19 @@ class MheGen(NmpcGen):
                              
                 for t in range(1,self.nfe_mhe+1):
                     if self.diag_Q_R:
-                        qtarget[t, v_i] = 1 / (cov_dict[0][vni, vnj]*self.nmpc_trajectory[t,vni_traj] + .001)**2 
-                        if set_bounds:                        
-                            if cov_dict[0][vni, vnj] != 0.0:
-                                confidence = 10*abs(cov_dict[0][vni,vnj]*self.nmpc_trajectory[t,vni_traj])
-                            else:
-                                confidence = 0.0 # fix controls if 0.0
-                            w[t,v_i].setlb(-confidence)
-                            w[t,v_i].setub(confidence)
-                            if abs(w[t,v_i].lb - w[t,v_i].ub) < 1e-3:
-                                w[t,v_i].fix()
+                        if t != self.nfe_mhe:
+                            qtarget[t, v_i] = 1 / (cov_dict[0][vni, vnj]*self.nmpc_trajectory[t,vni_traj] + .001)**2 
+                            if set_bounds:                        
+                                if cov_dict[0][vni, vnj] != 0.0:
+                                    confidence = 10*abs(cov_dict[0][vni,vnj]*self.nmpc_trajectory[t,vni_traj])
+                                else:
+                                    confidence = 0.0 # fix controls if 0.0
+                                w[t,v_i].setlb(-confidence)
+                                w[t,v_i].setub(confidence)
+                                if abs(w[t,v_i].lb - w[t,v_i].ub) < 1e-3:
+                                    w[t,v_i].fix()
+                        else:
+                            w[t,v_i].fix(0.0)
                     else:
                         if (vni,vnj) in cov_dict[t]:
                             qtarget[t, v_i, v_j] = cov_dict[t][vni, vnj]

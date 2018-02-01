@@ -227,7 +227,7 @@ class MheGen(NmpcGen):
         
         # process_noise_model == time variant paramters
         self.lsmhe.P_e_mhe = Expression(expr= 0.0)
-        if self.process_noise_model == 'params':
+        if self.process_noise_model == 'param_noise':
             self.pkN_l = []
             self.pkN_nexcl = []
             self.pkN_key = {}
@@ -812,7 +812,7 @@ class MheGen(NmpcGen):
                     # t > 1 is systematic:
                 for t in range(1,self.nfe_mhe+1):
                     if self.diag_Q_R:
-                        if not(t==self.nfe_mhe):
+                        if t != self.nfe_mhe:
                             qtarget[t, v_i] = 1 / (cov_dict[0][vni, vnj]*self.nmpc_trajectory[t,vni] + .001)**2 # 0.00001
                             if set_bounds:
                                 if cov_dict[0][vni, vnj] != 0.0:

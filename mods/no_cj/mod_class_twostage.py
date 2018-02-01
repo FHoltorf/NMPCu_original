@@ -88,7 +88,6 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         # time horizon
         self.tf = Var(self.fe_t, self.s, initialize=9.6*60/nfe,bounds=(2*60,9.20*60)) # batch time in [min]
         
-    
         # parameter for different models
         self.p_A = Var(self.r, self.s, initialize=1.0)
         self.p_A.fix()

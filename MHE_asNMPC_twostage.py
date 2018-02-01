@@ -7,7 +7,6 @@ Created on Fri Sep 29 21:51:51 2017
 #### 
 from __future__ import print_function
 from pyomo.environ import *
-# from nmpc_mhe.dync.MHEGen import MheGen
 from main.dync.MHEGen_multistage import MheGen
 from main.mods.no_cj.mod_class import *
 from main.mods.no_cj.mod_class_twostage import *
@@ -73,6 +72,7 @@ sr = s_max**nr
 shape_matrix = np.diag([1.0/0.2**2,1.0/0.2**2])
 shape_matrix_indices = {('A', ('i',)): 0, ('A', ('p',)): 1}
 p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2)}
+
 e = MheGen(d_mod=SemiBatchPolymerization_twostage,
            d_mod_mhe=SemiBatchPolymerization,
            y=y,
@@ -87,9 +87,9 @@ e = MheGen(d_mod=SemiBatchPolymerization_twostage,
            s_max = sr,
            noisy_inputs = False,
            noisy_params = False,
-           process_noise_model = 'params',
            adapt_params = True,
            update_scenario_tree = False,
+           process_noise_model = 'params',
            confidence_threshold = 0.2,
            robustness_threshold = 0.05,
            estimate_exceptance = 10000,
@@ -168,10 +168,6 @@ for i in range(1,nfe):
         e.nmpc_trajectory[i,'solstat_mhe'] != ['ok','optimal'] or \
         e.plant_trajectory[i,'solstat'] != ['ok','optimal'] or \
         e.simulation_trajectory[i,'solstat'] != ['ok','optimal']:
-        with open("000aaa.txt","w") as f:
-            f.write('plant :' + e.plant_trajectory[i,'solstat'][1] + '\n' \
-                    + 'nmpc :' + e.nmpc_trajectory[i,'solstat'][1] + '\n' \
-                    + 'simulation :' + e.simulation_trajectory[i,'solstat'][1])
         break
 
 # simulate the last step too

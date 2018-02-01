@@ -7,7 +7,6 @@ Created on Fri Sep 29 21:51:51 2017
 #### 
 from __future__ import print_function
 from pyomo.environ import *
-# from nmpc_mhe.dync.MHEGen import MheGen
 from main.dync.MHEGen_multistage import MheGen
 from main.mods.no_cj.mod_class import *
 from main.mods.no_cj.mod_class_twostage import *
@@ -27,10 +26,9 @@ from main.noise_characteristics import *
 ###############################################################################
 
 states = ["PO","MX","MY","Y","W","PO_fed"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
-x_noisy = ["PO","MX","MY","Y","W","PO_fed"] # all the states are noisy  
+x_noisy = ["PO","MX","MY","Y","W"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)]}
-p_noisy = {"A":['p','i']}
-#p_noisy = {"A":['p','i']}
+p_noisy = {"A":[('p',),('i',)]}
 u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
 cons = ['PO_ptg','unsat','mw','temp_b','heat_removal_a']
@@ -55,15 +53,15 @@ for i in range(1,nfe+1):
     if i < nr + 1:
         for s in range(1,s_max**i+1):
             if s%s_max == 1:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A','p'):1.0,('A','i'):1.0})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A',('p',)):1.0,('A',('i',)):1.0})
             elif s%s_max == 2:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0+alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0+alpha})
             elif s%s_max == 3:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0+alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0+alpha})
             elif s%s_max == 4:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0+alpha,('A','i'):1.0-alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha})
             else:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A','p'):1.0-alpha,('A','i'):1.0-alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha})
     else:
         for s in range(1,s_max**nr+1):
             st[(i,s)] = (i-1,s,True,st[(i-1,s)][3])
@@ -71,7 +69,8 @@ for i in range(1,nfe+1):
 sr = s_max**nr
 
 shape_matrix = np.diag([1.0/0.2**2,1.0/0.2**2])
-shape_matrix_indices = {('A', 'i'): 0, ('A', 'p'): 1}
+shape_matrix_indices = {('A', ('i',)): 0, ('A', ('p',)): 1}
+p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2)}
 
 e = MheGen(d_mod=SemiBatchPolymerization_twostage,
            d_mod_mhe=SemiBatchPolymerization,
@@ -87,8 +86,9 @@ e = MheGen(d_mod=SemiBatchPolymerization_twostage,
            s_max = sr,
            noisy_inputs = False,
            noisy_params = True,
-           adapt_params = True,
+           adapt_params = False,
            update_scenario_tree = False,
+           process_noise_model = 'params',
            confidence_threshold = 0.2,
            robustness_threshold = 0.05,
            estimate_exceptance = 10000,
@@ -113,29 +113,21 @@ e.load_reference_trajectories()
 e.create_mhe()
 
 k = 1 
-before = {}
-after = {}
-diff = {}
-applied = {}
-state_offset = {} 
-curr_estate = {}
-curr_pstate = {}
- 
 for i in range(1,nfe):
     print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
     e.create_mhe()
     if i == 1:
         e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call=True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
         e.set_measurement_prediction(e.store_results(e.recipe_optimization_model)) # only required for asMHE
-        e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov, first_call=True) #adjusts the mhe problem according to new available measurements
+        e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,p_cov=pcov, first_call=True) #adjusts the mhe problem according to new available measurements
         e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
         e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
         e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_noise",parameter_disturbance = v_param)
         e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
-        e.cycle_mhe(previous_mhe,mcov,qcov,ucov) # only required for asMHE
+        e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE
         e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
-        e.SB_scenario_generation(cons=cons,epsilon = 0.1, shape_matrix = shape_matrix, shape_matrix_indices=shape_matrix_indices)
+        e.st_adaption(set_type='rectangle',cons=cons,par_bounds=p_bounds)
         e.cycle_nmpc(e.store_results(e.olnmpc))   
 
     # solve the advanced step problem
@@ -149,14 +141,14 @@ for i in range(1,nfe):
 
     # solve mhe problem
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-    e.compute_confidence_ellipsoid()
+    #e.compute_confidence_ellipsoid()
 
     # update state estimate 
     e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True
     
     # compute fast update for nmpc
-    state_offset[i], curr_pstate[i], curr_estate[i] = e.compute_offset_state(src_kind="estimated")
-    before[i], after[i], diff[i], applied[i] = e.sens_dot_nmpc()   
+    e.compute_offset_state(src_kind="estimated")
+    e.sens_dot_nmpc()   
 
     #sIpopt
     e.forward_simulation() 
@@ -168,10 +160,6 @@ for i in range(1,nfe):
         e.nmpc_trajectory[i,'solstat_mhe'] != ['ok','optimal'] or \
         e.plant_trajectory[i,'solstat'] != ['ok','optimal'] or \
         e.simulation_trajectory[i,'solstat'] != ['ok','optimal']:
-        with open("000aaa.txt","w") as f:
-            f.write('plant :' + e.plant_trajectory[i,'solstat'][1] + '\n' \
-                    + 'nmpc :' + e.nmpc_trajectory[i,'solstat'][1] + '\n' \
-                    + 'simulation :' + e.simulation_trajectory[i,'solstat'][1])
         break
 
 # simulate the last step too
@@ -188,12 +176,12 @@ for i in range(1,k):
     print(e.nmpc_trajectory[i,'solstat_mhe'], e.nmpc_trajectory[i,'obj_value_mhe'])
     print('plant: ',end='')
     print(e.plant_trajectory[i,'solstat'])
-#    print('forward_simulation: ',end='')
-#    print(e.simulation_trajectory[i,'solstat'], e.simulation_trajectory[i,'obj_fun'])
+    print('forward_simulation: ',end='')
+    print(e.simulation_trajectory[i,'solstat'], e.simulation_trajectory[i,'obj_fun'])
 
 
 e.plant_simulation(e.store_results(e.olnmpc))
-
+e.plant_simulation_model.check_feasibility(display=True)
 
 ###############################################################################
 ####                        plot results comparisons   
@@ -269,66 +257,6 @@ for b in plots:
     plt.ylabel(b)
     l += 1
     
-e.plant_simulation_model.check_feasibility(display=True)
-
-
-
-t = np.array(aux2)
-t_traj_nmpc = np.array(aux1)
-t_traj_sim = t_traj_nmpc 
-for b in plots:
-    aux_ref = []
-    aux_nmpc = []
-    aux_sim = []
-    for i in range(1,k+1):
-        for z in range(2):
-            aux_ref.append(e.reference_control_trajectory[b,(i,1)])
-            aux_nmpc.append(e.nmpc_trajectory[i,b])
-            aux_sim.append(e.plant_trajectory[i,b])
-    control_traj_ref = np.array(aux_ref)
-    control_traj_nmpc = np.array(aux_nmpc)
-    control_traj_sim = np.array(aux_sim)
-    plt.figure(l)
-    plt.plot(t,control_traj_ref, label = "reference")
-    plt.plot(t_traj_nmpc,control_traj_nmpc, label = "predicted")
-    plt.plot(t_traj_sim,control_traj_sim, label = "SBU")
-    plt.legend()
-    plt.ylabel(b)
-    l += 1
-    
-e.plant_simulation_model.check_feasibility(display=True)
-
-state_offset_norm = []
-diff_norm = []
-
-for u in ['u1','u2']:    
-    x = []
-    for i in range(1,k):
-        x.append(diff[i][u])
-    l += 1
-    plt.figure(l)
-    plt.plot(x)
-
-for p in [('Y',(1,)),('PO',(1,)),('PO_fed',(1,)),('W',(1,))]:
-    x = []
-    y = [] 
-    z = []
-    for i in range(1,k):
-        #x.append(curr_pstate[i][p])
-        #y.append(curr_estate[i][p])
-        #z.append(curr_pstate[i][p] - state_offset[i][p])
-        z.append(state_offset[i][p])
-    l += 1
-    plt.figure(l)
-    #plt.plot(x, label = 'predicted')
-    #plt.plot(y, label = 'estimated')
-    plt.plot(z, label = 'estimated check')
-    plt.ylabel(p[0])
-    plt.legend()
-    
-
-# compute the confidence ellipsoids
-# delta_theta^T*Vi*delta_theta = sigma^2*chi2(n_dof,confidence_level)
 l += 1
 plt.figure(l)
 
