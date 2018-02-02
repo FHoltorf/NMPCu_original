@@ -227,7 +227,7 @@ class MheGen(NmpcGen):
         
         # process_noise_model == time variant paramters
         self.lsmhe.P_e_mhe = Expression(expr= 0.0)
-        if self.process_noise_model == 'param_noise':
+        if self.process_noise_model == 'params':
             self.pkN_l = []
             self.pkN_nexcl = []
             self.pkN_key = {}
@@ -241,7 +241,7 @@ class MheGen(NmpcGen):
                     k += 1
     
             self.lsmhe.pkNk_mhe = Set(initialize=[i for i in range(0, len(self.pkN_l))])  #: Create set of noisy_states
-            self.lsmhe.xik_mhe = Var(self.lsmhe.fe_t, self.lsmhe.pkNk_mhe, initialize=0.0, bounds=(-1.0,1.0))
+            self.lsmhe.xik_mhe = Var(self.lsmhe.fe_t, self.lsmhe.pkNk_mhe, initialize=0.0, bounds=(-0.99,1.0))
             self.lsmhe.P_mhe = Param(self.lsmhe.pkNk_mhe, initialize=1.0, mutable=True)
             self.lsmhe.noisy_pars = ConstraintList()
             j = 0

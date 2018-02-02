@@ -90,12 +90,13 @@ def run():
                robustness_threshold = 0.05,
                estimate_exceptance = 10000,
                process_noise_model = 'params',
-               obj_type='economic',
+               obj_type='tracking',
                nfe_t=nfe,
                sens=None,
                diag_QR=False,
                del_ics=False,
                path_constraints=pc)
+    e.delta_u = True
     ###############################################################################
     ###                                     NMPC
     ###############################################################################
@@ -103,8 +104,9 @@ def run():
     e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
     e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
     e.generate_state_index_dictionary()
-    
-    e.create_enmpc()
+    e.create_nmpc()
+    e.load_reference_trajectories()
+
     k = 1 
     for i in range(1,nfe):
         print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
@@ -128,8 +130,9 @@ def run():
         # solve the advanced step problems
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
         
+        e.load_reference_trajectories()
+        e.set_regularization_weights(K_w = 0.0, Q_w = 0.0, R_w = 0.0)
         e.solve_olnmpc() # solves the olnmpc problem
-        e.olnmpc.write_nl()
         
         e.cycle_iterations()
         k += 1

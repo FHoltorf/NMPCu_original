@@ -74,12 +74,23 @@ class SemiBatchPolymerization(ConcreteModel):
         self.pc = Set(initialize=[i for i in range(1,4)])
    
         # parameter for different models
-        self.p_A = Var(self.r, self.s, initialize=1.0)
-        self.p_A_par = Param(self.r, self.s, initialize=1.0, mutable=True)
-        self.p_Hrxn = Var(self.r, self.s, initialize=1.0)
-        self.p_Hrxn_par = Param(self.r, self.s, initialize=1.0, mutable=True)
-        self.p_kA = Var(self.s, initialize=1.0)
-        self.p_kA_par = Param(self.s, initialize=1.0, mutable=True)
+        self.r_A = Var(self.r, self.s, initialize=1.0)
+        self.r_A_par = Param(self.r, self.s, initialize=1.0, mutable=True)
+        self.r_Hrxn_aux = Var(self.r, self.s, initialize=1.0)
+        self.r_Hrxn_aux_par = Param(self.r, self.s, initialize=1.0, mutable=True)
+        self.r_kA = Var(self.s, initialize=1.0)
+        self.r_kA_par = Param(self.s, initialize=1.0, mutable=True)
+        
+        # noisy parameter estimation
+        self.p_A = Var(self.fe_t, self.r, self.s, initialize=1.0)
+        self.p_A.fix()
+        self.p_A_par = Param(self.fe_t, self.r, self.s, initialize=1.0, mutable=True)
+        self.p_Hrxn_aux = Var(self.fe_t, self.r, self.s, initialize=1.0)
+        self.p_Hrxn_aux.fix()
+        self.p_Hrxn_aux_par = Param(self.fe_t, self.r, self.s, initialize=1.0, mutable=True)
+        self.p_kA = Var(self.fe_t, self.s, initialize=1.0)
+        self.p_kA.fix() 
+        self.p_kA_par = Param(self.fe_t, self.s, initialize=1.0, mutable=True)
         #for index in self.p_A.index_set():
         #    if index[0] != 'p':
         #        self.p_A[index].fix()
@@ -193,7 +204,9 @@ class SemiBatchPolymerization(ConcreteModel):
         self.p_T_ic = Var(self.s, initialize=1.0)
         self.p_T_ic_par = Param(self.s, initialize=1.0, mutable=True)
         
-        self.T_cw_ic = Param(initialize=373.15/self.T_scale, mutable=True) #343.15
+        self.T_cw_ic = Param(self.s, initialize=373.15/self.T_scale, mutable=True) #343.15
+        #self.p_T_cw_ic = Var(self.o, self.s, initialize=1.0)
+        #self.p_T_cw_ic_par = Param(self.o, self.s, initialize=1.0, mutable=True)
 
         # variables
         # decision variables/controls (piece wise constant)
@@ -204,7 +217,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.u2 = Var(self.fe_t, initialize=1.0,bounds=(0.0,None))
         
         # differential variables
-        self.T_cw = Var(self.fe_t, self.cp, initialize=self.T_cw_ic, bounds=(0.0,None))
+        self.T_cw = Var(self.fe_t, self.cp, self.s, initialize=self.T_cw_ic[1], bounds=(0.0,None))
         #
         self.T = Var(self.fe_t, self.cp, self.s, initialize=385.0/self.T_scale) # temperature
         self.dT_dt = Var(self.fe_t, self.cp, self.s, initialize=0.0)
@@ -590,31 +603,31 @@ class SemiBatchPolymerization(ConcreteModel):
         #        MYdot(o,k,q) =e= (kr('i',k,q)*U(k,q) + kr('p',k,q)*(2*MU(o-1,k,q) + MU(o-2,k,q)))*PO(k,q)*Vi(k,q);
         
         # energy balance
-        def _collocation_T_cw(self,i,j):
+        def _collocation_T_cw(self,i,j,s):
             if j > 0:
                 # implicit systematic
                 #return self.dT_cw_dt[i] == sum(self.ldot_t[j, k] * self.T_cw[i, k]*self.T_scale for k in self.cp)/self.tf
                 # explicit tailored to piecewise affine
-                return self.T_cw[i,j]*self.T_scale == self.T_cw[i,0]*self.T_scale + self.dT_cw_dt[i]*self.tf*self.fe_dist[i]*self.tau_i_t[j]
+                return self.T_cw[i,j,s]*self.T_scale == self.T_cw[i,0,s]*self.T_scale + self.dT_cw_dt[i]*self.tf*self.fe_dist[i]*self.tau_i_t[j]
             else:   
                 return Constraint.Skip
 
-        self.dvar_t_T_cw = Constraint(self.fe_t, self.cp, rule = _collocation_T_cw)
+        self.dvar_t_T_cw = Constraint(self.fe_t, self.cp, self.s, rule = _collocation_T_cw)
         
-        def _continuity_T_cw(self,i):
+        def _continuity_T_cw(self,i,s):
             if i < nfe and nfe > 1:
-                return self.T_cw[i+1,0] - sum(self.l1_t[j] * self.T_cw[i, j] for j in self.cp)
+                return self.T_cw[i+1,0,s] - sum(self.l1_t[j] * self.T_cw[i, j, s] for j in self.cp)
             else:
                 return Expression.Skip 
 
-        self.noisy_T_cw = Expression(self.fe_t, rule=_continuity_T_cw)
-        self.cp_T_cw = Constraint(self.fe_t, rule=lambda self,i:self.noisy_T_cw[i] == 0.0 if i < nfe and nfe > 1 else Constraint.Skip)
+        self.noisy_T_cw = Expression(self.fe_t, self.s, rule=_continuity_T_cw)
+        self.cp_T_cw = Constraint(self.fe_t, self.s, rule=lambda self,i,s:self.noisy_T_cw[i,s] == 0.0 if i < nfe and nfe > 1 else Constraint.Skip)
         
-        def _init_T_cw(self):
-            return self.T_cw[1,0] - self.T_cw_ic
+        def _init_T_cw(self,s):
+            return self.T_cw[1,0,s] - self.T_cw_ic[1]
         
-        self.T_cw_ice = Expression(rule=_init_T_cw)
-        self.T_cw_icc = Constraint(rule=lambda self: self.T_cw_ice == 0.0)
+        self.T_cw_ice = Expression(self.s, rule=_init_T_cw)
+        self.T_cw_icc = Constraint(self.s, rule=lambda self,s: self.T_cw_ice[s] == 0.0)
         
         def _ode_T(self,i,j,s):    
             if j > 0:
@@ -653,11 +666,11 @@ class SemiBatchPolymerization(ConcreteModel):
         def _rxn_rate_r_a(self,i,j,r,s):
             if j > 0:
                 if r == 'p':
-                    return 0.0 == (self.T[i,j,s]*self.T_scale*log(self.p_A[r,s]*self.A[r]*60*1000) - self.Ea[r]/self.Rg - self.T[i,j,s]*self.T_scale*self.k_l[i,j,r,s])
+                    return 0.0 == (self.T[i,j,s]*self.T_scale*log(self.r_A[r,s]*self.p_A[i,r,s]*self.A[r]*60*1000) - self.Ea[r]/self.Rg - self.T[i,j,s]*self.T_scale*self.k_l[i,j,r,s])
                 elif r== 'i':
-                    return 0.0 == (self.T[i,j,s]*self.T_scale*log(self.p_A[r,s]*self.A[r]*60*1000) - self.Ea[r]/self.Rg - self.T[i,j,s]*self.T_scale*self.k_l[i,j,r,s])
+                    return 0.0 == (self.T[i,j,s]*self.T_scale*log(self.r_A[r,s]*self.p_A[i,r,s]*self.A[r]*60*1000) - self.Ea[r]/self.Rg - self.T[i,j,s]*self.T_scale*self.k_l[i,j,r,s])
                 else:
-                    return 0.0 == (self.T[i,j,s]*self.T_scale*log(self.A[r]*60*1000) - self.Ea[r]/self.Rg - self.T[i,j,s]*self.T_scale*self.k_l[i,j,r,s])
+                    return 0.0 == (self.T[i,j,s]*self.T_scale*log(self.p_A[i,r,s]*self.A[r]*60*1000) - self.Ea[r]/self.Rg - self.T[i,j,s]*self.T_scale*self.k_l[i,j,r,s])
             else:    
                 return Constraint.Skip
             
@@ -739,7 +752,7 @@ class SemiBatchPolymerization(ConcreteModel):
         
         def _Q_in(self,i,j,s):
             if j > 0: # normalized with delta_H_r
-                return self.Qr[i,j,s] == ((self.kr[i,j,'i',s]-self.kr[i,j,'p',s])*(self.G[i,j,s]*self.G_scale + self.U[i,j,s]*self.U_scale) + (self.kr[i,j,'p',s] + self.kr[i,j,'t',s])*self.n_KOH + self.kr[i,j,'a',s]*self.W[i,j,s]*self.W_scale)*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale*self.Hrxn_aux['p'] + self.dW_dt[i,j,s]*self.W_scale * self.Hrxn_aux['p']
+                return self.Qr[i,j,s] == ((self.kr[i,j,'i',s]-self.kr[i,j,'p',s])*(self.G[i,j,s]*self.G_scale + self.U[i,j,s]*self.U_scale) + (self.kr[i,j,'p',s] + self.kr[i,j,'t',s])*self.n_KOH + self.kr[i,j,'a',s]*self.W[i,j,s]*self.W_scale)*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale*self.Hrxn_aux['p']*self.r_Hrxn_aux['p',s]*self.p_Hrxn_aux[i,'p',s] + self.dW_dt[i,j,s]*self.W_scale * self.Hrxn_aux['p']*self.r_Hrxn_aux['p',s]*self.p_Hrxn_aux[i,'p',s]
             else:
                 return Constraint.Skip
         
@@ -747,7 +760,7 @@ class SemiBatchPolymerization(ConcreteModel):
         
         def _Q_out(self,i,j,s):
             if j > 0:
-                return self.Qc[i,j,s] == self.kA*self.p_kA[s]*self.tf*self.fe_dist[i] * (self.T[i,j,s]*self.T_scale - self.T_cw[i,j]*self.T_scale)
+                return self.Qc[i,j,s] == self.kA*self.r_kA[s]*self.p_kA[i,s]*self.tf*self.fe_dist[i] * (self.T[i,j,s]*self.T_scale - self.T_cw[i,j,s]*self.T_scale)
             else:
                 return Constraint.Skip
         
@@ -757,7 +770,7 @@ class SemiBatchPolymerization(ConcreteModel):
             if j == 0:
                 return Constraint.Skip
             else:
-                return 0.0 == self.m_tot[i,j,s]*self.m_tot_scale*(self.int_Tad[i,j,s]*self.int_Tad_scale - self.int_T[i,j,s]*self.int_T_scale) - self.PO[i,j,s]*self.PO_scale*self.Hrxn['p']*self.Hrxn_aux['p']*self.p_Hrxn['p',s]
+                return 0.0 == self.m_tot[i,j,s]*self.m_tot_scale*(self.int_Tad[i,j,s]*self.int_Tad_scale - self.int_T[i,j,s]*self.int_T_scale) - self.PO[i,j,s]*self.PO_scale*self.Hrxn['p']*self.Hrxn_aux['p']*self.r_Hrxn_aux['p',s]*self.p_Hrxn_aux[i,'p',s]
         
         self.pc_temp_a = Constraint(self.fe_t, self.cp, self.s, rule=_pc_temp_a)
         #process_constraint_temp_a(k,q)$(ak(k))..
@@ -845,7 +858,7 @@ class SemiBatchPolymerization(ConcreteModel):
         #        (selfolecular_weight - mw_PG)/mw_PO/num_OH*MX('1',k,q) =l= MX('2',k,q);
         
         #def _epc_mw_ub(self,s):
-        #    return 0.0 == self.MX[nfe,ncp,1,s]*self.MX1_scale - (50.0 + self.molecular_weight - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[nfe,ncp,0,s]*self.MX0_scale - self.eps[4,s] + self.s_mw_ub[s]
+        #    return 0.0 == (self.MX[nfe,ncp,1,s]*self.MX1_scale - (30.0 + self.molecular_weight - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[nfe,ncp,0,s]*self.MX0_scale) + self.eps[4,s] - self.s_mw_ub[s]
         
         #self.epc_mw_ub = Constraint(self.s, rule=_epc_mw_ub)
         
@@ -856,10 +869,10 @@ class SemiBatchPolymerization(ConcreteModel):
         self.u2_c = Constraint(self.fe_t, rule = lambda self, i: self.u2_e[i] == self.u2[i])
     
         # dummy_constraints    
-        self.dummy_constraint_p_A_p = Constraint(self.s, rule = lambda self,s: self.p_A['p',s] == self.p_A_par['p',s])
-        self.dummy_constraint_p_A_i = Constraint(self.s, rule = lambda self,s: self.p_A['i',s] == self.p_A_par['i',s])
-        self.dummy_constraint_p_Hrxn_p = Constraint(self.s, rule = lambda self,s: self.p_Hrxn['p',s] == self.p_Hrxn_par['p',s])
-        self.dummy_constraint_p_kA = Constraint(self.s, rule=lambda self,s: self.p_kA[s] == self.p_kA_par[s])
+        self.dummy_constraint_r_A_p = Constraint(self.s, rule = lambda self,s: self.r_A['p',s] == self.r_A_par['p',s])
+        self.dummy_constraint_r_A_i = Constraint(self.s, rule = lambda self,s: self.r_A['i',s] == self.r_A_par['i',s])
+        self.dummy_constraint_r_Hrxn_aux_p = Constraint(self.s, rule = lambda self,s: self.r_Hrxn_aux['p',s] == self.r_Hrxn_aux_par['p',s])
+        self.dummy_constraint_r_kA = Constraint(self.s, rule=lambda self,s: self.r_kA[s] == self.r_kA_par[s])
         self.dummy_constraint_p_T_ic = Constraint(self.s, rule=lambda self,s: self.p_T_ic[s] == self.p_T_ic_par[s])
         self.dummy_constraint_p_W_ic = Constraint(self.s, rule=lambda self,s: self.p_W_ic[s] == self.p_W_ic_par[s])
         self.dummy_constraint_p_PO_ic = Constraint(self.s, rule=lambda self,s: self.p_PO_ic[s] == self.p_PO_ic_par[s])
@@ -889,7 +902,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.add_component('T_e', Var(self.s, initialize=self.T[self.nfe,self.ncp,1].value))
         self.add_component('Y_e', Var(self.s, initialize=self.Y[self.nfe,self.ncp,1].value))
         self.add_component('MY_e', Var(self.s, initialize=self.MY[self.nfe,self.ncp,1].value))
-        self.add_component('MX_e', Var(self.s, self.o, initialize={0:self.MX[self.nfe,self.ncp,0,1].value,1:self.MX[self.nfe,self.ncp,1,1].value}))
+        self.add_component('MX_e', Var(self.o, self.s, initialize={0:self.MX[self.nfe,self.ncp,0,1].value,1:self.MX[self.nfe,self.ncp,1,1].value}))
         self.add_component('PO_fed_e', Var(self.s, initialize=self.W[self.nfe,self.ncp,1].value))
         self.add_component('T_cw_e', Var(self.s, initialize=self.T_cw[self.nfe,self.ncp,1].value))
         
@@ -898,7 +911,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.add_component('T_e_expr', Expression(self.s, rule=lambda self,s: self.T_e[s] - self.T[self.nfe,self.ncp,s]))
         self.add_component('Y_e_expr', Expression(self.s, rule=lambda self,s: self.Y_e[s] - self.Y[self.nfe,self.ncp,s]))
         self.add_component('MY_e_expr', Expression(self.s, rule=lambda self,s: self.MY_e[s] - self.MY[self.nfe,self.ncp,s]))
-        self.add_component('MX_e_expr', Expression(self.s, self.o, rule=lambda self,o,s: self.MX_e[o,s] - self.MX[self.nfe,self.ncp,o,s]))
+        self.add_component('MX_e_expr', Expression(self.o, self.s, rule=lambda self,o,s: self.MX_e[o,s] - self.MX[self.nfe,self.ncp,o,s]))
         self.add_component('PO_fed_e_expr', Expression(self.s, rule=lambda self,s: self.PO_fed_e[s] - self.PO_fed[self.nfe,self.ncp,s])) 
         self.add_component('T_cw_e_expr', Expression(self.s, rule=lambda self,s: self.T_cw_e[s] - self.T_cw[self.nfe,self.ncp,s]))
         
@@ -907,7 +920,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.T_e_c = Constraint(self.s, rule=lambda self,s: self.T_e_expr[s] == 0.0)
         self.Y_e_c = Constraint(self.s, rule=lambda self,s: self.Y_e_expr[s] == 0.0)
         self.MY_e_c = Constraint(self.s, rule=lambda self,s: self.MY_e_expr[s] == 0.0)
-        self.MX_e_c = Constraint(self.s, self.o, rule=lambda self,o,s: self.MX_e_expr[o,s] == 0.0)
+        self.MX_e_c = Constraint(self.o, self.s, rule=lambda self,o,s: self.MX_e_expr[o,s] == 0.0)
         self.PO_fed_e_c = Constraint(self.s, rule=lambda self,s: self.PO_fed_e_expr[s] == 0.0)
         self.T_cw_e_c = Constraint(self.s, rule=lambda self,s: self.T_cw_e_expr[s] == 0.0)
             
@@ -983,9 +996,9 @@ class SemiBatchPolymerization(ConcreteModel):
             self.u2[i].setlb(0.0)
             self.u2[i].setub(3.0)
             for j in self.cp:    
-                self.T_cw[i,j].setlb(298.15/self.T_scale)
-                self.T_cw[i,j].setub((self.T_safety + self.Tb)/self.T_scale)
                 for s in self.s:
+                    self.T_cw[i,j,s].setlb(298.15/self.T_scale)
+                    self.T_cw[i,j,s].setub((self.T_safety + self.Tb)/self.T_scale)
                     self.T[i,j,s].setlb((25 + self.Tb)/self.T_scale)
                     self.T[i,j,s].setub((225 + self.Tb)/self.T_scale)
                     self.int_T[i,j,s].setlb((1.1*(100+self.Tb) + 2.72*(100+self.Tb)**2/2000)/self.int_T_scale)

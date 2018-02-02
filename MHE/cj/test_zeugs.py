@@ -8,7 +8,7 @@ Created on Fri Sep 29 21:51:51 2017
 from __future__ import print_function
 from pyomo.environ import *
 from main.dync.MHEGen_multistage import MheGen
-from main.mods.cj.mod_class_cj_pwa_twostage import *
+from main.mods.draft.draft import *
 from main.mods.cj.mod_class_cj_pwa import *
 import sys
 import itertools, sys, csv
@@ -43,7 +43,7 @@ pc = ['Tad','T']
 
 # scenario_tree
 st = {} # scenario tree : {parent_node, scenario_number on current stage, base node (True/False), scenario values {'name',(index):value}}
-s_max = 9
+s_max = 6
 nr = 1
 alpha = 0.2
 for i in range(1,nfe+1):
@@ -59,12 +59,12 @@ for i in range(1,nfe+1):
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
             elif s%s_max == 5:
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
-            elif s%s_max == 6:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
-            elif s%s_max == 7:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
-            elif s%s_max == 8:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
+#            elif s%s_max == 6:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
+#            elif s%s_max == 7:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
+#            elif s%s_max == 8:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
             else:
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
     else:
@@ -130,7 +130,7 @@ for i in range(1,nfe):
         e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)          
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE        
-        e.st_adaption(set_type='rectangle',cons=cons,par_bounds=p_bounds)
+        e.SBWCS_hyrec(pc=cons[4:],epc=cons[0:4],par_bounds=p_bounds)
         e.cycle_nmpc(e.store_results(e.olnmpc))   
 
     # solve mhe problem

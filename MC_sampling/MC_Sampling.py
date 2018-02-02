@@ -13,6 +13,7 @@ Care if Hrxn uncertain --> meaningfulness of heat_removal values has to consider
 import numpy as np
 import pickle
 import matplotlib.pyplot as plt
+import time
 # old standard model
 #from main.MC_sampling.no_cj.run_MHE_asNMPC import *
 #from main.MC_sampling.no_cj.run_MHE_asNMPC_online_estimation import *
@@ -26,19 +27,22 @@ import matplotlib.pyplot as plt
 #from main.MC_sampling.cj.run_MHE_asNMPC_cj_pwa import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
 #from main.MC_sampling.cj.run_MHE_asNMPC_cj_pwa import_multistage *
-from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBSG import *
 
+from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
+#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBSG import *
+#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
+#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBBM import *
 
 # inputs
 sample_size = 50
 # specifiy directory where to save the resulting files
-path = 'results/' 
+path = 'results/cj/MHE/ideal/' 
 # colors
 color = ['green','red','blue']
 tf = {}
 endpoint_constraints = {}
 path_constraints = {}
-
+runtime = {} # runtime in seconds
 # run sample_size batches and save the endpoint constraint violation
 iters = 0
 for i in range(sample_size):
@@ -52,11 +56,15 @@ for i in range(sample_size):
     print('#'*20)
     print('#'*20)
     try:
+        t0 = time.clock()
         tf[i],endpoint_constraints[i],path_constraints[i] = run()
+        runtime[i] = time.clock() - t0
     except ValueError:
         tf[i],endpoint_constraints[i],path_constraints[i] = 'error', {'epc_PO_ptg': 'error', \
                                    'epc_mw': 'error', \
                                    'epc_unsat': 'error'}, 'error'
+        runtime[i]  = 0.0 
+    
     feasible = True
     for constraint in endpoint_constraints[i]:
         if endpoint_constraints[i][constraint] == 'error':
@@ -66,7 +74,8 @@ for i in range(sample_size):
             break
     endpoint_constraints[i]['feasible'] = feasible
     iters += 1
-    
+
+   
 constraint_name = []
 
 for constraint in endpoint_constraints[0]:
@@ -129,19 +138,24 @@ f = open(path + 'path_constraints.pckl','wb')
 pickle.dump(path_constraints,f)
 f.close()
 
+f = open(path + 'runtime.pick','wb')
+pickle.dump(runtime,f)
+f.close()
+
 # path constraints
-heat_removal = {}
+
 t = {}
+T = {}
 Tad = {}
 for i in path_constraints: # loop over all runs
     if path_constraints[i] =='error':
         continue
-    heat_removal[i] = []
+    T[i] = []
     t[i] = []
     Tad[i] = []
     for fe in range(1,25):
         for cp in range(1,4):        
-            heat_removal[i].append(path_constraints[i]['T',(fe,(cp,))])
+            T[i].append(path_constraints[i]['T',(fe,(cp,))])
             Tad[i].append(path_constraints[i]['Tad',(fe,(cp,))])
             if fe > 1:
                 t[i].append(t[i][-cp]+path_constraints[i]['tf',(fe,cp)])
@@ -161,7 +175,7 @@ plt.ylabel('Tad')
     
 plt.figure(6)
 for i in Tad:
-    plt.plot(t[i],heat_removal[i], color='grey')
+    plt.plot(t[i],T[i], color='grey')
 #plt.plot([0,max_tf],[1.43403,1.43403], color='red', linestyle='dashed')
 plt.plot([0,max_tf],[4.4315,4.4315], color='red', linestyle='dashed')
 plt.plot([0,max_tf],[3.7315,3.7315], color='red', linestyle='dashed')

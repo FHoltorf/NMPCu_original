@@ -90,19 +90,20 @@ for i in range(1,nfe):
 
     # here measurement becomes available
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
+    sys.exit()
     # solve the advanced step problems
     e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
 
     e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
-    e.set_regularization_weights(R_w=2.0,Q_w=2.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
+    e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
     e.solve_olnmpc() # solves the olnmpc problem
-    e.olnmpc.write_nl()
     
 
     e.cycle_iterations()
     k += 1
 
     if  e.nmpc_trajectory[i,'solstat'] != ['ok','optimal'] or \
+        e.nmpc_trajectory[i,'solstat'] != ['ok','optimal'] or \
         e.plant_trajectory[i,'solstat'] != ['ok','optimal']:
         break
     

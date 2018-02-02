@@ -754,7 +754,7 @@ class SemiBatchPolymerization(ConcreteModel):
         #        (selfolecular_weight - mw_PG)/mw_PO/num_OH*MX('1',k,q) =l= MX('2',k,q);
         
         def _epc_mw_ub(self):
-            return 0.0 == self.MX[nfe,ncp,1]*self.MX1_scale - (10.0+self.molecular_weight - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[nfe,ncp,0]*self.MX0_scale - self.eps[4] + self.s_mw_ub
+            return 0.0 == -(self.MX[nfe,ncp,1]*self.MX1_scale - (30.0+self.molecular_weight - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[nfe,ncp,0]*self.MX0_scale) + self.eps[4] - self.s_mw_ub
         
         self.epc_mw_ub = Constraint(rule =_epc_mw_ub)
         

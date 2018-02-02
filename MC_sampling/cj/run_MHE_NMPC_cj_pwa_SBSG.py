@@ -33,7 +33,7 @@ def run():
     u = ["u1", "u2"]
     u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
     p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2),('kA',()):(-0.2,0.2)}
-    cons = ['PO_ptg','unsat','mw','temp_b','T_min','T_max']
+    cons = ['PO_ptg','unsat','mw','mw_ub','temp_b','T_min','T_max']
     
     y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
     y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
@@ -95,7 +95,7 @@ def run():
                confidence_threshold = alpha,
                robustness_threshold = 0.05,
                estimate_exceptance = 10000,
-               process_noise_model = 'param_noise',
+               process_noise_model = 'params',
                obj_type='tracking',
                nfe_t=nfe,
                sens=None,
@@ -114,7 +114,6 @@ def run():
     e.generate_state_index_dictionary()
     e.create_nmpc() # with tracking-type regularization
     e.load_reference_trajectories()
-    e.create_mhe()
     
     k = 1 
     for i in range(1,nfe):
@@ -125,6 +124,7 @@ def run():
             e.set_measurement_prediction(e.store_results(e.recipe_optimization_model)) # only required for asMHE
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
             e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,p_cov=pcov, first_call=True) #adjusts the mhe problem according to new available measurements
+            e.st_adaption(set_type='rectangle',cons=cons,par_bounds=p_bounds)
             e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
         else:
             e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_noise",parameter_disturbance = v_param)
@@ -136,11 +136,12 @@ def run():
     
         # solve mhe problem
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
+        
+        # solve the advanced step problems
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
         
         e.load_reference_trajectories()
-        
-        e.set_regularization_weights(K_w = 1.0, Q_w = 0.0, R_w = 0.0)
+        e.set_regularization_weights(K_w = 0.0, Q_w = 0.0, R_w = 0.0)
         e.solve_olnmpc() # solves the olnmpc problem
         
         #sIpopt

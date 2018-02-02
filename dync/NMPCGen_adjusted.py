@@ -366,8 +366,6 @@ class NmpcGen(DynGen):
         # check if converged otw. run again and hope for numerical issues
         if [str(out.solver.status), str(out.solver.termination_condition)] != ['ok','optimal']:
             self.plant_simulation_model.clear_all_bounds()
-            for index in self.plant_simulation_model.k_l.index_set():
-                self.plant_simulation_model.k_l[index].setub(10.0)
             out = ip.solve(self.plant_simulation_model, tee = True, symbolic_solver_labels=True)
             
         self.plant_trajectory[self.iterations,'solstat'] = [str(out.solver.status), str(out.solver.termination_condition)]
@@ -604,7 +602,7 @@ class NmpcGen(DynGen):
             self.olnmpc = self.d_mod(self.nfe_t, self.ncp_t, n_s = self.n_s)
             # if scenario tree is not updated self.st = {}
             for index in self.st: #scenario tree: self.st = {'parname','key',l:value} with l being the scenario
-                p = getattr(self.olnmpc, 'p_' + index[0])
+                p = getattr(self.olnmpc, 'r_' + index[0])
                 p[index[1],index[2]] = self.st[index]
         elif self.linapprox:
             self.olnmpc = self.d_mod(self.nfe_t, self.ncp_t)
@@ -1132,9 +1130,9 @@ class NmpcGen(DynGen):
                 for p in self.p_noisy:
                     for key in self.p_noisy[p]:
                         if key == ():
-                            dummy = 'dummy_constraint_p_' + p 
+                            dummy = 'dummy_constraint_r_' + p 
                         else:
-                            dummy = 'dummy_constraint_p_' + p + '_' + key[0]
+                            dummy = 'dummy_constraint_r_' + p + '_' + str(key[0])
                         dummy_con = getattr(self.olnmpc, dummy)
                         for index in dummy_con.index_set():
                             self.olnmpc.dcdp.set_value(dummy_con[index], i)

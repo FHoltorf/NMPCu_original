@@ -298,7 +298,8 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         def _continuity_W(self,i,s):#cont_W
             if (i+1,s) in self.scenario_tree:
                 if i < nfe and nfe > 1:
-                    return self.W[i+1,0,s] - sum(self.l1_t[j] * self.W[i,j,s] for j in self.cp)
+                    parent_s = self.scenario_tree[(i+1,s)][1] # parent scenario
+                    return self.W[i+1,0,s] - sum(self.l1_t[j] * self.W[i,j,parent_s] for j in self.cp)
                 else:
                     return Expression.Skip
             else:
@@ -348,7 +349,8 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         def _continuity_PO(self,i,s):#cont_W
             if (i+1,s) in self.scenario_tree:
                 if i < nfe and nfe > 1:
-                    return self.PO[i+1,0,s] - sum(self.l1_t[j] * self.PO[i,j,s] for j in self.cp)
+                    parent_s = self.scenario_tree[(i+1,s)][1] # parent scenario
+                    return self.PO[i+1,0,s] - sum(self.l1_t[j] * self.PO[i,j,parent_s] for j in self.cp)
                 else:
                     return Expression.Skip
             else:
@@ -400,7 +402,8 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         def _continuity_PO_fed(self,i,s):#cont_W
             if (i+1,s) in self.scenario_tree:
                 if i < nfe and nfe > 1:
-                    return self.PO_fed[i+1,0,s] - sum(self.l1_t[j] * self.PO_fed[i,j,s] for j in self.cp)
+                    parent_s = self.scenario_tree[(i+1,s)][1] # parent scenario
+                    return self.PO_fed[i+1,0,s] - sum(self.l1_t[j] * self.PO_fed[i,j,parent_s] for j in self.cp)
                 else:
                     return Expression.Skip
             return Expression.Skip
@@ -522,7 +525,8 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         def _continuity_MX(self,i,o,s):#cont_MX
             if (i+1,s) in self.scenario_tree:
                 if i < nfe and nfe > 1:
-                    return self.MX[i+1,0,o,s] - sum(self.l1_t[j] * self.MX[i,j,o,s] for j in self.cp)
+                    parent_s = self.scenario_tree[(i+1,s)][1] # parent scenario
+                    return self.MX[i+1,0,o,s] - sum(self.l1_t[j] * self.MX[i,j,o,parent_s] for j in self.cp)
                 else:
                     return Expression.Skip
             else:
@@ -580,7 +584,8 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         def _continuity_Y(self,i,s):#cont_Y
             if (i+1,s) in self.scenario_tree:
                 if i < nfe and nfe > 1:
-                    return self.Y[i+1,0,s] - sum(self.l1_t[j] * self.Y[i,j,s] for j in self.cp)
+                    parent_s = self.scenario_tree[(i+1,s)][1] # parent scenario
+                    return self.Y[i+1,0,s] - sum(self.l1_t[j] * self.Y[i,j,parent_s] for j in self.cp)
                 else:
                     return Expression.Skip
             return Expression.Skip
@@ -630,7 +635,8 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
         def _continuity_MY(self,i,s):#cont_MY
             if (i+1,s) in self.scenario_tree:
                 if i < nfe and nfe > 1:
-                    return self.MY[i+1,0,s] - sum(self.l1_t[j] * self.MY[i,j,s] for j in self.cp)
+                    parent_s = self.scenario_tree[(i+1,s)][1] # parent scenario
+                    return self.MY[i+1,0,s] - sum(self.l1_t[j] * self.MY[i,j,parent_s] for j in self.cp)
                 else:
                     return Expression.Skip
             else:
@@ -973,7 +979,7 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
             else:
                 return Constraint.Skip
             
-        self.fix_element_size = Constraint(self.fe_t, self.cp, rule = _fix_element_size)
+        self.fix_element_size = Constraint(self.fe_t, self.s, rule = _fix_element_size)
                
         # dummy_constraints    
         if ('A',('p',)) in self.scenario_tree[1,1][3]:
@@ -985,10 +991,15 @@ class SemiBatchPolymerization_twostage(ConcreteModel):
 
         
         # objective
+        # assumes symmetric tree, i.e. every node branches into the same number of children nodes
+        # weights for obj. function:
+        w = {}
+        for i in self.fe_t:
+            w[i] = max(1.0, self.s_max**(1.0-float(i)/self.nr))
         def _eobj(self):
-            return 1.0/self.s_max * sum(sum(self.tf[i,s] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
+            return 1.0/self.s_max * sum(sum(self.tf[i,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
                     + self.rho*(sum(sum(self.eps[k,s] for s in self.s) for k in self.epc)#*nfe\
-                    + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc) for s in self.s if (i,s) in self.scenario_tree))                    
+                    + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) for k in self.pc) for j in self.cp if j > 0))                    
         self.eobj = Objective(rule=_eobj,sense=minimize)
         
         #Suffixes
