@@ -997,16 +997,11 @@ class MheGen(NmpcGen):
         self.k_aug.options["no_barrier"] = ""
         self.k_aug.options["no_scale"] = ""
         
-        # FIX THAT ASAP
         try:
-            try:
-                self.k_aug.solve(self.lsmhe, tee=True)
-            except ApplicationError:
-                self.nmpc_trajectory[self.iterations,'solstat_mhe'] = ['Inversion of Reduced Hessian failed','Inversion of Reduced Hessian failed']
-        except NameError:
+            self.k_aug.solve(self.lsmhe, tee=True)
+        except ApplicationError:
             self.nmpc_trajectory[self.iterations,'solstat_mhe'] = ['Inversion of Reduced Hessian failed','Inversion of Reduced Hessian failed']
-            
-            
+      
         self.lsmhe.f_timestamp.display(ostream=sys.stderr)
 
         self._PI.clear()
@@ -1029,6 +1024,8 @@ class MheGen(NmpcGen):
                         self.PI_indices[par.name,j] = aux
                    
         #"inv_.in" gives the reduced hessian which is the shape matrix in x^T A x = 1
+        # inv_.in contains the reduced hessian
+        # read from file and store in _PI according to order specified in _PI
         with open("inv_.in", "r") as rh:
             ll = []
             l = rh.readlines()
@@ -1056,7 +1053,8 @@ class MheGen(NmpcGen):
         m = 0
         for p in self.PI_indices:
             p_mhe = getattr(self.lsmhe,p[0])
-            S[self.PI_indices[p]][self.PI_indices[p]] = p_mhe[p[1]].value if p[1] != () else p_mhe.value
+            key = p[1] if p[1] != () else None
+            S[self.PI_indices[p]][self.PI_indices[p]] = p_mhe[key].value
             rows[m] = np.array([self._PI[(m,i)] for i in range(dim)])
             m += 1
         A = 1/confidence*np.array([np.array(rows[i]) for i in range(dim)]) 

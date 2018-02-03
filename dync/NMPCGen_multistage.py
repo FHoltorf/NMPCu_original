@@ -1844,7 +1844,7 @@ class NmpcGen(DynGen):
             scenarios[s] = delta_p_wc[wc_scenario]
             # What to do if con_vio_copy is empty?
             
-            # a) remove all scenarios that are in epsilon-neighborhood of the just utilized scenario
+            # a) remove all scenarios that are in epsilon-neighborhood of the just utilized scenario and decrease epsilon if set gets empty
             #while(True):
             #    con_vio_dummy = {key: value for key, value in con_vio_copy.items() if np.linalg.norm(delta_p_wc[key]-delta_p_wc[wc_scenario]) >= epsilon}
             #    if len(con_vio_dummy) < self.s_max + 1 - s:

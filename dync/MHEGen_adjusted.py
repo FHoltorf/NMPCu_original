@@ -1086,13 +1086,9 @@ class MheGen(NmpcGen):
         self.k_aug.options["no_scale"] = ""
         self.k_aug.options["no_barrier"] = ""
         
-        # FIX THAT ASAP
         try:
-            try:
-                self.k_aug.solve(self.lsmhe, tee=True)
-            except ApplicationError:
-                self.nmpc_trajectory[self.iterations,'solstat_mhe'] = ['Inversion of Reduced Hessian failed','Inversion of Reduced Hessian failed']
-        except NameError:
+            self.k_aug.solve(self.lsmhe, tee=True)
+        except:
             self.nmpc_trajectory[self.iterations,'solstat_mhe'] = ['Inversion of Reduced Hessian failed','Inversion of Reduced Hessian failed']
             
         self.lsmhe.f_timestamp.display(ostream=sys.stderr)
@@ -1103,19 +1099,15 @@ class MheGen(NmpcGen):
         for p in self.p_noisy:
             par = getattr(self.lsmhe,p) 
             for j in self.p_noisy[p]:
-                if j == ():
-                    aux = par.get_suffix_value(self.lsmhe.rh_name) 
-                    if aux == None:
-                        self.PI_indices[par.name,j] = 0
-                    else:
-                        self.PI_indices[par.name,j] = aux
+                key = j if j != () else None
+                aux = par[key].get_suffix_value(self.lsmhe.rh_name)
+                if aux == None:
+                    self.PI_indices[par.name,j] = 0
                 else:
-                    aux = par[j].get_suffix_value(self.lsmhe.rh_name)
-                    if aux == None:
-                        self.PI_indices[par.name,j] = 0
-                    else:
-                        self.PI_indices[par.name,j] = aux
+                    self.PI_indices[par.name,j] = aux
                         
+        # inv_.in contains the reduced hessian
+        # read from file and store in _PI according to order specified in _PI
         with open("inv_.in", "r") as rh:
             ll = []
             l = rh.readlines()
