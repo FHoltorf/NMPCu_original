@@ -770,7 +770,8 @@ class NmpcGen(DynGen):
         if self.adapt_params and self.iterations > 1:
             for index in self.curr_epars:
                 p = getattr(self.olnmpc, index[0])
-                p[index[1]].value = self.curr_epars[index]
+                key = index[1] if index[1] != () else None
+                p[key].value = self.curr_epars[index]
  
         # set initial value parameters in model olnmpc
         # set according to predicted state by forward simulation

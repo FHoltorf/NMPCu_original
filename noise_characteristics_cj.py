@@ -103,8 +103,8 @@ v_init[("T",())] = 0.0
 # uncertainty in parameters
 v_param = {} #[relative standard deviation, frequency for changes (measured in intervalls)]
 v_param[('A',('a',))] = [0.0,100]
-v_param[('A',('i',))] = [0.1,1]
-v_param[('A',('p',))] = [0.1,1]
+v_param[('A',('i',))] = [0.1,100]
+v_param[('A',('p',))] = [0.1,100]
 v_param[('A',('t',))] = [0.0,100]
 v_param[('Ea',('a',))] = [0.0,100] 
 v_param[('Ea',('i',))] = [0.0,100]  # have such strong impact that there is no way of makeing these uncertain
@@ -118,4 +118,4 @@ v_param[('Hrxn_aux',('a',))] = [0.0,100]
 v_param[('Hrxn_aux',('i',))] = [0.0,100]
 v_param[('Hrxn_aux',('p',))] = [0.0,100]
 v_param[('Hrxn_aux',('t',))] = [0.0,100]
-v_param[('kA',())] = [0.1,1]
+v_param[('kA',())] = [0.1,100]

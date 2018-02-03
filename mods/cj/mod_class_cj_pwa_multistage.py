@@ -1139,9 +1139,8 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.A['p'].setub(self.A['p'].value*2.0)
         self.Hrxn_aux['p'].setlb(0.5)
         self.Hrxn_aux['p'].setlb(2.0)
-        self.A['p'].unfix()
-        self.Hrxn_aux['p'].unfix 
-        self.A['i'].unfix()
+        self.kA.setlb(0.5*self.kA.value)
+        self.kA.setub(2.0*self.kA.value)
     
     def create_output_relations(self):
         self.add_component('MW', Var(self.fe_t, self.cp, self.s, initialize=0.0, bounds=(0,None)))

@@ -445,7 +445,6 @@ class MheGen(NmpcGen):
                 for key in self.p_noisy[p]:
                     pkey = None if key == () else key
                     p_mhe[pkey].unfix()
-        
         for var in self.lsmhe.component_objects(Var):
             for key in var.index_set():
                 try:

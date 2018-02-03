@@ -1066,10 +1066,16 @@ class NmpcGen(DynGen):
                 except KeyError:
                     continue
         n_p = 0
-        for p in self.p_noisy:
-            for key in self.p_noisy[p]:
+        if type(self.alpha) == float or (type(self.alpha) == tuple and self.alpha[1] == 'adapted'):
+            # case a): hypercube or estimated parameters       
+            for p in self.p_noisy:
+                for key in self.p_noisy[p]:
+                    n_p += 1
+        elif type(self.alpha) == dict:
+            # case b): hyperrectangle
+            for p in self.alpha:
                 n_p += 1
-        
+
         print('iterations:')
         while (iters < iterlim and not(converged)):
             print(' '*7 + str(iters))
@@ -1127,8 +1133,25 @@ class NmpcGen(DynGen):
                 self.olnmpc.dcdp = Suffix(direction=Suffix.EXPORT)
                 i = 1
                 reverse_dict_pars ={}
-                for p in self.p_noisy:
-                    for key in self.p_noisy[p]:
+                
+                if type(self.alpha) == float or (type(self.alpha) == tuple and self.alpha[1] == 'adapted'):
+                    # case a): hypercube or estimated parameters
+                    for p in self.p_noisy:
+                        for key in self.p_noisy[p]:
+                            if key == ():
+                                dummy = 'dummy_constraint_r_' + p 
+                            else:
+                                dummy = 'dummy_constraint_r_' + p + '_' + str(key[0])
+                            dummy_con = getattr(self.olnmpc, dummy)
+                            for index in dummy_con.index_set():
+                                self.olnmpc.dcdp.set_value(dummy_con[index], i)
+                                reverse_dict_pars[i] = (p,key)
+                                i += 1
+                elif type(self.alpha) == dict:
+                    # case b): hyperrectangle
+                    for par in self.alpha:
+                        p = par[0]
+                        key = par[1]
                         if key == ():
                             dummy = 'dummy_constraint_r_' + p 
                         else:
@@ -1137,8 +1160,7 @@ class NmpcGen(DynGen):
                         for index in dummy_con.index_set():
                             self.olnmpc.dcdp.set_value(dummy_con[index], i)
                             reverse_dict_pars[i] = (p,key)
-                            i += 1
-            
+                            i += 1                  
                 i = 1
                 reverse_dict_cons = {}
                 for k in cons:
@@ -1186,8 +1208,7 @@ class NmpcGen(DynGen):
                     for key in sens:
                         sens[key] = self.alpha[0][key[1]]*sens[key]
             else:
-                print('ERROR: WRONG SPECIFICATION OF CONFIDENCE REGION')
-                sys.exit()
+                sys.exit('Error: Wrong specification of confidence region.')
             # convergence check and update    
             converged = True
             for i in cons:

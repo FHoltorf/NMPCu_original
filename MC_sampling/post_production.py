@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import sys
 
 #folders = ['online_estimation','multistage','backoff','standard']
-folders = ['backoff']
+folders = ['cj/MHE/SBSG/020218','cj/MHE/ideal/020218','cj/MHE/multistage/020218']
 for folder in folders: 
     print(folder)
     path = 'results/'+folder+'/' 
@@ -29,6 +29,9 @@ for folder in folders:
     path_constraints = pickle.load(f)
     f.close()
     
+    f = open(path + 'runtime.pckl','rb')
+    runtime = pickle.load(f)
+    f.close()
     
     constraint_name = []
     iters = len(tf)
@@ -66,7 +69,7 @@ for folder in folders:
     xlabel = {'epc_PO_ptg' : 'Unreacted monomer [PPM]', 'epc_unsat' : r'Unsaturated by-product $[\frac{mol}{g_{PO}}]$', 'epc_mw' : r'NAMW [$\frac{g}{mol}$]'}
     #axes = {'epc_PO_ptg' : [-80.0,120.0,0.0,75.0], 'epc_unsat' : [-30.0,70.0,0.0,35.0], 'epc_mw' : [-0.5,3.0,0.0,35.0],'tf':[320.0,500.0,0.0,35.0]}
     #axes = {'epc_PO_ptg' : [0.0,240.0], 'epc_unsat' : [0.029,0.0345], 'epc_mw' : [948.8,952.5],'tf':[320.0,500.0]}
-    axes = {'epc_PO_ptg' : [0.0,450], 'epc_unsat' : [0.025,0.041], 'epc_mw' : [947.0,962.0],'tf':[320.0,500.0]}
+    axes = {'epc_PO_ptg' : [0.0,450], 'epc_unsat' : [0.025,0.041], 'epc_mw' : [947.0,962.0],'tf':[300.0,480.0]}
     set_points = {'epc_PO_ptg' : 120, 'epc_unsat' : 0.032, 'epc_mw' : 949.5} 
     feasible_region = {'epc_PO_ptg' : 'l', 'epc_unsat' : 'l', 'epc_mw' : 'r'}
     # enpoint constraints 
@@ -76,8 +79,9 @@ for folder in folders:
         # compute standard deviation
         std = np.std(x) 
         mu = np.mean(x)
-        # remove outliers (not in interval +-3 x std)
-        x = [i for i in x if i >= mu-3*std and i <= mu+3*std]
+        n = 100
+        # remove outliers (not in interval +-n x std)
+        x = [i for i in x if i >= mu-n*std and i <= mu+n*std]
         plt.figure(k)
         fig, ax = plt.subplots()
         n, bins, patches = ax.hist(x, 'auto', normed=None, facecolor=color[k], edgecolor='black', alpha=1.0)
@@ -113,19 +117,23 @@ for folder in folders:
     
     
     # path constraints
-    heat_removal = {}
+    #heat_removal = {}
+    T={}
     t = {}
     Tad = {}
     for i in path_constraints: # loop over all runs
         if path_constraints[i] =='error':
             continue
-        heat_removal[i] = []
+
         t[i] = []
         Tad[i] = []
+        T[i] = []
+        #heat_removal[i] = []
         for fe in range(1,25):
             for cp in range(1,4):        
-                heat_removal[i].append(path_constraints[i]['heat_removal',(fe,(cp,))]*92048.0/60.0)
-                Tad[i].append(path_constraints[i]['Tad',(fe,(cp,))]*100)
+                #heat_removal[i].append(path_constraints[i]['heat_removal',(fe,(cp,))]*92048.0/60.0)
+                T[i].append(path_constraints[i]['T',(fe,(cp,))]*100.0)
+                Tad[i].append(path_constraints[i]['Tad',(fe,(cp,))]*100.0)
                 if fe > 1:
                     t[i].append(t[i][-cp]+path_constraints[i]['tf',(fe,cp)])
                 else:
@@ -137,7 +145,7 @@ for folder in folders:
     fig, ax = plt.subplots()
     for i in Tad:
         ax.plot(t[i],Tad[i], color='grey')
-    ax.plot([0,max_tf],[4.6315e2,4.6315e2], color='red', linestyle='dashed')
+    ax.plot([0,max_tf],[4.4315e2,4.4315e2], color='red', linestyle='dashed')
     plt.xlabel('t [min]')
     plt.ylabel(r'$T_{ad}$ [K]')
     fig.savefig(path+'Tad.pdf')
@@ -147,11 +155,16 @@ for folder in folders:
     plt.figure(6)
     fig, ax = plt.subplots()
     for i in Tad:
-        ax.plot(t[i],heat_removal[i], color='grey')
-    ax.plot([0,max_tf],[2200,2200], color='red', linestyle='dashed') #1.43403,1.43403
+        #ax.plot(t[i],heat_removal[i], color='grey')
+        ax.plot(t[i],T[i], color='grey')
+    #ax.plot([0,max_tf],[2200,2200], color='red', linestyle='dashed') #1.43403,1.43403
+    ax.plot([0,max_tf],[443.15,443.15], color='red', linestyle='dashed') #1.43403,1.43403
+    ax.plot([0,max_tf],[373.15,373.15], color='red', linestyle='dashed') #1.43403,1.43403
     plt.xlabel('t [min]')
-    plt.ylabel('Q [kW]')
-    fig.savefig(path+'heat_removal.pdf')
+    plt.ylabel('T [K]')
+    fig.savefig(path+'T.pdf')
+    #plt.ylabel('Q [kW]')
+    #fig.savefig(path+'heat_removal.pdf')
     
     
     fes = 0

@@ -21,22 +21,25 @@ import time
 #from main.MC_sampling.no_cj.run_MHE_asNMPC_multimodel import *
 #from main.MC_sampling.no_cj.run_MHE_asNMPC_backoff import *
 
-# model with cooling jacket
-#from main.MC_sampling.cj.run_NMPC_cj_pwa import *
+# model with cooling jacket 
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
-#from main.MC_sampling.cj.run_MHE_asNMPC_cj_pwa import *
-#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
-#from main.MC_sampling.cj.run_MHE_asNMPC_cj_pwa import_multistage *
-
-from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBSG import *
-#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
+from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBBM import *
 
+
+
+#################################################################
+#################################################################
+#################################################################
+###   CAN RUN EVERYTHING THAT USES dx_dp NOT SIMULTANEOUSLY   ###
+#################################################################
+#################################################################
+#################################################################
 # inputs
 sample_size = 50
 # specifiy directory where to save the resulting files
-path = 'results/cj/MHE/ideal/' 
+path = 'results/cj/MHE/multistage/adaption/' 
 # colors
 color = ['green','red','blue']
 tf = {}
@@ -156,7 +159,7 @@ for i in path_constraints: # loop over all runs
     for fe in range(1,25):
         for cp in range(1,4):        
             T[i].append(path_constraints[i]['T',(fe,(cp,))])
-            Tad[i].append(path_constraints[i]['Tad',(fe,(cp,))])
+            Tad[i].append(path_constraints[i]['Tad',(fe,(cp,))] if path_constraints[i]['Tad',(fe,(cp,))] > 0.0 else None)
             if fe > 1:
                 t[i].append(t[i][-cp]+path_constraints[i]['tf',(fe,cp)])
             else:

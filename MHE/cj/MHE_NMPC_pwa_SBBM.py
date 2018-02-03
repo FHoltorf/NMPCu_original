@@ -29,7 +29,7 @@ import numpy.linalg as linalg
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)], "T":[()], "T_cw":[()]}
-p_noisy = {"A":[('p',),('i',)],'kA':[()]}
+
 u = ["u1", "u2"]
 u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)} 
 
@@ -39,11 +39,21 @@ nfe = 24
 tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
 
 
+
 cons = ['PO_ptg','unsat','mw','temp_b','T_min','T_max']
 pc = ['Tad','T']
+p_noisy = {"A":[('p',),('i',)],'kA':[()]}
+alpha = {('A',('p',)):0.2,('A',('i',)):0.2,('kA',()):0.2,
+          ('T_ic',()):0.01,
+          ('W_ic',()):0.01,
+          ('PO_ic',()):0.01,
+          ('Y_ic',()):0.01,
+          ('MX_ic',(0,)):0.01,
+          ('MX_ic',(1,)):0.01,
+          ('MY_ic',()):0.01}
 e = MheGen(d_mod=SemiBatchPolymerization,
            linapprox = True,
-           alpha = ({('A',('p',)):0.2,('A',('i',)):0.2,('kA',()):0.2}),
+           alpha = alpha,
            x_noisy=x_noisy,
            x_vars=x_vars,
            y=y,
@@ -52,9 +62,9 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            p_noisy=p_noisy,
            u=u,
            noisy_inputs = False,
-           noisy_params = False,
+           noisy_params = True,
            adapt_params = False,
-           process_noise_model = 'params',
+#           process_noise_model = 'params',
            u_bounds=u_bounds,
            tf_bounds = tf_bounds,
            diag_QR=False,
@@ -106,7 +116,7 @@ for i in range(1,nfe):
     k += 1
 
     if  e.nmpc_trajectory[i,'solstat'] != ['ok','optimal'] or \
-        e.nmpc_trajectory[i,'solstat'] != ['ok','optimal'] or \
+        e.nmpc_trajectory[i,'solstat_mhe'] != ['ok','optimal'] or \
         e.plant_trajectory[i,'solstat'] != ['ok','optimal']:
         break
     
@@ -153,9 +163,9 @@ l = 0
 moment = ['MX']
 for m in moment:
     for j in range(0,2):
-        state_traj_ref = np.array([e.reference_state_trajectory[(m,(i,3,j))] for i in range(1,nfe+1)]) 
-        state_traj_nmpc = np.array([e.nmpc_trajectory[i,(m,(j,))] for i in range(1,k)])
-        state_traj_sim = np.array([e.plant_trajectory[i,(m,(j,))] for i in range(1,k+1)])
+        state_traj_ref = np.array([e.reference_state_trajectory[(m,(i,3,j,1))] for i in range(1,nfe+1)]) 
+        state_traj_nmpc = np.array([e.nmpc_trajectory[i,(m,(j,1))] for i in range(1,k)])
+        state_traj_sim = np.array([e.plant_trajectory[i,(m,(j,1))] for i in range(1,k+1)])
         plt.figure(l)
         plt.plot(t,state_traj_ref, label = "reference")
         plt.plot(t_traj_nmpc,state_traj_nmpc, label = "mhe/nmpc")
@@ -164,10 +174,10 @@ for m in moment:
         plt.legend()
         l += 1
 
-plots = [('Y',()),('PO',()),('PO_fed',()),('W',()),('MY',()),('T_cw',()),('T',())]
+plots = [('Y',(1,)),('PO',(1,)),('PO_fed',(1,)),('W',(1,)),('MY',(1,)),('T_cw',(1,)),('T',(1,))]
 #plots = [('PO',()),('T_cw',()),('T',())]
 for p in plots: 
-    state_traj_ref = np.array([e.reference_state_trajectory[(p[0],(i,3))] for i in range(1,nfe+1)]) 
+    state_traj_ref = np.array([e.reference_state_trajectory[(p[0],(i,3,1))] for i in range(1,nfe+1)]) 
     state_traj_nmpc = np.array([e.nmpc_trajectory[i,p] for i in range(1,k)])
     state_traj_sim = np.array([e.plant_trajectory[i,p] for i in range(1,k+1)])    
     plt.figure(l)

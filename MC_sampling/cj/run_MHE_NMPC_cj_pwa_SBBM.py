@@ -12,7 +12,7 @@ from pyomo.environ import *
 from scipy.stats import chi2
 from copy import deepcopy
 from main.dync.MHEGen_adjusted import MheGen
-from main.mods.cj.mod_class_cj_pwa import *
+from main.mods.cj.mod_class_cj_pwa_robust_optimal_control import *
 from main.noise_characteristics_cj import * 
 import itertools, sys, csv
 import numpy as np
@@ -23,7 +23,7 @@ def run():
     states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
     x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
     x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)], "T":[()], "T_cw":[()]}
-    p_noisy = {"A":[('p',),('i',)],'kA':[()],'Hrxn_aux':[('p',)]}
+    
     u = ["u1", "u2"]
     u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)} 
     
@@ -32,8 +32,22 @@ def run():
     nfe = 24
     tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
     
+    
+    
+    cons = ['PO_ptg','unsat','mw','temp_b','T_min','T_max']
     pc = ['Tad','T']
+    p_noisy = {"A":[('p',),('i',)],'kA':[()]}
+    alpha = {('A',('p',)):0.2,('A',('i',)):0.2,('kA',()):0.2,
+              ('T_ic',()):0.01,
+              ('W_ic',()):0.01,
+              ('PO_ic',()):0.01,
+              ('Y_ic',()):0.01,
+              ('MX_ic',(0,)):0.01,
+              ('MX_ic',(1,)):0.01,
+              ('MY_ic',()):0.01}
     e = MheGen(d_mod=SemiBatchPolymerization,
+               linapprox = True,
+               alpha = alpha,
                x_noisy=x_noisy,
                x_vars=x_vars,
                y=y,
@@ -43,7 +57,7 @@ def run():
                u=u,
                noisy_inputs = False,
                noisy_params = True,
-               adapt_params = True,
+               adapt_params = False,
 #               process_noise_model = 'params',
                u_bounds=u_bounds,
                tf_bounds = tf_bounds,
@@ -53,7 +67,8 @@ def run():
                sens=None,
                obj_type='tracking',
                path_constraints=pc)
-    e.delta_u = True
+    delta_u = True
+    
     ###############################################################################
     ###                                     NMPC
     ###############################################################################
@@ -83,14 +98,14 @@ def run():
     
         # here measurement becomes available
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-          
         # solve the advanced step problems
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
     
         e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
         e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
-        e.solve_olnmpc() # solves the olnmpc problem
-         
+        e.solve_olrnmpc(cons=cons,eps=1e-1) # solves the olnmpc problem
+        
+    
         e.cycle_iterations()
         k += 1
     

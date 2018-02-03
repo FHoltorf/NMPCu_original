@@ -173,36 +173,36 @@ class SemiBatchPolymerization(ConcreteModel):
         
         # parameters for initializing differential variabales
         self.W_ic = Param(self.s, initialize=self.n_H2O/self.W_scale, mutable=True)
-        self.p_W_ic = Var(self.s, initialize=1.0)
-        self.p_W_ic_par = Param(self.s, initialize=1.0, mutable=True)
+        self.r_W_ic = Var(self.s, initialize=1.0)
+        self.r_W_ic_par = Param(self.s, initialize=1.0, mutable=True)
         
         self.PO_ic = Param(self.s, initialize=0, mutable=True)
-        self.p_PO_ic = Var(self.s, initialize=1.0)
-        self.p_PO_ic_par = Param(self.s, initialize=1.0, mutable=True)
+        self.r_PO_ic = Var(self.s, initialize=1.0)
+        self.r_PO_ic_par = Param(self.s, initialize=1.0, mutable=True)
         
         self.m_tot_ic = Param(self.s, initialize=(self.m_PG+self.m_KOH+self.m_H2O)/self.m_tot_scale, mutable=True)
         
         self.X_ic = Param(self.s, initialize=(self.n_PG*self.num_OH+self.n_H2O*self.num_OH)/self.X_scale, mutable=True)
-        self.p_X_ic = Var(self.s, initialize=1.0)
-        self.p_X_ic_par = Param(self.s, initialize=1.0, mutable=True)
+        self.r_X_ic = Var(self.s, initialize=1.0)
+        self.r_X_ic_par = Param(self.s, initialize=1.0, mutable=True)
         
         self.Y_ic = Param(self.s, initialize=0, mutable=True)
-        self.p_Y_ic = Var(self.s, initialize=1.0)
-        self.p_Y_ic_par = Param(self.s, initialize=1.0, mutable=True)
+        self.r_Y_ic = Var(self.s, initialize=1.0)
+        self.r_Y_ic_par = Param(self.s, initialize=1.0, mutable=True)
         
         self.MY_ic = Param(self.s, initialize=0.0, mutable=True)
-        self.p_MY_ic = Var(self.s, initialize=1.0)
-        self.p_MY_ic_par = Param(self.s, initialize=1.0, mutable=True)
+        self.r_MY_ic = Var(self.s, initialize=1.0)
+        self.r_MY_ic_par = Param(self.s, initialize=1.0, mutable=True)
         
         self.MX_ic = Param(self.o, self.s, initialize=0.0, mutable=True)
-        self.p_MX_ic = Var(self.o, self.s, initialize=1.0)
-        self.p_MX_ic_par = Param(self.o, self.s, initialize=1.0, mutable=True)
+        self.r_MX_ic = Var(self.o, self.s, initialize=1.0)
+        self.r_MX_ic_par = Param(self.o, self.s, initialize=1.0, mutable=True)
         
         self.PO_fed_ic = Param(self.s, initialize=0.0, mutable=True) 
         
         self.T_ic = Param(self.s, initialize=393.15/self.T_scale, mutable=True) #403.1
-        self.p_T_ic = Var(self.s, initialize=1.0)
-        self.p_T_ic_par = Param(self.s, initialize=1.0, mutable=True)
+        self.r_T_ic = Var(self.s, initialize=1.0)
+        self.r_T_ic_par = Param(self.s, initialize=1.0, mutable=True)
         
         self.T_cw_ic = Param(self.s, initialize=373.15/self.T_scale, mutable=True) #343.15
         #self.p_T_cw_ic = Var(self.o, self.s, initialize=1.0)
@@ -333,7 +333,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.cp_W = Constraint(self.fe_t, self.s, rule=lambda self,i,s:self.noisy_W[i,s] == 0.0 if i < nfe and nfe > 1 else Constraint.Skip)
         
         def _init_W(self,s):#acW(self, t):
-            return self.W[1,0,s] - self.W_ic[1]*self.p_W_ic[s]
+            return self.W[1,0,s] - self.W_ic[1]*self.r_W_ic[s]
         
         self.W_ice = Expression(self.s, rule=_init_W)
         self.W_icc = Constraint(self.s, rule=lambda self,s: self.W_ice[s] == 0.0)
@@ -368,7 +368,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.cp_PO = Constraint(self.fe_t, self.s, rule=lambda self,i,s: self.noisy_PO[i,s] == 0.0 if i < nfe and nfe > 1 else Constraint.Skip)
         
         def _init_PO(self,s):#acW(self, t):
-            return self.PO[1,0,s] - self.PO_ic[1]*self.p_PO_ic[1]
+            return self.PO[1,0,s] - self.PO_ic[1]*self.r_PO_ic[1]
         
         self.PO_ice = Expression(self.s, rule=_init_PO)
         self.PO_icc = Constraint(self.s, rule=lambda self,s: self.PO_ice[s] == 0.0)
@@ -512,7 +512,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.cp_MX = Constraint(self.fe_t, self.o, self.s, rule=lambda self,i,o,s:self.noisy_MX[i,o,s] == 0.0 if i < nfe and nfe > 1 else Constraint.Skip)
         
         def _init_MX(self,o,s):#acMX(self, t):
-            return self.MX[1,0,o,s] - self.MX_ic[o,1]*self.p_MX_ic[o,s]
+            return self.MX[1,0,o,s] - self.MX_ic[o,1]*self.r_MX_ic[o,s]
         
         self.MX_ice = Expression(self.o, self.s, rule=_init_MX)
         self.MX_icc = Constraint(self.o, self.s, rule=lambda self,o,s: self.MX_ice[o,s] == 0.0)
@@ -553,7 +553,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.cp_Y = Constraint(self.fe_t, self.s, rule=lambda self,i,s:self.noisy_Y[i,s] == 0.0 if i < nfe and nfe > 1 else Constraint.Skip)
         
         def _init_Y(self,s):#acY(self, t):
-            return self.Y[1,0,s] - self.Y_ic[1]*self.p_Y_ic[s]
+            return self.Y[1,0,s] - self.Y_ic[1]*self.r_Y_ic[s]
         
         self.Y_ice = Expression(self.s, rule=_init_Y)
         self.Y_icc = Constraint(self.s, rule=lambda self,s: self.Y_ice[s] == 0.0)
@@ -588,7 +588,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.cp_MY = Constraint(self.fe_t, self.s, rule=lambda self,i,s:self.noisy_MY[i,s] == 0.0 if i < nfe and nfe > 1 else Constraint.Skip)
         
         def _init_MY(self,s):#acMY(self, t):
-            return self.MY[1,0,s] - self.MY_ic[1]*self.p_MY_ic[s]
+            return self.MY[1,0,s] - self.MY_ic[1]*self.r_MY_ic[s]
         
         self.MY_ice = Expression(self.s, rule=_init_MY)
         self.MY_icc = Constraint(self.s, rule=lambda self,s: self.MY_ice[s] == 0.0)
@@ -658,7 +658,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.cp_T = Constraint(self.fe_t, self.s, rule=lambda self,i,s:self.noisy_T[i,s] == 0.0 if i < nfe and nfe > 1 else Constraint.Skip)
         
         def _init_T(self,s):        
-            return self.T[1, 0, s] - self.T_ic[1]*self.p_T_ic[s]
+            return self.T[1, 0, s] - self.T_ic[1]*self.r_T_ic[s]
         self.T_ice = Expression(self.s, rule=_init_T)
         self.T_icc = Constraint(self.s, rule=lambda self,s: self.T_ice[s] == 0.0)   
         
@@ -873,13 +873,13 @@ class SemiBatchPolymerization(ConcreteModel):
         self.dummy_constraint_r_A_i = Constraint(self.s, rule = lambda self,s: self.r_A['i',s] == self.r_A_par['i',s])
         self.dummy_constraint_r_Hrxn_aux_p = Constraint(self.s, rule = lambda self,s: self.r_Hrxn_aux['p',s] == self.r_Hrxn_aux_par['p',s])
         self.dummy_constraint_r_kA = Constraint(self.s, rule=lambda self,s: self.r_kA[s] == self.r_kA_par[s])
-        self.dummy_constraint_p_T_ic = Constraint(self.s, rule=lambda self,s: self.p_T_ic[s] == self.p_T_ic_par[s])
-        self.dummy_constraint_p_W_ic = Constraint(self.s, rule=lambda self,s: self.p_W_ic[s] == self.p_W_ic_par[s])
-        self.dummy_constraint_p_PO_ic = Constraint(self.s, rule=lambda self,s: self.p_PO_ic[s] == self.p_PO_ic_par[s])
-        self.dummy_constraint_p_Y_ic = Constraint(self.s, rule=lambda self,s: self.p_Y_ic[s] == self.p_Y_ic_par[s])
-        self.dummy_constraint_p_MY_ic = Constraint(self.s, rule=lambda self,s: self.p_MY_ic[s] == self.p_MY_ic_par[s])
-        self.dummy_constraint_p_MX_ic_0 = Constraint(self.s, rule=lambda self,s: self.p_MX_ic[0,s] == self.p_MX_ic_par[0,s])
-        self.dummy_constraint_p_MX_ic_1 = Constraint(self.s, rule=lambda self,s: self.p_MX_ic[1,s] == self.p_MX_ic_par[1,s])
+        self.dummy_constraint_r_T_ic = Constraint(self.s, rule=lambda self,s: self.r_T_ic[s] == self.r_T_ic_par[s])
+        self.dummy_constraint_r_W_ic = Constraint(self.s, rule=lambda self,s: self.r_W_ic[s] == self.r_W_ic_par[s])
+        self.dummy_constraint_r_PO_ic = Constraint(self.s, rule=lambda self,s: self.r_PO_ic[s] == self.r_PO_ic_par[s])
+        self.dummy_constraint_r_Y_ic = Constraint(self.s, rule=lambda self,s: self.r_Y_ic[s] == self.r_Y_ic_par[s])
+        self.dummy_constraint_r_MY_ic = Constraint(self.s, rule=lambda self,s: self.r_MY_ic[s] == self.r_MY_ic_par[s])
+        self.dummy_constraint_r_MX_ic_0 = Constraint(self.s, rule=lambda self,s: self.r_MX_ic[0,s] == self.r_MX_ic_par[0,s])
+        self.dummy_constraint_r_MX_ic_1 = Constraint(self.s, rule=lambda self,s: self.r_MX_ic[1,s] == self.r_MX_ic_par[1,s])
         
         # objective
         def _eobj(self):
@@ -932,6 +932,8 @@ class SemiBatchPolymerization(ConcreteModel):
         self.A['p'].setub(self.A['p'].value*2.0)
         self.Hrxn_aux['p'].setlb(0.5)
         self.Hrxn_aux['p'].setub(2.0)
+        self.kA.setlb(0.5*self.kA.value)
+        self.kA.setub(2.0*self.kA.value)
         #self.Hrxn_aux['p'].unfix()
         #self.A['i'].unfix()
         #self.A['p'].unfix()
