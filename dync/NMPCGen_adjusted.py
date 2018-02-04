@@ -134,11 +134,18 @@ class NmpcGen(DynGen):
                         # --> alpha is matrix that gets computed in MHEGen (represented as dictionary)
                         
         self.alpha = kwargs.pop('alpha',self.confidence_threshold)
-        self.weighting_matrix = {}
         
-    def open_loop_simulation(self, sample_size = 10, disturbances = {}, **kwargs):
-        initial_disturbance = kwargs.pop('initial_disturbance', {(x,j):0.0 for x in self.states for j in self.state_vars})
+    def open_loop_simulation(self, sample_size = 10, **kwargs):
+        # simulates the current
+        # options: process_noise --> gaussian noise added to all states
+        #          parameter noise --> noise added to the uncertain model parameters
+        #                               or different ones
+        #          input noise --> noise added to the inputs/controls
+        # not exhaustive list, can be adapted/extended as one wishes
+        # combination of all the above with noise in the initial point supporte
+        initial_disturbance = kwargs.pop('initial_disturbance', {(x,j):0.0 for x in self.states for j in self.state_vars[x]})
         parameter_disturbance = kwargs.pop('parameter_disturbance', {})
+        input_disturbance = kwargs.pop('input_disturbance',{})
         
         # deactivate constraints
         self.recipe_optimization_model.deactivate_epc()
@@ -156,11 +163,16 @@ class NmpcGen(DynGen):
                 else:
                     nominal_initial_point[(x,j)] = xic[j].value
                     
-        if self.noisy_params:
+        if parameter_disturbance != {}:
             for p in parameter_disturbance:
+                key = p[1] if p[1] != () else None
                 disturbed_parameter = getattr(self.recipe_optimization_model, p[0])
-                self.nominal_parameter_values[p] = disturbed_parameter[p[1]].value
+                self.nominal_parameter_values[p] = disturbed_parameter[key].value
                     
+        for u in self.u:
+            control = getattr(self.recipe_optimization_model, u)
+            control.fix()
+            
         endpoint_constraints = {}
         pc_trajectory = {}
         # set and fix controls + add noise
@@ -169,25 +181,24 @@ class NmpcGen(DynGen):
             print(' '*5 + 'iter: ' + str(k))
             print('#'*20)
             pc_trajectory[k] = {}
-            for u in self.u:
-                control = getattr(self.recipe_optimization_model, u)
-                control.fix()
-                for i in range(1,self.nfe_t+1):
-                    disturbance_noise = np.random.normal(loc=0.0, scale=disturbances[u])
-                    control[i].value = self.reference_control_trajectory[u,i]*(1+disturbance_noise)
-            # perturb initial point
-            for x in self.states:
-                xic = getattr(self.recipe_optimization_model,x+'_ic')
-                for j in self.state_vars[x]:
-                    if j == ():
-                        xic.value = nominal_initial_point[(x,j)] * (1 + np.random.normal(loc=0.0, scale=initial_disturbance[(x,j)]))
-                    else:
-                        xic[j].value = nominal_initial_point[(x,j)] * (1 + np.random.normal(loc=0.0, scale=initial_disturbance[(x,j)]))
-            if self.noisy_params:
+            if initial_disturbance != {}:
+                for x in self.states:
+                    xic = getattr(self.recipe_optimization_model,x+'_ic')
+                    for j in self.state_vars[x]:
+                        key = j if j != () else None
+                        xic[key].value = nominal_initial_point[(x,j)] * (1 + np.random.normal(loc=0.0, scale=initial_disturbance[(x,j)]))
+            if input_disturbance != {}:
+                for u in input_disturbance:
+                    control = getattr(self.recipe_optimization_model, u)
+                    for i in range(1,self.nfe_t+1):
+                        disturbance_noise = np.random.normal(loc=0.0, scale=input_disturbance[u])
+                        control[i,1].value = self.reference_control_trajectory[u,(i,1)]*(1+disturbance_noise)
+            if parameter_disturbance != {}:
                 for p in parameter_disturbance:
+                    key = p[1] if p[1] != () else None
                     disturbed_parameter = getattr(self.recipe_optimization_model, p[0])
-                    disturbed_parameter[p[1]].value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0]))    
-   
+                    disturbed_parameter[key].value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0]))    
+            
             self.recipe_optimization_model.tf.fix()
             self.recipe_optimization_model.equalize_u(direction="u_to_r")
             # run the simulation
@@ -501,7 +512,7 @@ class NmpcGen(DynGen):
             m.tf[index].setlb(self.tf_bounds[0])
             m.tf[index].setub(self.tf_bounds[1])
                 
-    def recipe_optimization(self):
+    def recipe_optimization(self,**kwargs):
         self.nfe_t_0 = self.nfe_t # set self.nfe_0 to keep track of the length of the reference trajectory
         self.generate_state_index_dictionary()
         self.recipe_optimization_model = self.d_mod(self.nfe_t, self.ncp_t)
@@ -511,18 +522,23 @@ class NmpcGen(DynGen):
         self.recipe_optimization_model.create_output_relations()
         self.create_tf_bounds(self.recipe_optimization_model)
 
-        #self.recipe_optimization_model.aux.fixed = True
+        if self.linapprox:
+            cons = kwargs.pop('cons', [])
+            eps = kwargs.pop('eps',0.0)
+            iterlim = kwargs.pop('iterlim',10)
+            self.solve_olrnmpc(model=self.recipe_optimization_model, iterlim=iterlim, cons=cons, eps=eps)
+       
         ip = SolverFactory("asl:ipopt")
         ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["tol"] = 1e-8
         ip.options["linear_solver"] = "ma57"
         ip.options["max_iter"] = 5000
-        
+            
         results = ip.solve(self.recipe_optimization_model, tee=True, symbolic_solver_labels=True, report_timing=True)
+        
         if not(str(results.solver.status) == 'ok' and str(results.solver.termination_condition)) == 'optimal':
-            print('Recipe Optimization failed!')
-            sys.exit()
+            sys.exit('Error: Recipe optimization failed!')
             
         
         self.nmpc_trajectory[1,'tf'] = self.recipe_optimization_model.tf.value # start at 0.0
@@ -621,6 +637,7 @@ class NmpcGen(DynGen):
             self.olnmpc.ipopt_zU_in = Suffix(direction=Suffix.EXPORT)
        
         # preparation for tracking objective function
+        
         self.xmpc_l = {} # dictionary that includes a list of the state variables 
                          # for each finite element at cp = ncp_t 
                          # -> {finite_element:[list of states x(j)[finite_element, ncp]]} 
@@ -694,7 +711,7 @@ class NmpcGen(DynGen):
         self.olnmpc.objfun_nmpc = Objective(expr = self.olnmpc.eobj.expr + self.olnmpc.xQ_expr_nmpc + self.olnmpc.xR_expr_nmpc + self.olnmpc.uK_expr_nmpc, sense=minimize)        
 
         
-    def set_regularization_weights(self, Q_w = 1.0, R_w = 1.0, K_w = 1.0 ):
+    def set_regularization_weights(self, Q_w = 1.0, R_w = 1.0, K_w = 1.0):
         for i in self.olnmpc.fe_t:
             self.olnmpc.Q_w_nmpc[i] = Q_w
             self.olnmpc.R_w_nmpc[i] = R_w
@@ -769,7 +786,7 @@ class NmpcGen(DynGen):
             self.create_enmpc()
         else:
             self.create_nmpc()
-        
+            
         # initialize the new problem with shrunk horizon by the old one
         for _var in self.olnmpc.component_objects(Var, active=True):
             for _key in _var.index_set():
@@ -809,7 +826,8 @@ class NmpcGen(DynGen):
         if self.adapt_params and self.iterations > 1:
             for index in self.curr_epars:
                 p = getattr(self.olnmpc, index[0])
-                p[index[1]].value = self.curr_epars[index]
+                key = index[1] if index[1] != () else None
+                p[key].value = self.curr_epars[index]
         
         # set initial value parameters in model olnmpc
         # set according to predicted state by forward simulation
@@ -1036,7 +1054,10 @@ class NmpcGen(DynGen):
         # open-loop robust nonlinear model predictive control problem with linear approximation of the lower level program
         print("solve_olrnmpc")
         print('#'*20 + ' ' + str(self.iterations) + ' ' + '#'*20)
-
+         
+        # Set model
+        m = kwargs.pop('model',self.olnmpc)
+        
         # specify inputs
             # cons: list of the 'name's of the slack variables 's_name'
     
@@ -1058,13 +1079,11 @@ class NmpcGen(DynGen):
         # initialize everything
         backoff = {}
         for i in cons:
-            backoff_var = getattr(self.olnmpc,'xi_'+i)
+            backoff_var = getattr(m,'xi_'+i)
             for index in backoff_var.index_set():
-                try:
-                    backoff[('s_'+i,index)] = 0.0
-                    backoff_var[index].value = 0.0
-                except KeyError:
-                    continue
+                backoff[('s_'+i,index)] = 0.0
+                backoff_var[index].value = 0.0
+                
         n_p = 0
         if type(self.alpha) == float or (type(self.alpha) == tuple and self.alpha[1] == 'adapted'):
             # case a): hypercube or estimated parameters       
@@ -1080,35 +1099,34 @@ class NmpcGen(DynGen):
         while (iters < iterlim and not(converged)):
             print(' '*7 + str(iters))
             # solve optimization problem
-            self.olnmpc.create_bounds()
-            self.create_tf_bounds(self.olnmpc)
-            self.olnmpc.clear_aux_bounds()
+            m.create_bounds()
+            self.create_tf_bounds(m)
+            m.clear_aux_bounds()
             for u in self.u:
-                u_var = getattr(self.olnmpc,u)
+                u_var = getattr(m,u)
                 u_var.unfix()
-            self.olnmpc.tf.unfix()
-            self.olnmpc.eps.unfix()
-            self.olnmpc.eps_pc.unfix()
+            m.tf.unfix()
+            m.eps.unfix()
+            m.eps_pc.unfix()
             
             for i in cons:
-                slack = getattr(self.olnmpc, 's_'+i)
+                slack = getattr(m, 's_'+i)
                 for index in slack.index_set():
-                    slack[index].setlb(0)
-            nlp_results = ip.solve(self.olnmpc, tee=False, symbolic_solver_labels=True)
+                    slack[index].setlb(0.0)
+            nlp_results = ip.solve(m, tee=False, symbolic_solver_labels=True)
 
             if [str(nlp_results.solver.status),str(nlp_results.solver.termination_condition)] != ['ok','optimal']:
-                self.olnmpc.A.pprint()
-                self.olnmpc.write_nl()
-                self.olnmpc.troubleshooting()
-                sys.exit()
+                m.write_nl()
+                m.troubleshooting()
+                sys.exit('Error: Iteration in olrnmpc did not converge')
             
             # check whether optimal control problem feasible
             flag = False
-            for index in self.olnmpc.eps.index_set():
-                if self.olnmpc.eps[index].value > 1e-3:
+            for index in m.eps.index_set():
+                if m.eps[index].value > 1e-3:
                     flag = True
-            for index in self.olnmpc.eps_pc.index_set():
-                if self.olnmpc.eps_pc[index].value > 1e-3:
+            for index in m.eps_pc.index_set():
+                if m.eps_pc[index].value > 1e-3:
                     flag = True
                     
             if flag:
@@ -1116,21 +1134,31 @@ class NmpcGen(DynGen):
                 print('Stop iterating')
                 break
             
-            self.olnmpc.eps.fix()
-            self.olnmpc.eps_pc.fix()
+            m.eps.fix()
+            m.eps_pc.fix()
             for u in self.u:
-                u_var = getattr(self.olnmpc,u)
+                u_var = getattr(m,u)
                 u_var.fix()
-            self.olnmpc.tf.fix()
-            self.olnmpc.clear_all_bounds()
+            m.tf.fix()
+            m.clear_all_bounds()
+            
+            for i in cons:
+                slack = getattr(m, 's_'+i)
+                for index in slack.index_set():
+                    slack[index].setlb(None)
                 
+            for var in m.ipopt_zL_in:
+                var.set_suffix_value(m.ipopt_zL_in, 0.0)
+                
+            for var in m.ipopt_zU_in:
+                var.set_suffix_value(m.ipopt_zU_in, 0.0)
             # compute sensitivities
-            self.olnmpc.ipopt_zL_in.update(self.olnmpc.ipopt_zL_out)
-            self.olnmpc.ipopt_zU_in.update(self.olnmpc.ipopt_zU_out)
+            #m.ipopt_zL_in.update(m.ipopt_zL_out)
+            #m.ipopt_zU_in.update(m.ipopt_zU_out)
         
             if iters == 0:
-                self.olnmpc.var_order = Suffix(direction=Suffix.EXPORT)
-                self.olnmpc.dcdp = Suffix(direction=Suffix.EXPORT)
+                m.var_order = Suffix(direction=Suffix.EXPORT)
+                m.dcdp = Suffix(direction=Suffix.EXPORT)
                 i = 1
                 reverse_dict_pars ={}
                 
@@ -1142,9 +1170,9 @@ class NmpcGen(DynGen):
                                 dummy = 'dummy_constraint_r_' + p 
                             else:
                                 dummy = 'dummy_constraint_r_' + p + '_' + str(key[0])
-                            dummy_con = getattr(self.olnmpc, dummy)
+                            dummy_con = getattr(m, dummy)
                             for index in dummy_con.index_set():
-                                self.olnmpc.dcdp.set_value(dummy_con[index], i)
+                                m.dcdp.set_value(dummy_con[index], i)
                                 reverse_dict_pars[i] = (p,key)
                                 i += 1
                 elif type(self.alpha) == dict:
@@ -1156,23 +1184,23 @@ class NmpcGen(DynGen):
                             dummy = 'dummy_constraint_r_' + p 
                         else:
                             dummy = 'dummy_constraint_r_' + p + '_' + str(key[0])
-                        dummy_con = getattr(self.olnmpc, dummy)
+                        dummy_con = getattr(m, dummy)
                         for index in dummy_con.index_set():
-                            self.olnmpc.dcdp.set_value(dummy_con[index], i)
+                            m.dcdp.set_value(dummy_con[index], i)
                             reverse_dict_pars[i] = (p,key)
                             i += 1                  
                 i = 1
                 reverse_dict_cons = {}
                 for k in cons:
-                    s = getattr(self.olnmpc, 's_'+k)
+                    s = getattr(m, 's_'+k)
                     for index in s.index_set():
                         if not(s[index].stale):
-                            self.olnmpc.var_order.set_value(s[index], i)
+                            m.var_order.set_value(s[index], i)
                             reverse_dict_cons[i] = ('s_'+ k,index)
                             i += 1
                     
-            k_aug.solve(self.olnmpc, tee=False)
-            
+            k_aug.solve(m, tee=False)
+            m.write_nl()
             sens = {}
             with open('dxdp_.dat') as f:
                 reader = csv.reader(f, delimiter="\t")
@@ -1197,22 +1225,22 @@ class NmpcGen(DynGen):
             elif type(self.alpha) == tuple and self.alpha[1] == 'adapted':
                 # case c): weighting_matrix --> rectangle is tilted/aligned with principal components
                 # self made matrix multiplication to ensure the rows and cols match...
-                if type(self.weighting_matrix) != dict:
+                if type(self._scaled_shape_matrix) != dict:
                     for key in sens:
                         #key[1] = p # the exact same index for self.PI_indices
                         #self.PI_indices[key[1]] returns index for corresponding parameter in _PI
                         s = key[0] 
                         m = self.PI_indices[key[1]]
-                        sens[key] = sum(sens[s,p]*self.weighting_matrix[m][self.PI_indices[p]] for p in self.PI_indices)
+                        sens[key] = sum(sens[s,p]*self._scaled_shape_matrix[m][self.PI_indices[p]] for p in self.PI_indices)
                 else:
                     for key in sens:
                         sens[key] = self.alpha[0][key[1]]*sens[key]
             else:
-                sys.exit('Error: Wrong specification of confidence region.')
+                sys.exit('Error: Specification of uncertainty set not supported.')
             # convergence check and update    
             converged = True
             for i in cons:
-                backoff_var = getattr(self.olnmpc,'xi_'+i)
+                backoff_var = getattr(m,'xi_'+i)
                 for index in backoff_var.index_set():
                     try:
                         # computes the 1-norm of the respective part of the sensitivity matrix
@@ -1229,53 +1257,53 @@ class NmpcGen(DynGen):
                         else:
                             continue
                     except KeyError:
+                        # catches all the stale/redundant slacks
                         continue
-                    
             iters += 1
+        if m == self.olnmpc:    
+            m.create_bounds()
+            self.create_tf_bounds(m)
+            m.clear_aux_bounds()
+            for u in self.u:
+                u_var = getattr(m,u)
+                u_var.unfix()
+            m.tf.unfix()
             
-        self.olnmpc.create_bounds()
-        self.create_tf_bounds(self.olnmpc)
-        self.olnmpc.clear_aux_bounds()
-        for u in self.u:
-            u_var = getattr(self.olnmpc,u)
-            u_var.unfix()
-        self.olnmpc.tf.unfix()
+            for i in cons:
+                slack = getattr(m, 's_'+i)
+                for index in slack.index_set():
+                    slack[index].setlb(0)
+            ip.solve(m,tee=True, symbolic_solver_labels=True)           
+            # save converged results 
+            self.nmpc_trajectory[self.iterations,'solstat'] = [str(nlp_results.solver.status),str(nlp_results.solver.termination_condition)]
+            self.nmpc_trajectory[self.iterations+1,'tf'] = self.nmpc_trajectory[self.iterations,'tf'] + m.tf.value
+            self.nmpc_trajectory[self.iterations,'eps'] = [m.eps[i].value for i in m.eps.index_set()]  
+            if self.obj_type == 'economic':
+                self.nmpc_trajectory[self.iterations,'obj_value'] = value(m.eobj)
+            else:
+                self.nmpc_trajectory[self.iterations,'obj_value'] = value(m.objfun_nmpc)
+            
+            for u in self.u:
+                control = getattr(m,u)
+                self.nmpc_trajectory[self.iterations+1,u] = control[1].value # control input between timestep i-1 and i
+            
+            for x in self.states:
+                xic = getattr(m, x + '_ic')
+                for j in self.state_vars[x]:
+                    if j == ():
+                        self.nmpc_trajectory[self.iterations,(x,j)] = xic.value   
+                    else:
+                        self.nmpc_trajectory[self.iterations,(x,j)] = xic[j].value
+            
+            # save the control result as current control input
+            for u in self.u:
+                control = getattr(m,u)
+                self.curr_u[u] = control[1].value
+            
         
-        for i in cons:
-            slack = getattr(self.olnmpc, 's_'+i)
-            for index in slack.index_set():
-                slack[index].setlb(0)
-        ip.solve(self.olnmpc,tee=True, symbolic_solver_labels=True)
-            
-           
-        # save converged results 
-        self.nmpc_trajectory[self.iterations,'solstat'] = [str(nlp_results.solver.status),str(nlp_results.solver.termination_condition)]
-        self.nmpc_trajectory[self.iterations+1,'tf'] = self.nmpc_trajectory[self.iterations,'tf'] + self.olnmpc.tf.value
-        self.nmpc_trajectory[self.iterations,'eps'] = [self.olnmpc.eps[i].value for i in self.olnmpc.eps.index_set()]  
-        if self.obj_type == 'economic':
-            self.nmpc_trajectory[self.iterations,'obj_value'] = value(self.olnmpc.eobj)
+            m.write_nl()
         else:
-            self.nmpc_trajectory[self.iterations,'obj_value'] = value(self.olnmpc.objfun_nmpc)
-        
-        for u in self.u:
-            control = getattr(self.olnmpc,u)
-            self.nmpc_trajectory[self.iterations+1,u] = control[1].value # control input between timestep i-1 and i
-        
-        for x in self.states:
-            xic = getattr(self.olnmpc, x + '_ic')
-            for j in self.state_vars[x]:
-                if j == ():
-                    self.nmpc_trajectory[self.iterations,(x,j)] = xic.value   
-                else:
-                    self.nmpc_trajectory[self.iterations,(x,j)] = xic[j].value
-        
-        # save the control result as current control input
-        for u in self.u:
-            control = getattr(self.olnmpc,u)
-            self.curr_u[u] = control[1].value
-        
-    
-        self.olnmpc.write_nl()
+            pass
         
         
     def cycle_iterations(self):

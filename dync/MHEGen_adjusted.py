@@ -564,7 +564,7 @@ class MheGen(NmpcGen):
             # comute principle components of approximate 95%-confidence region 
             ###################################################################
             try:
-                dimension = int(np.sqrt(len(self.mhe_confidence_ellipsoids[1])))
+                dimension = int(np.round(np.sqrt(len(self.mhe_confidence_ellipsoids[1]))))
                 confidence = chi2.isf(1-0.95,dimension)
                 A_dict = self.mhe_confidence_ellipsoids[self.iterations-1]
                 # assemble dimension x dimension array
@@ -573,7 +573,12 @@ class MheGen(NmpcGen):
                         rows[m] = np.array([A_dict[(m,i)] for i in range(dimension)]) 
                 A = 1/confidence*np.array([np.array(rows[i]) for i in range(dimension)]) # shape matrix of confidence ellipsoid, should rewrite and scale according to parameter values, much simpler afterwards
                 U, s, V = np.linalg.svd(A) # singular value decomposition of shape matrix 
-                radii = 1/np.sqrt(s) # radii --
+ 
+                # 1/sqrt since A = 1/xi^2 * V_p^-1 and we look for the set that satisfies
+                # 1/xi^2 * x^T V_p^-1 x <= 1 <=> x^T A x <= 1 <=> ||A^1/2 x||_2 <= 1
+                # accordingly radii are provided by inverse of sqrt of singular values of A
+                radii = 1/np.sqrt(s) # radii -- 
+                
                 # adapt parameters iff estimates are confident enough
                 if self.adapt_params:
                     for p in self.p_noisy:
@@ -634,8 +639,7 @@ class MheGen(NmpcGen):
                                     scenarios[(p,key),l+1] = 1-self.confidence_threshold
                                 else:
                                     scenarios[(p,key),l] = 1-self.confidence_threshold
-                                    scenarios[(p,key),l+1] = 1+self.confidence_threshold
-                
+                                    scenarios[(p,key),l+1] = 1+self.confidence_threshold    
                 # update scenario tree
                 l = 0
                 for m in range(dimension):
@@ -645,7 +649,7 @@ class MheGen(NmpcGen):
                             try:
                                 self.st[p,key,l] = scenarios[(p,key),l]
                             except KeyError:
-                                self.st[p,key,l] = 1.0
+                                continue
                                               
                             
             if self.update_uncertainty_set:
@@ -653,10 +657,10 @@ class MheGen(NmpcGen):
                 # enscribe confidence_ellipsoid in hyperrectangle
                         # started with hyperrectangle ||diag(alpha_i)^(-1)*x||_inf <= 1
                         # replace weighting by approximate covariance matrix
-                        #           --> dual norm ||V_p * x||_1 <= 1
+                        #           --> dual norm ||V_p^1/2 * x||_1 <= 1
                         #           --> compute parameter covariance matrix normalized to nominal values
                 # check if all half axis endpoints lie inside hyperrectangle
-                self.weighting_matrix = {}
+                self._scaled_shape_matrix = {}
                 flag = False
                 for p in self.p_noisy:
                     p_mhe = getattr(self.lsmhe,p)
@@ -670,13 +674,13 @@ class MheGen(NmpcGen):
                                 flag = True
                                 break
                             elif dev < 1 + self.robustness_threshold:
-                                self.weighting_matrix = np.diag([self.robustness_threshold,self.robustness_threshold])
+                                # if confidence high enough, use minimum robustness_threshold
+                                self._scaled_shape_matrix = np.diag([self.robustness_threshold,self.robustness_threshold])
                                 flag = True
                         if flag:
                             break
                     if flag:
                         break
-                
                 # if all halfaxis endpoints lie inside hyperrectangle --> continue
                 if not(flag):
                     # create new weighting matrix:
@@ -688,8 +692,8 @@ class MheGen(NmpcGen):
                             m = self.PI_indices[p,key]
                             pkey = None if key == () else key
                             scaling[m][m] = p_mhe[pkey].value
-                    self.weighting_matrix = np.linalg.inv(np.dot(scaling.transpose(),np.dot(A,scaling)))
-                    self.weighting_matrix = sqrtm(self.weighting_matrix) # weighting matrix to find rectangle that has ellipsoid inscribed
+                    self.scaled_shape_matrix = np.linalg.inv(np.dot(scaling.transpose(),np.dot(A,scaling)))
+                    self.scaled_shape_matrix = sqrtm(self._scaled_shape_matrix) # weighting matrix to find rectangle that has ellipsoid inscribed
                                 
     def compute_offset_measurements(self):
         mhe_y = getattr(self.lsmhe, "yk0_mhe")

@@ -40,17 +40,17 @@ tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
 
 
 
-cons = ['PO_ptg','unsat','mw','temp_b','T_min','T_max']
+cons = ['PO_ptg','unsat','temp_b','T_min','T_max']
 pc = ['Tad','T']
 p_noisy = {"A":[('p',),('i',)],'kA':[()]}
-alpha = {('A',('p',)):0.2,('A',('i',)):0.2,('kA',()):0.2,
-          ('T_ic',()):0.01,
-          ('W_ic',()):0.01,
-          ('PO_ic',()):0.01,
-          ('Y_ic',()):0.01,
-          ('MX_ic',(0,)):0.01,
-          ('MX_ic',(1,)):0.01,
-          ('MY_ic',()):0.01}
+alpha = {('A',('p',)):0.2,('A',('i',)):0.2,('kA',()):0.2}
+#          ('T_ic',()):0.01,
+#          ('W_ic',()):0.01,
+#          ('PO_ic',()):0.01,
+#          ('Y_ic',()):0.01,
+#          ('MX_ic',(0,)):0.01,
+#          ('MX_ic',(1,)):0.01,
+#          ('MY_ic',()):0.01}
 e = MheGen(d_mod=SemiBatchPolymerization,
            linapprox = True,
            alpha = alpha,
@@ -78,7 +78,7 @@ delta_u = True
 ###############################################################################
 ###                                     NMPC
 ###############################################################################
-e.recipe_optimization()
+model = e.recipe_optimization(cons=cons,eps=1e-1)
 e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
 e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
 e.generate_state_index_dictionary()
@@ -109,7 +109,7 @@ for i in range(1,nfe):
 
     e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
     e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
-    e.solve_olrnmpc(cons=cons,eps=1e-1) # solves the olnmpc problem
+    model = e.solve_olrnmpc(cons=cons,eps=1e-1) # solves the olnmpc problem
     
 
     e.cycle_iterations()

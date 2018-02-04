@@ -86,13 +86,13 @@ e = MheGen(d_mod=SemiBatchPolymerization_multistage,
            robust_horizon = nr,
            s_max = sr,
            noisy_inputs = False,
-           noisy_params = False,
-           adapt_params = False,
-           update_scenario_tree = False,
+           noisy_params = True,
+           adapt_params = True,
+           update_scenario_tree = True,
            confidence_threshold = alpha,
            robustness_threshold = 0.05,
            estimate_exceptance = 10000,
-           process_noise_model = 'params',
+           process_noise_model = None,#'params',
            obj_type='economic',
            nfe_t=nfe,
            sens=None,
@@ -127,7 +127,8 @@ for i in range(1,nfe):
     
     # here measurement becomes available
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-
+    e.compute_confidence_ellipsoid()
+    
     # solve the advanced step problems
     e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
     
@@ -247,6 +248,46 @@ for b in plots:
     l += 1
     
 e.plant_simulation_model.check_feasibility(display=True)
+
+
+
+
+###############################################################################
+###         Plotting 1st Order Approximation of Confidence Region 
+###############################################################################
+try:
+    dimension = 2 # dimension n of the n x n matrix = #DoF
+    rhs_confidence = chi2.isf(1.0-0.95,dimension) # 0.1**2*5% measurment noise, 95% confidence level, dimension degrees of freedo
+    rows = {}
+    for r in range(1,k):
+        A_dict = e.mhe_confidence_ellipsoids[r]
+        center = [0,0]
+        for m in range(dimension):
+            rows[m] = np.array([A_dict[(m,i)] for i in range(dimension)])
+        A = 1/rhs_confidence*np.array([np.array(rows[i]) for i in range(dimension)])
+        center = np.array([0]*dimension)
+        U, s, V = linalg.svd(A) # singular value decomposition 
+        radii = 1/np.sqrt(s) # length of half axes, V rotation
+        
+        # transform in polar coordinates for simpler waz of plotting
+        theta = np.linspace(0.0, 2.0 * np.pi, 100) # angle = idenpendent variable
+        x = radii[0] * np.sin(theta) # x-coordinate
+        y = radii[1] * np.cos(theta) # y-coordinate
+        for i in range(len(x)):
+            [x[i],y[i]] = np.dot([x[i],y[i]], V) + center
+        plt.plot(x,y, label = str(r))
+    
+        
+        # plot half axis
+    for p in range(dimension):
+        x = radii[p]*U[p][0]
+        y = radii[p]*U[p][1]
+        plt.plot([0,x],[0,y],color='red')
+    plt.xlabel(r'$\Delta A_i$')
+    plt.ylabel(r'$\Delta A_p$')
+except KeyError:
+    pass
+
 
 ###############################################################################
 ###         Plotting path constraints

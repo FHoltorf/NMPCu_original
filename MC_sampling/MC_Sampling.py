@@ -24,9 +24,9 @@ import time
 # model with cooling jacket 
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBSG import *
-from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
+#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBBM import *
-
+from main.MC_sampling.cj.run_MHE_asNMPC_cj_pwa import *
 
 
 #################################################################
@@ -39,7 +39,7 @@ from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
 # inputs
 sample_size = 50
 # specifiy directory where to save the resulting files
-path = 'results/cj/MHE/multistage/adaption/' 
+path = 'results/cj/MHE/ideal/' 
 # colors
 color = ['green','red','blue']
 tf = {}

@@ -57,7 +57,7 @@ def run():
                u=u,
                noisy_inputs = False,
                noisy_params = True,
-               adapt_params = False,
+               adapt_params = True,
 #               process_noise_model = 'params',
                u_bounds=u_bounds,
                tf_bounds = tf_bounds,
@@ -72,7 +72,7 @@ def run():
     ###############################################################################
     ###                                     NMPC
     ###############################################################################
-    e.recipe_optimization()
+    e.recipe_optimization(cons=cons,eps=1e-1)
     e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
     e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
     e.generate_state_index_dictionary()

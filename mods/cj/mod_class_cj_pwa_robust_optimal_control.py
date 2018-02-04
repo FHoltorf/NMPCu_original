@@ -788,7 +788,7 @@ class SemiBatchPolymerization(ConcreteModel):
         
         def _pc_T_max(self,i,j,s):
             if j > 0:
-                return 0.0 == (self.T_safety + self.Tb) - self.T[i,j,s]*self.T_scale - self.s_T_max[i,j,s] + self.eps_pc[i,j,2,s]
+                return 0.0 == (self.T_safety + self.Tb) - self.T[i,j,s]*self.T_scale - self.s_T_max[i,j,s] + self.eps_pc[i,j,2,s] - self.xi_T_max[i,j,s]
             else:
                 return Constraint.Skip
         
@@ -796,7 +796,7 @@ class SemiBatchPolymerization(ConcreteModel):
         
         def _pc_T_min(self,i,j,s):
             if j > 0:
-                return 0.0 == self.T[i,j,s]*self.T_scale - (100.0 + self.Tb) - self.s_T_min[i,j,s] + self.eps_pc[i,j,3,s]
+                return 0.0 == self.T[i,j,s]*self.T_scale - (100.0 + self.Tb) - self.s_T_min[i,j,s] + self.eps_pc[i,j,3,s] - self.xi_T_min[i,j,s]
             else:
                 return Constraint.Skip
         
@@ -944,6 +944,9 @@ class SemiBatchPolymerization(ConcreteModel):
         self.MW_c.rule = lambda self,i,j,s: 0.0 == self.MX[i,j,1,s]*self.MX1_scale - (self.MW[i,j,s]*self.MW_scale - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[i,j,0,s]*self.MX0_scale if j > 0 else Constraint.Skip
         self.MW_c.reconstruct()
 
+        #self.eobj.expr += 1000 * (self.MW[self.nfe,self.ncp,1]*self.MW_scale-self.molecular_weight)**2
+        #self.epc_mw.deactivate()
+        
     def equalize_u(self, direction="u_to_r"):
         """set current controls to the values of their respective dummies"""
         if direction == "u_to_r":
@@ -1048,7 +1051,7 @@ class SemiBatchPolymerization(ConcreteModel):
         m_aux.dvar_t_T_cw.deactivate()
         m_aux.T_cw_icc.deactivate()
         m_aux.T_cw.fix(397.0/self.T_scale)
-        m_aux.F[1] = 1.0
+        m_aux.F[1] = 1.26
         m_aux.F[1].fixed = True
         m_aux.tf = min(15.0*24.0/self.nfe,15.0)
         m_aux.tf.fixed = True

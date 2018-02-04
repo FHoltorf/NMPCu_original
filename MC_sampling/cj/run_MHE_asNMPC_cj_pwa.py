@@ -27,14 +27,14 @@ def run():
     states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
     x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
     x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)], "T":[()], "T_cw":[()]}
-    p_noisy = {"A":['p','i'],'kA':[()]}
+    p_noisy = {"A":[('p',),('i',)],'kA':[()]}
     u = ["u1", "u2"]
     u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)} 
     
     y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
     y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
     nfe = 24
-    tf_bounds = [10.0*24.0/nfe, 20.0*24.0/nfe]
+    tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
     
     pc = ['Tad','T']
     
@@ -88,7 +88,7 @@ def run():
         e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
     
         e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
-        e.set_regularization_weights(R_w=2.0,Q_w=2.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
+        e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
         e.solve_olnmpc() # solves the olnmpc problem
         e.olnmpc.write_nl()
         

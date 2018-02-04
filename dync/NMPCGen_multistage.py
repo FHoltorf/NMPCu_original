@@ -130,6 +130,106 @@ class NmpcGen(DynGen):
         self.nfe_mhe = 1
         self.nfe_t_0 = 0 # gets set during the recipe optimization
 
+    def open_loop_simulation(self, sample_size = 10, **kwargs):
+        # simulates the current
+        # options: process_noise --> gaussian noise added to all states
+        #          parameter noise --> noise added to the uncertain model parameters
+        #                               or different ones
+        #          input noise --> noise added to the inputs/controls
+        # not exhaustive list, can be adapted/extended as one wishes
+        # combination of all the above with noise in the initial point supporte
+        initial_disturbance = kwargs.pop('initial_disturbance', {(x,j):0.0 for x in self.states for j in self.state_vars[x]})
+        parameter_disturbance = kwargs.pop('parameter_disturbance', {})
+        input_disturbance = kwargs.pop('input_disturbance',{})
+
+        # deactivate constraints
+        self.simulation_model = self.d_mod(self.nfe_t, self.ncp_t)
+        self.simulation_model.deactivate_epc()
+        self.simulation_model.deactivate_pc()
+        self.simulation_model.eobj.deactivate()
+        self.simulation_model.del_pc_bounds()
+        self.simulation_model.clear_aux_bounds()
+        self.simulation_model.fix_element_size.deactivate()
+        
+        # load initial guess from recipe optimization
+        for var in self.simulation_model.component_objects(Var):
+            var_ref = getattr(self.recipe_optimization_model, var.name)
+            for key in var.index_set():
+                var[key].value = var_ref[key].value
+        
+        nominal_initial_point = {}
+        for x in self.states: 
+            xic = getattr(self.recipe_optimization_model, x+'_ic')
+            for j in self.state_vars[x]:
+                key = j[1:] if j != (1,) else None
+                nominal_initial_point[(x,j)] = xic[key].value
+                    
+        if parameter_disturbance != {}:
+            for p in parameter_disturbance:
+                key = p[1] if p[1] != () else None
+                disturbed_parameter = getattr(self.recipe_optimization_model, p[0])
+                self.nominal_parameter_values[p] = disturbed_parameter[key].value
+                
+        for u in self.u:
+            control = getattr(self.simulation_model, u)
+            control.fix()
+            
+        endpoint_constraints = {}
+        pc_trajectory = {}
+        # set and fix controls + add noise
+        for k in range(sample_size):
+            print('#'*20)
+            print(' '*5 + 'iter: ' + str(k))
+            print('#'*20)
+            pc_trajectory[k] = {}
+            if initial_disturbance != {}:
+                for x in self.states:
+                    xic = getattr(self.simulation_model,x+'_ic')
+                    for j in self.state_vars[x]:
+                        key = j[1:] if j != (1,) else None
+                        xic[key].value = nominal_initial_point[(x,j)] * (1 + np.random.normal(loc=0.0, scale=initial_disturbance[(x,j)]))
+            if input_disturbance != {}:
+                for u in input_disturbance:
+                    control = getattr(self.simulation_model, u)
+                    for i in range(1,self.nfe_t+1):
+                        disturbance_noise = np.random.normal(loc=0.0, scale=input_disturbance[u])
+                        control[i,1].value = self.reference_control_trajectory[u,(i,1)]*(1+disturbance_noise)
+            if parameter_disturbance != {}:
+                for p in parameter_disturbance:
+                    key = p[1] if p[1] != () else None
+                    disturbed_parameter = getattr(self.simulation_model, p[0])
+                    disturbed_parameter[key].value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0]))    
+            
+            self.simulation_model.tf.fix()
+            self.simulation_model.equalize_u(direction="u_to_r")
+            # run the simulation
+            ip = SolverFactory("asl:ipopt")
+            ip.options["halt_on_ampl_error"] = "yes"
+            ip.options["print_user_options"] = "yes"
+            ip.options["linear_solver"] = "ma57"
+            ip.options["tol"] = 1e-8
+            ip.options["max_iter"] = 3000
+                
+            out = ip.solve(self.simulation_model, tee=True, symbolic_solver_labels=True)
+            if  [str(out.solver.status), str(out.solver.termination_condition)] == ['ok','optimal']:
+                converged = True
+            else:
+                converged = False
+        
+            if converged:
+                endpoint_constraints[k] = self.simulation_model.check_feasibility(display=True)
+                for pc_name in self.path_constraints:
+                    pc_var = getattr(self.simulation_model, pc_name)
+                    for fe in self.simulation_model.fe_t:
+                        for cp in self.simulation_model.cp:
+                            pc_trajectory[k][(pc_name,(fe,(cp,)))] = pc_var[fe,cp,1].value
+                            pc_trajectory[k][('tf',(fe,cp))] = self.simulation_model.tau_i_t[cp]*self.recipe_optimization_model.tf[1,1].value
+            else:
+                self.simulation_model.troubleshooting()
+                sys.exit()
+                endpoint_constraints[k] = 'error'
+        
+        return endpoint_constraints, pc_trajectory
         
     def plant_simulation(self,result,first_call = False, **kwargs):
         print("plant_simulation")      
@@ -199,19 +299,19 @@ class NmpcGen(DynGen):
         
         if first_call:
             for x in self.states:
-                    xic = getattr(self.plant_simulation_model,x+'_ic')
-                    xvar = getattr(self.plant_simulation_model,x)
-                    for j in self.state_vars[x]:
-                        j_ic = j[:-1]
-                        if j_ic == ():
-                            xic.value = xic.value * (1.0 + np.random.normal(loc=0.0, scale=initial_disturbance[(x,j_ic)]))
-                            aux = xic.value
-                        else:
-                            xic[j_ic].value = xic[j_ic].value * (1.0 + np.random.normal(loc=0.0, scale=initial_disturbance[(x,j_ic)]))
-                            aux = xic[j_ic].value
-                        # just for initialization purposes for the simulation
-                        for k in range(0,self.ncp_t+1):
-                            xvar[(1,k)+j].value = aux
+                xic = getattr(self.plant_simulation_model,x+'_ic')
+                xvar = getattr(self.plant_simulation_model,x)
+                for j in self.state_vars[x]:
+                    j_ic = j[:-1]
+                    if j_ic == ():
+                        xic.value = xic.value * (1.0 + np.random.normal(loc=0.0, scale=initial_disturbance[(x,j_ic)]))
+                        aux = xic.value
+                    else:
+                        xic[j_ic].value = xic[j_ic].value * (1.0 + np.random.normal(loc=0.0, scale=initial_disturbance[(x,j_ic)]))
+                        aux = xic[j_ic].value
+                    # just for initialization purposes for the simulation
+                    for k in range(0,self.ncp_t+1):
+                        xvar[(1,k)+j].value = aux
             
             # initialization of the simulation (initial guess)               
             for var in self.plant_simulation_model.component_objects(Var, active=True):
@@ -960,7 +1060,7 @@ class NmpcGen(DynGen):
         
         results = ip.solve(self.olnmpc,tee=True)
         self.olnmpc.solutions.load_from(results)
-        self.olnmpc.write_nl()         
+        #self.olnmpc.write_nl()         
         if not(str(results.solver.status) == 'ok' and str(results.solver.termination_condition) == 'optimal'):
             print('olnmpc failed to converge')
             

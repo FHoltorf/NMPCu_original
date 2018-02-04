@@ -507,8 +507,8 @@ class MheGen(NmpcGen):
             ##################################################################
             # comute principle components of approximate 95%-confidence region
             ##################################################################
-            try: # adapt parameters iff estimates are confident
-                dimension = int(np.sqrt(len(self.mhe_confidence_ellipsoids[1])))
+            try: # adapt parameters iff estimates are confident enough
+                dimension = int(np.round(np.sqrt(len(self.mhe_confidence_ellipsoids[1]))))
                 confidence = chi2.isf(1-0.95,dimension)
                 A_dict = self.mhe_confidence_ellipsoids[self.iterations-1]
                 # assemble dimension x dimension array
@@ -541,7 +541,8 @@ class MheGen(NmpcGen):
                         for key in self.p_noisy[p]:
                             pkey = key if key != () else None 
                             self.curr_epars[(p,key)] = p_mhe[pkey].value
-            
+                    else:
+                        pass
             # adapt parameters iff estimates are confident enough
 #            if self.adapt_params:
 #                for p in self.p_noisy:
@@ -561,48 +562,76 @@ class MheGen(NmpcGen):
             ###############################################################
             if self.update_scenario_tree: 
                 # idea: go through the axis of the ellipsoid (U) and include the intersections of this axis with confidence ellipsoid on both ends as scenarios (sigmapoints)
-                # only accept these scenarios if sigmapoints are inside hypercube spanned by euclidean unit vectors around nominal value  
-                l = 0
-                scenarios = {}    
+                # only accept these scenarios if sigmapoints are inside hypercube spanned by initial bounds              
+                #1: check if all semiaxis lie inside hyperrectangle
+                shrink = True
+                dev = {(p,key):-1e9 for p in self.p_noisy for key in self.p_noisy[p]}
                 for m in range(dimension):
-                    l += 2
                     for p in self.p_noisy:
                         p_mhe = getattr(self.lsmhe,p)
-                        for key in self.p_noisy[p]:    
-                            pkey = key if key != () else None 
+                        for key in self.p_noisy[p]:
+                            pkey = key if key != () else None
                             index = self.PI_indices[p,key]
-                            dev = -1e8
-                            for check in range(dimension): # little redundant but ok
-                                dev = max(dev,(abs(radii[check]*U[index][check]) + p_mhe[pkey].value)/p_mhe[pkey].value)
-                            if dev < 1 + self.confidence_threshold:# confident enough in parameter estimate --> adapt parameter in prediction and NMPC model
-                                if dev > 1 + self.robustness_threshold:# minimum robustness threshold is not reached
-                                    # scenario tree : {(i,s):parent_node i, parent_node s, base node (True/False), scenario values {'name',(index):value}}
-                                    scenarios[(p,(key,)),l] = (radii[m]*U[index][m] + p_mhe[pkey].value)/p_mhe[pkey].value
-                                    scenarios[(p,(key,)),l+1] = (p_mhe[pkey].value - radii[m]*U[index][m])/p_mhe[pkey].value
-                                else:# minimum robustness threshold is reached already
-                                    if np.sign(U[index][m]) == 1:
-                                        scenarios[(p,(key,)),l] = 1+self.robustness_threshold
-                                        scenarios[(p,(key,)),l+1] = 1-self.robustness_threshold
-                                    else:
-                                        scenarios[(p,(key,)),l] = 1-self.robustness_threshold
-                                        scenarios[(p,(key,)),l+1] = 1+self.robustness_threshold
+                            dev[p,key] = max(dev[p,key], abs(radii[m]*U[index][m]/p_mhe[pkey].value), self.robustness_threshold)
+                            if dev[p,key] > self.confidence_threshold:
+                                shrink = False
+                            if not(shrink):
+                                break
+                        if not(shrink):
+                            break
+                    if not(shrink):
+                        break
+                    
+                # shrink hyperrectangle according to max semi-axis size 
+                if shrink:
+                    for k in self.st:
+                        for index in self.st[k][3]:
+                            if k[1] != 1:
+                                self.st[k][3][index] =  1.0 + dev[index] if self.st[k][3][index] > 1.0 else 1.0 - dev[index]
                             else:
-                                if np.sign(U[index][m]) == 1:
-                                    scenarios[(p,(key,)),l] = 1+self.confidence_threshold
-                                    scenarios[(p,(key,)),l+1] = 1-self.confidence_threshold
-                                else:
-                                    scenarios[(p,(key,)),l] = 1-self.confidence_threshold
-                                    scenarios[(p,(key,)),l+1] = 1+self.confidence_threshold
-                # update scenario tree
-                for k in self.st:
-                    for index in self.st[k][3]:
-                        p = index[0]
-                        key = index[1:]
-                        try:
-                            self.st[k][3][index] = scenarios[(p,key),k[1]]
-                        except KeyError:
-                            self.st[k][3][index] = 1.0
-            
+                                continue
+# old semi-axis version                    
+#                scenarios = {}
+#                for m in range(dimension):
+#                    l += 2
+#                    for p in self.p_noisy:
+#                        p_mhe = getattr(self.lsmhe,p)
+#                        for key in self.p_noisy[p]:    
+#                            pkey = key if key != () else None 
+#                            index = self.PI_indices[p,key]
+#                            dev = -1e8
+#                            for check in range(dimension): # little redundant but ok
+#                                dev = max(dev,(abs(radii[check]*U[index][check]) + p_mhe[pkey].value)/p_mhe[pkey].value)
+#                            if dev < 1 + self.confidence_threshold:# confident enough in parameter estimate --> adapt parameter in prediction and NMPC model
+#                                if dev > 1 + self.robustness_threshold:# minimum robustness threshold is not reached
+#                                    # scenario tree : {(i,s):parent_node i, parent_node s, base node (True/False), scenario values {'name',(index):value}}
+#                                    scenarios[(p,key),l] = (radii[m]*U[index][m] + p_mhe[pkey].value)/p_mhe[pkey].value
+#                                    scenarios[(p,key),l+1] = (p_mhe[pkey].value - radii[m]*U[index][m])/p_mhe[pkey].value
+#                                else:# minimum robustness threshold is reached already
+#                                    if np.sign(U[index][m]) == 1:
+#                                        scenarios[(p,key),l] = 1+self.robustness_threshold
+#                                        scenarios[(p,key),l+1] = 1-self.robustness_threshold
+#                                    else:
+#                                        scenarios[(p,key),l] = 1-self.robustness_threshold
+#                                        scenarios[(p,key),l+1] = 1+self.robustness_threshold
+#                            else:
+#                                if np.sign(U[index][m]) == 1:
+#                                    scenarios[(p,key),l] = 1+self.confidence_threshold
+#                                    scenarios[(p,key),l+1] = 1-self.confidence_threshold
+#                                else:
+#                                    scenarios[(p,key),l] = 1-self.confidence_threshold
+#                                    scenarios[(p,key),l+1] = 1+self.confidence_threshold
+#                
+#                # update scenario tree
+#                for k in self.st:
+#                    for index in self.st[k][3]:
+#                        p = index[0]
+#                        key = index[1]
+#                        try:
+#                            self.st[k][3][index] = scenarios[(p,key),k[1]]
+#                        except KeyError:
+#                            continue
+
 
     def compute_offset_measurements(self):
         mhe_y = getattr(self.lsmhe, "yk0_mhe")
