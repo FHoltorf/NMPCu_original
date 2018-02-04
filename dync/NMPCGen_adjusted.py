@@ -495,7 +495,10 @@ class NmpcGen(DynGen):
         self.simulation_trajectory[self.iterations,'obj_fun'] = 0.0
         
         if [str(out.solver.status), str(out.solver.termination_condition)] != ['ok','optimal']:
-            self.forward_simulation_model.clear_all_bounds()
+            #self.forward_simulation_model.clear_all_bounds()
+            for index in self.forward_simulation_model.T_cw.index_set():
+                self.forward_simulation_model.T_cw[index].setlb(None)
+                self.forward_simulation_model.T_cw[index].setub(None)
             out = ip.solve(self.forward_simulation_model, tee = True, symbolic_solver_labels=True)
             
         self.simulation_trajectory[self.iterations,'solstat'] = [str(out.solver.status), str(out.solver.termination_condition)]
