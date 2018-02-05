@@ -101,6 +101,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                         aux_key = (key[1],k[0],k[1])
                     p[aux_key] = self.scenario_tree[k][3][key]
             except:
+                # catch case if scenario_tree includes more scenarios than self.s does
                 continue
         # parameters for l1-relaxation of endpoint-constraints
         self.eps = Var(self.epc, self.s, initialize=0, bounds=(0,None))
@@ -172,7 +173,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         
         # parameters for initializing differential variabales
         self.W_ic = Param(initialize= self.n_H2O/self.W_scale, mutable=True)
-        self.PO_ic = Param(initialize = 0, mutable=True)
+        self.PO_ic = Param(initialize = 0.0, mutable=True)
         self.m_tot_ic = Param(initialize = (self.m_PG+self.m_KOH+self.m_H2O)/self.m_tot_scale, mutable=True)
         self.X_ic = Param(initialize = (self.n_PG*self.num_OH+self.n_H2O*self.num_OH)/self.X_scale, mutable=True)
         self.Y_ic = Param(initialize = 0.0, mutable=True)

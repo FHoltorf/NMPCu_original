@@ -7,8 +7,8 @@ Created on Wed Nov  1 13:49:10 2017
 """
 import pickle
 # relative standard deviation that is associated with disturbances
-disturbance_error = 0.15
-measurement_error = 0.15
+disturbance_error = 0.05
+measurement_error = 0.05
 disturbance_error_1 = 0.0
 disturbance_error_2 = 0.0
 
@@ -84,7 +84,7 @@ x_measurement[("MW",())] = measurement_error
 x_measurement[("m_tot",())] = 0.005
 x_measurement[("PO_fed",())] = 0.0
 x_measurement[("heat_removal",())] =  measurement_error
-x_measurement[("T",())] = measurement_error
+x_measurement[("T",())] = 0.01
 x_measurement[("T_cw",())] = 0.0
 
 # uncertainty in initial point

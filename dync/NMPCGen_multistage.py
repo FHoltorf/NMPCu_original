@@ -1618,19 +1618,19 @@ class NmpcGen(DynGen):
                     continue
                 s += 1
                      
-        self.s_used = s
-        
-        self.nmpc_trajectory[self.iterations, 's_max'] = s
-        # tailored for twostage
+        self.s_used = s**self.nr
+        self.nmpc_trajectory[self.iterations, 's_max'] = s**self.nr
+        s_per_branch = s
+        # update scenario tree
         for i in range(1,self.nfe_t+1):
-            if i == 1:
-                for s in range(1,self.s_used**i+1):
-                    if s == 1:
-                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(self.s_max))),True,{(p,key) : 1.0 for p in self.p_noisy for key in self.p_noisy[p]})
+            if i < self.nr + 1:
+                for s in range(1,s_per_branch**i+1):
+                    if s%s_per_branch==1:
+                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(s_per_branch))),True,{(p,key) : 1.0 for p in self.p_noisy for key in self.p_noisy[p]})
                     else:
-                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(self.s_max))),False,{(p,key) : 1.0 + scenarios[s][(p,key)] for p in self.p_noisy for key in self.p_noisy[p]})
+                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(s_per_branch))),False,{(p,key) : 1.0 + scenarios[s%(s_per_branch+1)][(p,key)] for p in self.p_noisy for key in self.p_noisy[p]})
             else:
-                for s in range(1,self.s_used**self.nr+1):
+                for s in range(1,s_per_branch+1):
                     self.st[(i,s)] = (i-1,s,True,self.st[(i-1,s)][3])
     
     def st_adaption(self, set_type=None, cons = [], **kwargs):
@@ -1648,7 +1648,8 @@ class NmpcGen(DynGen):
                             par_bounds=bounds)
         else:
             sys.exit('unknown uncertainty set type')
-            
+    
+        
     def SBSG_hyrec(self,cons = [], **kwargs):    
         # for hyperrectangles:
         # solve for all constraints (all timepoints) the optimization problem:
@@ -1802,20 +1803,24 @@ class NmpcGen(DynGen):
             if len(con_vio_copy) == 0:
                 break
         
-        self.s_used = s
-        self.nmpc_trajectory[self.iterations, 's_max'] = s
-
+        self.s_used = s**self.nr
+        self.nmpc_trajectory[self.iterations, 's_max'] = s**self.nr
+        s_per_branch = s
+            
+        # update scenario tree
         for i in range(1,self.nfe_t+1):
-            if i == 1:
-                for s in range(1,self.s_used**i+1):
-                    if s == 1:
-                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(self.s_max))),True,{(p,key) : 1.0 for p in self.p_noisy for key in self.p_noisy[p]})
+            if i < self.nr + 1:
+                for s in range(1,s_per_branch**i+1):
+                    if s%s_per_branch==1:
+                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(s_per_branch))),True,{(p,key) : 1.0 for p in self.p_noisy for key in self.p_noisy[p]})
                     else:
-                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(self.s_max))),False,{(p,key) : 1.0 + scenarios[s][(p,key)] for p in self.p_noisy for key in self.p_noisy[p]})
+                        key = s%s_per_branch 
+                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(s_per_branch))),False,{(p,key) : 1.0 + scenarios[s%(s_per_branch+1)][(p,key)] for p in self.p_noisy for key in self.p_noisy[p]})
             else:
-                for s in range(1,self.s_used**self.nr+1):
+                for s in range(1,s_per_branch**self.nr+1):
                     self.st[(i,s)] = (i-1,s,True,self.st[(i-1,s)][3])
-                    
+        print(scenarios)
+            
     def SBSG_hyell(self, m, cons = [], **kwargs):
         # for ellipsoidal sets:
         # solve for all constraints (all timepoints) the optimization problem:
@@ -1999,22 +2004,22 @@ class NmpcGen(DynGen):
             con_vio_copy = {key: value for key, value in con_vio_copy.items() if np.linalg.norm(delta_p_wc[key]-delta_p_wc[wc_scenario]) >= epsilon}
             if len(con_vio_copy) == 0:
                 break
-        self.s_used = s
-        self.nmpc_trajectory[self.iterations, 's_max'] = s
+
+        self.s_used = s**self.nr
+        self.nmpc_trajectory[self.iterations, 's_max'] = s**self.nr
+        s_per_branch = s
             
         # update scenario tree
-        # tailored to 2 stage stochastic programming currently
         for i in range(1,self.nfe_t+1):
-            if i == 1:
-                for s in range(1,self.s_used**i+1):
-                    if s == 1:
-                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(self.s_max))),True,{(p,key) : 1.0 for p in self.p_noisy for key in self.p_noisy[p]})
+            if i < self.nr + 1:
+                for s in range(1,s_per_branch**i+1):
+                    if s%s_per_branch==1:
+                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(s_per_branch))),True,{(p,key) : 1.0 for p in self.p_noisy for key in self.p_noisy[p]})
                     else:
-                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(self.s_max))),False,{(p,key) : 1.0 + scenarios[s][cols_r[(p,key)]] for p in self.p_noisy for key in self.p_noisy[p]})
+                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(s_per_branch))),False,{(p,key) : 1.0 + scenarios[s%(s_per_branch+1)][(p,key)] for p in self.p_noisy for key in self.p_noisy[p]})
             else:
-                for s in range(1,self.s_used**self.nr+1):
+                for s in range(1,s_per_branch+1):
                     self.st[(i,s)] = (i-1,s,True,self.st[(i-1,s)][3])
-
             
             
         
