@@ -4,10 +4,6 @@
 Created on Thu Nov  9 14:39:42 2017
 
 @author: flemmingholtorf
-
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-Care if Hrxn uncertain --> meaningfulness of heat_removal values has to considered
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 """
 
 import numpy as np
@@ -22,24 +18,23 @@ import time
 #from main.MC_sampling.no_cj.run_MHE_asNMPC_backoff import *
 
 # model with cooling jacket 
-#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
+from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBSG import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBBM import *
-from main.MC_sampling.cj.run_MHE_asNMPC_cj_pwa import *
+#from main.MC_sampling.cj.run_MHE_asNMPC_cj_pwa import *
 
-
 #################################################################
 #################################################################
 #################################################################
-###   CAN RUN EVERYTHING THAT USES dx_dp NOT SIMULTANEOUSLY   ###
+###   CAN NOT RUN EVERYTHING THAT USES dx_dp SIMULTANEOUSLY   ###
 #################################################################
 #################################################################
 #################################################################
 # inputs
 sample_size = 50
 # specifiy directory where to save the resulting files
-path = 'results/cj/MHE/ideal/' 
+path = 'results/cj/MHE/ideal/challengeident/' 
 # colors
 color = ['green','red','blue']
 tf = {}

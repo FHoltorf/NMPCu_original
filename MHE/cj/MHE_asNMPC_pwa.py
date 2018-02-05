@@ -30,7 +30,7 @@ from copy import deepcopy
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)], "T":[()], "T_cw":[()]}
-p_noisy = {"A":['p','i'],'kA':[()]}
+p_noisy = {"A":[('p',),('i',)],'kA':[()]}
 u = ["u1", "u2"]
 u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)} 
 
@@ -53,6 +53,7 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            noisy_inputs = False,
            noisy_params = True,
            adapt_params = False,
+#           process_noise_model = 'params',
            u_bounds=u_bounds,
            diag_QR=False,
            nfe_t=nfe,
@@ -91,7 +92,7 @@ for i in range(1,nfe):
     e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
 
     e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
-    e.set_regularization_weights(R_w=2.0,Q_w=2.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
+    e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
     e.solve_olnmpc() # solves the olnmpc problem
     e.olnmpc.write_nl()
     
@@ -100,9 +101,8 @@ for i in range(1,nfe):
     e.sens_k_aug_nmpc()
     
     #solve mhe problem
-    e.solve_mhe(fix_noise=True) # solves the mhe problem
-    previous_mhe = e.store_results(e.lsmhe)
-    
+    previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
+        
     # update state estimate 
     e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True
     
@@ -172,7 +172,7 @@ for m in moment:
         plt.legend()
         l += 1
 
-plots = [('Y',()),('PO',()),('W',()),('MY',()),('T',())]
+plots = [('Y',()),('PO',()),('W',()),('MY',()),('T',()),('T_cw',())]
 for p in plots: 
     state_traj_ref = np.array([e.reference_state_trajectory[(p[0],(i,3))] for i in range(1,nfe+1)]) 
     state_traj_nmpc = np.array([e.nmpc_trajectory[i,p] for i in range(1,k)])

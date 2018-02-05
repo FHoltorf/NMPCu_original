@@ -543,53 +543,81 @@ class MheGen(NmpcGen):
                             self.curr_epars[(p,key)] = p_mhe[pkey].value
                     else:
                         pass
-            # adapt parameters iff estimates are confident enough
-#            if self.adapt_params:
-#                for p in self.p_noisy:
-#                    p_mhe = getattr(self.lsmhe,p)
-#                    for key in self.p_noisy[p]:
-#                        index = self.PI_indices[p,key]
-#                        dev = -1e8
-#                        for m in range(dimension):
-#                             dev = max(dev,(abs(radii[m]*U[index][m]) + p_mhe[key].value)/p_mhe[key].value)
-#                        if dev < 1 + self.confidence_threshold:
-#                            self.curr_epars[(p,key)] = p_mhe[key].value
-#                        else:
-#                            continue
+                
+
+
             ###############################################################
             ### DISCLAIMER:
             ### currently tailored to two stage which is reasonable since multiple stages do not make sense
             ###############################################################
-            if self.update_scenario_tree: 
-                # idea: go through the axis of the ellipsoid (U) and include the intersections of this axis with confidence ellipsoid on both ends as scenarios (sigmapoints)
-                # only accept these scenarios if sigmapoints are inside hypercube spanned by initial bounds              
-                #1: check if all semiaxis lie inside hyperrectangle
-                shrink = True
-                dev = {(p,key):-1e9 for p in self.p_noisy for key in self.p_noisy[p]}
-                for m in range(dimension):
-                    for p in self.p_noisy:
-                        p_mhe = getattr(self.lsmhe,p)
-                        for key in self.p_noisy[p]:
-                            pkey = key if key != () else None
-                            index = self.PI_indices[p,key]
-                            dev[p,key] = max(dev[p,key], abs(radii[m]*U[index][m]/p_mhe[pkey].value), self.robustness_threshold)
-                            if dev[p,key] > self.confidence_threshold:
-                                shrink = False
-                            if not(shrink):
-                                break
-                        if not(shrink):
-                            break
-                    if not(shrink):
-                        break
-                    
-                # shrink hyperrectangle according to max semi-axis size 
-                if shrink:
-                    for k in self.st:
-                        for index in self.st[k][3]:
-                            if k[1] != 1:
-                                self.st[k][3][index] =  1.0 + dev[index] if self.st[k][3][index] > 1.0 else 1.0 - dev[index]
-                            else:
-                                continue
+            # alternative: use the projections on the axis
+            # projection x^T A x = 1
+            # A_k = A with kth row and kth column with zeros and akk = 1
+            # solve A_k*D_k = Z_k 
+            # with Z_k = -a_k (kth column of A) and Z_k,k = 1.0
+            # delta_x_k = np.sqrt(a_k^T*D_k)
+            
+                #
+            if self.update_scenario_tree:
+                dev = {(p,key):self.confidence_threshold for p in self.p_noisy for key in self.p_noisy[p]}
+                for p in self.p_noisy:
+                    p_mhe = getattr(self.lsmhe,p)
+                    for key in self.p_noisy[p]:
+                        pkey = key if key != () else None
+                        k = self.PI_indices[p,key]
+                        A_k = deepcopy(A)
+                        A_k[:,k] = 0.0
+                        A_k[k,:] = 0.0
+                        A_k[k,k] = 1.0
+                        Z_k = np.zeros(dimension)
+                        Z_k[:] = -A[:,k]
+                        Z_k[k] = 1.0
+                        a_k = A[k,:]
+                        D_k = np.linalg.solve(A_k,Z_k)
+                        dev_k = np.sqrt(1/np.dot(a_k,D_k))/p_mhe[pkey].value
+                        # use new interval if robustness_threshold < dev_k < confidence_threshold
+                        dev[(p,key)] = min(self.confidence_threshold,max(self.robustness_threshold, dev_k))
+                                                
+                # update scenario_tree
+                for k in self.st:
+                    for index in self.st[k][3]:
+                        if k[1] != 1: # 1 is nominal scenario
+                            self.st[k][3][index] =  1.0 + dev[index] if self.st[k][3][index] > 1.0 else 1.0 - dev[index]
+                        else:
+                            continue   
+            
+#            if self.update_scenario_tree: 
+#                # idea: go through the axis of the ellipsoid (U) and include the intersections of this axis with confidence ellipsoid on both ends as scenarios (sigmapoints)
+#                # only accept these scenarios if sigmapoints are inside hypercube spanned by initial bounds              
+#                #1: check if all semiaxis lie inside hyperrectangle
+#                shrink = True
+#                dev = {(p,key):-1e9 for p in self.p_noisy for key in self.p_noisy[p]}
+#                for m in range(dimension):
+#                    for p in self.p_noisy:
+#                        p_mhe = getattr(self.lsmhe,p)
+#                        for key in self.p_noisy[p]:
+#                            pkey = key if key != () else None
+#                            index = self.PI_indices[p,key]
+#                            dev[p,key] = max(dev[p,key], abs(radii[m]*U[index][m]/p_mhe[pkey].value), self.robustness_threshold)
+#                            if dev[p,key] > self.confidence_threshold:
+#                                shrink = False
+#                            if not(shrink):
+#                                break
+#                        if not(shrink):
+#                            break
+#                    if not(shrink):
+#                        break
+#                    
+#                # shrink hyperrectangle according to max semi-axis size 
+#                if shrink:
+#                    for k in self.st:
+#                        for index in self.st[k][3]:
+#                            if k[1] != 1:
+#                                self.st[k][3][index] =  1.0 + dev[index] if self.st[k][3][index] > 1.0 else 1.0 - dev[index]
+#                            else:
+#                                continue
+                
+
 # old semi-axis version                    
 #                scenarios = {}
 #                for m in range(dimension):

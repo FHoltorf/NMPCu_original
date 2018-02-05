@@ -38,7 +38,7 @@ uncertainty_level = {('A',('p')):0.1,('A',('i')):0.1,('kA',()):0.1}
 nominal_values = {('A',('p')):e.A['p'].value,('A',('i')):e.A['i'].value,('kA',()):e.kA.value}
 
 # sampling
-sample_size = 1000
+sample_size = 100
 sampled_res = {}
 m = SemiBatchPolymerization(24,3)
 m.create_output_relations()
@@ -96,7 +96,7 @@ for t in range(1,25):
     for j in range(sample_size):
         _dw = np.zeros((nx,1))
         for i in range(nx):
-            _dw[i][0]=dw[j][row_order[i][0],t]
+            _dw[i,0]=dw[j][row_order[i][0],t]
             sum_Q += np.dot(_dw,_dw.transpose())
     _Q[t] = 1.0/sample_size*sum_Q
     _Q_inv[t] = np.linalg.inv(_Q[t])

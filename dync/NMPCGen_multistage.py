@@ -198,7 +198,17 @@ class NmpcGen(DynGen):
                 for p in parameter_disturbance:
                     key = p[1] if p[1] != () else None
                     disturbed_parameter = getattr(self.simulation_model, p[0])
-                    disturbed_parameter[key].value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0]))    
+                    sigma = parameter_disturbance[p][0]
+                    rand = np.random.normal(loc=0.0, scale=sigma)
+                    if abs(rand) < 2*sigma:
+                        disturbed_parameter[key].value = self.nominal_parameter_values[p] * (1 + rand) 
+                    else:
+                        if rand < 0:
+                           disturbed_parameter[key].value = self.nominal_parameter_values[p] * (1 - 2*sigma)
+                        else:
+                            disturbed_parameter[key].value = self.nominal_parameter_values[p] * (1 + 2*sigma)
+                           
+                        
             
             self.simulation_model.tf.fix()
             self.simulation_model.equalize_u(direction="u_to_r")
@@ -1912,6 +1922,7 @@ class NmpcGen(DynGen):
                     sens[i-1][k-1] = -float(col) #indices start at 0
                     k += 1
                 i += 1  
+                
         # reorder self._PI (reduced hessian) and invert
         A = np.zeros((tot_cols,tot_cols))  # can be sped up by exploiting symmetry
         for index1 in cols:
@@ -1920,7 +1931,9 @@ class NmpcGen(DynGen):
             for index2 in cols:
                 key_sens2 = cols[index2]
                 key_PI2 = shape_matrix_indices[key_sens2]
-                A[index1][index2] = shape_matrix[key_PI1][key_PI2] # unnecessary when using the inverse of the reduced hessian directly, ask David about k_aug 
+                A[index1][index2] = shape_matrix[key_PI1][key_PI2] 
+        
+        # unnecessary when using the inverse of the reduced hessian directly, ask David about k_aug 
         A_inv = np.linalg.inv(A) # in principle not required, scaled inverse reduced hessian
         
         # compute worst case parameter realizations and expected violations:
@@ -1928,7 +1941,14 @@ class NmpcGen(DynGen):
         con_vio = {}
         for i in rows:
             con = rows[i] # ('s_name', index)
-            dsdp = sens[i][:].transpose()
+            # transpose is not required since python will adjust it according to the 
+            # operation and matrix anyway
+            # sens[i,:] draws the same thing as sens[i][:]
+            # ATTENTION:
+            # sens[i][:] sets the same thing as sens[:][i] (always row i)
+            # if vectors are set use sens[i,:] sets all variables of a row
+            # sens[:,i] sets all variables of a column
+            dsdp = sens[i][:].transpose() # row i in dsdp, sensitivity of rhs to parameters
             aux = np.sqrt(np.dot(dsdp.transpose(),np.dot(A_inv,dsdp)))
             delta_p_wc[con] = np.dot(A_inv,dsdp)/aux
             # get current constraint violation (slack)

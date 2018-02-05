@@ -131,7 +131,7 @@ for i in range(1,nfe):
     
     # solve the advanced step problems
     e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
-    
+
     e.solve_olnmpc() # solves the olnmpc problem
     e.olnmpc.write_nl()
     
@@ -256,6 +256,7 @@ e.plant_simulation_model.check_feasibility(display=True)
 ###         Plotting 1st Order Approximation of Confidence Region 
 ###############################################################################
 try:
+    plt.figure(l)
     dimension = 2 # dimension n of the n x n matrix = #DoF
     rhs_confidence = chi2.isf(1.0-0.95,dimension) # 0.1**2*5% measurment noise, 95% confidence level, dimension degrees of freedo
     rows = {}

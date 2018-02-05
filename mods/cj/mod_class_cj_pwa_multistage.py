@@ -1131,7 +1131,24 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.u2_multimodel = Constraint(self.fe_t, self.s, rule=lambda self,i,s: self.u2[i,s] == self.u2[i,1] if s != 1 else Constraint.Skip)
         self.tf_multimodel = Constraint(self.fe_t, self.s, rule=lambda self,i,s: self.tf[i,s] == self.tf[i,1] if s != 1 else Constraint.Skip)
         
-    
+        self.theta = Var(initialize=1e4, bounds=(0.0,None))
+        
+        self.epi = ConstraintList()        
+        self.epc_mw.deactivate()
+        for index in self.MW.index_set():
+            i = index[0]
+            j = index[1]
+            s = 1
+            if j != 0 and (i,s) in self.scenario_tree:
+                self.MW[index] = (self.MX[i,j,1,s].value*self.MX1_scale/(self.MX[i,j,0,s].value*self.MX0_scale)*self.mw_PO.value*self.num_OH.value + self.mw_PG.value)/self.MW_scale
+            
+        for s in self.s:
+            self.epi.add(sum(self.tf[i,s] for i in self.fe_t) \
+                         + self.rho*(sum(self.eps[k,s] for k in self.epc) \
+                         + sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t)for k in self.pc) for j in self.cp if j > 0))\
+                         + 100*(self.MW[self.nfe,self.ncp,s]*self.MW_scale-self.molecular_weight)**2.0 <= self.theta)
+        self.eobj.expr = self.theta 
+                
     def par_to_var(self):
         self.A['i'].setlb(self.A['i'].value*0.5)
         self.A['i'].setub(self.A['i'].value*2.0)
