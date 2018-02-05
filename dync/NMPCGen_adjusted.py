@@ -276,11 +276,8 @@ class NmpcGen(DynGen):
                             rand = -2.0 * sigma
                         else:
                             rand = 2.0 * sigma
-                    else:
-                        pass
-                    
                     if p[1] != ():
-                            disturbed_parameter[p[1]].value = self.nominal_parameter_values[p] * (1 + rand)                 
+                        disturbed_parameter[p[1]].value = self.nominal_parameter_values[p] * (1 + rand)                 
                     else:
                         disturbed_parameter.value = self.nominal_parameter_values[p] * (1 + rand) 
             for x in self.states:

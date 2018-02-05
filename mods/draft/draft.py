@@ -103,15 +103,16 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         for index in self.scenario_tree:
             # index[0] fe
             # index[1] s
-            for key in self.scenario_tree[1,1][3]:
-                # key[0] 'p_name'
-                # key[1] (key,) or ()
-                k = index[0] if index[0] < self.nr + 2 else self.nr + 1
-                p_par = getattr(self, 'p_'+key[0]+'_par')
-                p = getattr(self, 'p_'+key[0])
-                p_par[key[1],k,index[1]].value = self.scenario_tree[index][3][key] 
-                p[key[1],k,index[1]].value = self.scenario_tree[index][3][key]     
-                p[key[1],k,index[1]].unfix()
+            if index[1] in self.s:
+                for key in self.scenario_tree[1,1][3]:
+                    # key[0] 'p_name'
+                    # key[1] (key,) or ()
+                    k = index[0] if index[0] < self.nr + 2 else self.nr + 1
+                    p_par = getattr(self, 'p_'+key[0]+'_par')
+                    p = getattr(self, 'p_'+key[0])
+                    p_par[key[1],k,index[1]].value = self.scenario_tree[index][3][key] 
+                    p[key[1],k,index[1]].value = self.scenario_tree[index][3][key]     
+                    p[key[1],k,index[1]].unfix()
         # parameters for l1-relaxation of endpoint-constraints
         self.eps = Var(self.epc, self.s, initialize=0, bounds=(0,None))
         self.eps.fix()

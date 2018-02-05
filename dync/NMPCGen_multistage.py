@@ -261,7 +261,7 @@ class NmpcGen(DynGen):
         input_noise = {}
         if disturbance_src == 'process_noise':
             if state_disturbance != {}: 
-                for key in disturbances:
+                for key in state_disturbances:
                     state_noise[key] = np.random.normal(loc=0.0, scale=state_disturbance[key])
                     # potentially implement truncation at 2 sigma
             else:
@@ -282,10 +282,18 @@ class NmpcGen(DynGen):
                         self.nominal_parameter_values[p] = disturbed_parameter.value
                 
                 if (self.iterations-1)%parameter_disturbance[p][1] == 0:
+                    sigma = parameter_disturbance[p][0]
+                    rand = np.random.normal(loc=0.0, scale=sigma)
+                    #truncation at 2 sigma
+                    if abs(rand) > 2*sigma:
+                        if rand < 0.0:
+                            rand = -2.0 * sigma
+                        else:
+                            rand = 2.0 * sigma
                     if p[1] != ():
-                        disturbed_parameter[p[1]].value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0]))                 
+                        disturbed_parameter[p[1]].value = self.nominal_parameter_values[p] * (1 + rand)                 
                     else:
-                        disturbed_parameter.value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0]))
+                        disturbed_parameter.value = self.nominal_parameter_values[p] * (1 + rand)
             for x in self.states:
                 for j in self.x_vars[x]:
                     state_noise[(x,j)] = 0.0
@@ -1510,20 +1518,23 @@ class NmpcGen(DynGen):
             s = getattr(self.olnmpc, 's_'+k)
             for index in s.index_set():
                 if not(s[index].stale): # only take
-                    if index[0] == self.nr + 1: # only take violation on the next stage
+                    #if index[0] == self.nr + 1: # only take violation on the next stage
+                    if index[-1] == 1 and index[0] == 1 and index[1] == self.ncp_t: 
+                        # only look at nominal trajectory and next time-step
                         self.olnmpc.var_order.set_value(s[index], i+1)
                         rows[i] = ('s_'+ k,index)
                         i += 1
                         
-        # endpoint constraints always
-        for k in epc:
-            s = getattr(self.olnmpc, 's_'+k)
-            for index in s.index_set():
-                if not(s[index].stale): # only take
-                    self.olnmpc.var_order.set_value(s[index], i+1)
-                    rows[i] = ('s_'+ k,index)
-                    i += 1
-                    
+        # endpoint constraints only in last iteration
+        if self.iterations == self.nfe_t_0 - 1: 
+            for k in epc:
+                s = getattr(self.olnmpc, 's_'+k)
+                for index in s.index_set():
+                    if not(s[index].stale): # only take
+                        self.olnmpc.var_order.set_value(s[index], i+1)
+                        rows[i] = ('s_'+ k,index)
+                        i += 1
+                        
         # row j in sensitivity matrix corresponds to rhs of constraint x 
         rows_r = {value:key for key, value in rows.items()}
         tot_rows = i
@@ -1531,7 +1542,7 @@ class NmpcGen(DynGen):
         # compute sensitivity matrix (ds/dp , rows = s const., cols = p const.)
         k_aug = SolverFactory("k_aug",executable="/home/flemmingholtorf/KKT_matrix/k_aug/src/kmatrix/k_aug")
         k_aug.options["compute_dsdp"] = ""
-        k_aug.solve(self.olnmpc, tee=False)
+        k_aug.solve(self.olnmpc, tee=True)
             
         # no idea if necessery, I am lost in the code
         self.olnmpc.eps.unfix()
@@ -1568,13 +1579,14 @@ class NmpcGen(DynGen):
         con_vio = {}
         for i in rows: # constraints
             con = rows[i] # ('s_name', index)
-            dsdp = sens[i][:].transpose()
+            dsdp = sens[i][:].transpose() # gets row i in dsdp, transpose not required
             delta_p_wc_iter = {}
             aux = 0.0
             for j in cols: # parameters
                 par = cols[j] #('p_name', index)
                 p = getattr(self.olnmpc, 'p_' + par[0])
                 delta = p[par[1]].value - 1.0
+                delta = 0.0 # change if necessary
                 # bounds[par][0]: lower bound on delta_p
                 # bounds[par][1]: upper bound on delta_p
                 # shift depending on which corner was looked at before that
@@ -1592,15 +1604,24 @@ class NmpcGen(DynGen):
         # include for all constraints the worst case realization for the next step in addition to the nominal scenario
         # remove doubles
         scenarios = {}
-        s = 2
+        s = 1
         for c in pc:
-            scenarios[s] = delta_p_wc['s_' + c]
+            scenarios[s+1] = delta_p_wc['s_' + c] if not(delta_p_wc['s_' + c] in scenarios.values()) else True
+            if scenarios[s+1] == True:
+                continue
             s += 1
         
-        for con in epc:
-            scenarios[s] = delta_p_wc['s_' + c]
-            s += 1
-                 
+        if self.iterations == self.nfe_t_0 - 1:
+            for c in epc:
+                scenarios[s+1] = delta_p_wc['s_' + c] if not(delta_p_wc['s_' + c] in scenarios.values()) else True
+                if scenarios[s+1] == True:
+                    continue
+                s += 1
+                     
+        self.s_used = s
+        
+        self.nmpc_trajectory[self.iterations, 's_max'] = s
+        # tailored for twostage
         for i in range(1,self.nfe_t+1):
             if i == 1:
                 for s in range(1,self.s_used**i+1):
@@ -1669,6 +1690,7 @@ class NmpcGen(DynGen):
         m.fix_element_size.deactivate()
         m.non_anticipativity_tf.deactivate()
             
+        
         # set suffixes
         m.var_order = Suffix(direction=Suffix.EXPORT)
         m.dcdp = Suffix(direction=Suffix.EXPORT)
@@ -1720,7 +1742,7 @@ class NmpcGen(DynGen):
         # compute sensitivity matrix (ds/dp , rows = s const., cols = p const.)
         k_aug = SolverFactory("k_aug",executable="/home/flemmingholtorf/KKT_matrix/k_aug/src/kmatrix/k_aug")
         k_aug.options["compute_dsdp"] = ""
-        k_aug.solve(m, tee=False)
+        k_aug.solve(m, tee=True)
         
         # no idea if necessery, I am lost in the code
         m.eps.unfix()
@@ -1891,7 +1913,7 @@ class NmpcGen(DynGen):
         # compute sensitivity matrix (ds/dp , rows = s const., cols = p const.)
         k_aug = SolverFactory("k_aug",executable="/home/flemmingholtorf/KKT_matrix/k_aug/src/kmatrix/k_aug")
         k_aug.options["compute_dsdp"] = ""
-        k_aug.solve(m, tee=False)
+        k_aug.solve(m, tee=True)
         
         # no idea if necessery, I am lost in the code
         m.eps.unfix()
