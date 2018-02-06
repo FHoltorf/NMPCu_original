@@ -767,11 +767,14 @@ class SemiBatchPolymerization(ConcreteModel):
         
         # objective
         def _obj(self):
+            #return self.tf + self.rho*(sum(self.eps[i] for i in self.epc) + sum(sum(sum(self.eps_pc[i,j,k] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc))
             return self.tf + self.rho*(sum(self.eps[i] for i in self.epc) + sum(sum(sum(self.eps_pc[i,j,k] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc)) \
                     + self.gamma * (self.MX[self.nfe,self.ncp,1]*self.MX1_scale/(self.MX[self.nfe,self.ncp,0]*self.MX0_scale)*self.mw_PO*self.num_OH + self.mw_PG - self.molecular_weight)**2
         self.epc_mw_ub.deactivate()
         self.epc_mw.deactivate()
+        
         self.eobj = Objective(rule=_obj,sense=minimize)
+        
         
         #Suffixes
         self.dual = Suffix(direction=Suffix.IMPORT_EXPORT)

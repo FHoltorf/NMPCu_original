@@ -1447,7 +1447,7 @@ class NmpcGen(DynGen):
         m.sens_sol_state_1  = Suffix(direction=Suffix.IMPORT) # holds the updated variables and lagrange multipliers for inequalities (and equalities (would be relatively meaninglessS?)) 
         m.sens_init_constr  = Suffix(direction=Suffix.EXPORT) # flag constraint that are artificial Var(actual paramter) == Param(nominal_parameter_value)
         
-    def SBWCS_hyrec(self,pc = [], epc = [], **kwargs):
+    def SBWCS_hyrec(self, pc = [], epc = [], **kwargs):
         # sensitivity-based worst-case scenario detection
         # either hyperrectangle or hyperellipsoid
         # for hyperrectangles:
@@ -1490,6 +1490,9 @@ class NmpcGen(DynGen):
         self.olnmpc.var_order = Suffix(direction=Suffix.EXPORT)
         self.olnmpc.dcdp = Suffix(direction=Suffix.EXPORT)
         
+        
+        # stage 
+        s_stage = int(np.round(self.s_used**(1.0/self.nr)))
         # tailored for two stage
         # include parameters at the first stage after the robust horizon     
         i = 0
@@ -1502,9 +1505,13 @@ class NmpcGen(DynGen):
                     dummy = 'dummy_constraint_p_' + p
                 dummy_con = getattr(self.olnmpc, dummy)
                 for index in dummy_con.index_set():
-                    if index[-2] == self.nr+1: # only take the nominal trajectory
+                    #index[0] = time_step \in {2, ... ,nfe+1}
+                    #index[1] = scenario \in {1, ... , s_per_branch}
+                    if index[0] > 1 and \
+                       index[0] < self.nr + 2 and \
+                       index[-1] < s_stage:
                         self.olnmpc.dcdp.set_value(dummy_con[index], i+1)
-                        cols[i] = (p,key+(index[-2:]))
+                        cols[i] = (p,key+index)
                         i += 1
                     
         # column i in sensitivity matrix corresponds to paramter p
@@ -1518,22 +1525,29 @@ class NmpcGen(DynGen):
             s = getattr(self.olnmpc, 's_'+k)
             for index in s.index_set():
                 if not(s[index].stale): # only take
-                    #if index[0] == self.nr + 1: # only take violation on the next stage
-                    if index[-1] == 1 and index[0] == 1 and index[1] == self.ncp_t: 
+                    #index[0] = time_step \in {2, ... ,nfe+1}
+                    #index[1] = collocation point = ncp (consider only endpoint of interval)
+                    #index[-1] = scenario \in {1, ... , s_per_branch}
+                    #index[2:-1] = additional indices = all there are
+                    if index[1] == self.ncp_t and \
+                       index[0] > 1 and \
+                       index[0] < self.nr + 2 and \
+                       index[-1] < s_stage:
+                        self.olnmpc.var_order.set_value(s[index], i+1)
                         # only look at nominal trajectory and next time-step
                         self.olnmpc.var_order.set_value(s[index], i+1)
                         rows[i] = ('s_'+ k,index)
                         i += 1
                         
         # endpoint constraints only in last iteration
-        if self.iterations == self.nfe_t_0 - 1: 
-            for k in epc:
-                s = getattr(self.olnmpc, 's_'+k)
-                for index in s.index_set():
-                    if not(s[index].stale): # only take
-                        self.olnmpc.var_order.set_value(s[index], i+1)
-                        rows[i] = ('s_'+ k,index)
-                        i += 1
+        #if self.iterations == self.nfe_t_0 - 1: 
+        for k in epc:
+            s = getattr(self.olnmpc, 's_'+k)
+            for index in s.index_set():
+                if not(s[index].stale): # only take
+                    self.olnmpc.var_order.set_value(s[index], i+1)
+                    rows[i] = ('s_'+ k,index)
+                    i += 1
                         
         # row j in sensitivity matrix corresponds to rhs of constraint x 
         rows_r = {value:key for key, value in rows.items()}
@@ -1581,42 +1595,69 @@ class NmpcGen(DynGen):
             con = rows[i] # ('s_name', index)
             dsdp = sens[i][:].transpose() # gets row i in dsdp, transpose not required
             delta_p_wc_iter = {}
+            vertex = {}
             aux = 0.0
             for j in cols: # parameters
                 par = cols[j] #('p_name', index)
-                p = getattr(self.olnmpc, 'p_' + par[0])
-                delta = p[par[1]].value - 1.0
-                delta = 0.0 # change if necessary
-                # bounds[par][0]: lower bound on delta_p
-                # bounds[par][1]: upper bound on delta_p
-                # shift depending on which corner was looked at before that
-                delta_p_wc_iter[par[0],par[1][:-2]] = bounds[(par[0],par[1][:-2])][0] - delta if dsdp[j] < 0.0 else bounds[(par[0],par[1][:-2])][1] - delta
-                aux += dsdp[j]*delta_p_wc_iter[par[0],par[1][:-2]]
+                # par[0] = name
+                # par[1] = tuple of (add. indices,i,s)
+                # con[0] = name
+                # con[1] = (i, add. indices, s)
+                # special case endpoint constraints --> [0] == [-1]
+                if con[0][2:] in epc or \
+                   [par[1][-2],par[1][-1]] == [con[1][0],con[1][-1]]:
+                    p = getattr(self.olnmpc, 'p_' + par[0])
+                    delta = p[par[1]].value - 1.0
+                    #delta = 0.0 # change if necessary
+                    # bounds[par][0]: lower bound on delta_p
+                    # bounds[par][1]: upper bound on delta_p
+                    # shift depending on which corner was looked at before that
+                    delta_p_wc_iter[par[0],par[:-2]] = bounds[(par[0],par[1][:-2])][0] - delta if dsdp[j] < 0.0 else bounds[(par[0],par[1][:-2])][1] - delta
+                    vertex[par[0],par[:-2]] = 'L' if dsdp[j] < 0.0 else 'U'
+                    aux += dsdp[j]*delta_p_wc_iter[par[0],par[:-2]]
+                else:
+                    aux = 1e9
             s = getattr(self.olnmpc, con[0])
-            try: # constraint violation was already looked at at different points
-                if con_vio[con[0],index[-1]] < -s[con[1]].value + aux:
-                    delta_p_wc[con[0]] = delta_p_wc_iter
-                    con_vio[con[0],index[-1]] = -s[con[1]].value + aux
-            except KeyError: # constraint called first
-                con_vio[con[0],index[-1]] = -s[con[1]].value + aux
-                delta_p_wc[con[0]] = delta_p_wc_iter
+            #max. constraint violation per constraint
+            if con in con_vio:
+                if con_vio[con] < -s[con[1]].value + aux:
+                    delta_p_wc[con] = vertex
+                    con_vio[con] = -s[con[1]].value + aux
+            else: # constraint called first
+                con_vio[con] = -s[con[1]].value + aux
+                delta_p_wc[con] = vertex
                 
         # include for all constraints the worst case realization for the next step in addition to the nominal scenario
         # remove doubles
         scenarios = {}
-        s = 1
-        for c in pc:
-            scenarios[s+1] = delta_p_wc['s_' + c] if not(delta_p_wc['s_' + c] in scenarios.values()) else True
-            if scenarios[s+1] == True:
-                continue
-            s += 1
+        order = {}
+        i = 2
+        for c in pc+epc:
+            order[i] = 's_' + c
+            i += 1
         
-        if self.iterations == self.nfe_t_0 - 1:
-            for c in epc:
-                scenarios[s+1] = delta_p_wc['s_' + c] if not(delta_p_wc['s_' + c] in scenarios.values()) else True
-                if scenarios[s+1] == True:
-                    continue
-                s += 1
+        # stage 1:
+        for s in range(2, s_stage + 1):
+            scenario[1,s] = delta_p_wc[order[s],(2,self.ncp,s)]
+            
+        for i in range(2,self.nr+1):
+            for s in range(2, s_stage**i+1):
+                indicator = np.ceil(s/s_stage)
+                scenarios[i,s] = delta_p_wc[order[],(i,self.ncp,indicator)]
+    
+#        for i in range(2,self.nr+2):
+#            for c in pc:
+#                scenarios[i,s+1] = delta_p_wc['s_' + c] if not(delta_p_wc['s_' + c] in scenarios.values()) else 0
+#                if not(scenarios[i,s+1]):
+#                    continue
+#                s += 1
+                
+                
+#            for c in epc:
+#                scenarios[s+1] = delta_p_wc['s_' + c] if not(delta_p_wc['s_' + c] in scenarios.values()) else 0
+#                if not(scenarios[s+1]):
+#                    continue
+#                s += 1
                      
         self.s_used = s**self.nr
         self.nmpc_trajectory[self.iterations, 's_max'] = s**self.nr
@@ -1795,7 +1836,7 @@ class NmpcGen(DynGen):
         
         scenarios = {}
         con_vio_copy = deepcopy(con_vio)
-        for s in range(2,self.s_max+1): # scenario 1 is reserved for the nomnal sscenario
+        for s in range(2,int(np.round(self.s_max**(1.0/self.nr)))+1): # scenario 1 is reserved for the nomnal sscenario
             wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
             scenarios[s] = delta_p_wc[wc_scenario]
             # remove scenario from scenarios:
@@ -1986,7 +2027,7 @@ class NmpcGen(DynGen):
         # generate new set of worst case scenarios
         scenarios = {}
         con_vio_copy = deepcopy(con_vio)
-        for s in range(2,self.s_max+1): # scenario 1 is reserved for the nomnal sscenario
+        for s in range(2,int(np.round(self.s_max**(1.0/self.nr)))+1): # scenario 1 is reserved for the nomnal sscenario
             wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
             scenarios[s] = delta_p_wc[wc_scenario]
             # What to do if con_vio_copy is empty?

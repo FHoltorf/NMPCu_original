@@ -27,8 +27,11 @@ def run():
     u = ["u1", "u2"]
     u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)} 
     
-    y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
-    y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
+#    y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
+#    y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
+    y = {"Y","PO","m_tot",'T',"MW"}
+    y_vars = {"Y":[()],"PO":[()],"m_tot":[()],'T':[()],"MW":[()]}
+    
     nfe = 24
     tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
 
@@ -54,9 +57,9 @@ def run():
                p_noisy=p_noisy,
                u=u,
                noisy_inputs = False,
-               noisy_params = False,
-               adapt_params = False,
-               process_noise_model = 'params',
+               noisy_params = True,
+               adapt_params = True,
+#               process_noise_model = 'params',
                u_bounds=u_bounds,
                tf_bounds = tf_bounds,
                diag_QR=False,

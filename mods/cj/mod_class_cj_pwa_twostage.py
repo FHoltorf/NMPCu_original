@@ -114,6 +114,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.eps.fix()
         self.eps_pc = Var(self.fe_t, self.cp, self.pc, self.s, initialize=0.0, bounds=(0,None))
         self.rho = Param(initialize=1e3, mutable=True)
+        self.gamma = Param(initialize=1e3, mutable=True)
         
         # auxilliary parameter to enable non-uniform finite element distribution
         self.fe_dist = Param(self.fe_t, initialize = 1.0, mutable=True)
@@ -1125,9 +1126,16 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         for i in self.fe_t:
             w[i] = max(1.0, self.s_max**(1.0-float(i)/self.nr))
         def _eobj(self):
-            return 1.0/self.s_max * sum(sum(self.tf[i,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
+#            return 1.0/self.s_max * (sum(sum(self.tf[i,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
+#                    + self.rho*(sum(sum(self.eps[k,s] for s in self.s) for k in self.epc) \
+#                    + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) for k in self.pc) for j in self.cp if j > 0)))
+            return 1.0/self.s_max * (sum(sum(self.tf[i,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
                     + self.rho*(sum(sum(self.eps[k,s] for s in self.s) for k in self.epc) \
-                    + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) for k in self.pc) for j in self.cp if j > 0))
+                    + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) for k in self.pc) for j in self.cp if j > 0)) \
+                    + self.gamma * sum((self.MX[self.nfe,self.ncp,1,s]*self.MX1_scale/(self.MX[self.nfe,self.ncp,0,s]*self.MX0_scale)*self.mw_PO*self.num_OH + self.mw_PG - self.molecular_weight)**2 for s in self.s))
+        self.mw_ub.deactivate()
+        self.mw.deactivate()          
+        
         self.eobj = Objective(rule=_eobj,sense=minimize)
         
         #Suffixes

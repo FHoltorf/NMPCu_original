@@ -107,6 +107,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.eps.fix()
         self.eps_pc = Var(self.fe_t, self.cp, self.pc, self.s, initialize=0.0, bounds=(0,None))
         self.rho = Param(initialize=1e3, mutable=True)
+        self.gamma = Param(initialize=1e3, mutable=True)
         
         # auxilliary parameter to enable non-uniform finite element distribution
         self.fe_dist = Param(self.fe_t, initialize = 1.0, mutable=True)
@@ -883,9 +884,14 @@ class SemiBatchPolymerization(ConcreteModel):
         
         # objective
         def _eobj(self):
+#            return self.tf + self.rho*(sum(sum(self.eps[i,s] for i in self.epc) for s in self.s) \
+#                           + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc) for s in self.s))
             return self.tf + self.rho*(sum(sum(self.eps[i,s] for i in self.epc) for s in self.s) \
-                           + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc) for s in self.s))
+                                       + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc) for s in self.s)) \
+                                       + self.gamma*sum((self.MX[self.nfe,self.ncp,1,s]*self.MX1_scale/(self.MX[self.nfe,self.ncp,0,s]*self.MX0_scale)*self.mw_PO*self.num_OH + self.mw_PG - self.molecular_weight)**2 for s in self.s)
         
+        self.mw_ub.deactivate()
+        self.mw.deactivate() 
         self.eobj = Objective(rule=_eobj,sense=minimize)
         
         #Suffixes
