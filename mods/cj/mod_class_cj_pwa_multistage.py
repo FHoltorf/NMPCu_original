@@ -108,6 +108,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.eps.fix()
         self.eps_pc = Var(self.fe_t, self.cp, self.pc, self.s, initialize=0.0, bounds=(0,None))
         self.rho = Param(initialize=1e3, mutable=True)
+        self.gamma = Param(initialize=10.0, mutable=True)
         
         # auxilliary parameter to enable non-uniform finite element distribution
         self.fe_dist = Param(self.fe_t, initialize = 1.0, mutable=True)
@@ -1099,7 +1100,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
             else:
                 return Constraint.Skip
             
-        self.fix_element_size = Constraint(self.fe_t, self.cp, rule = _fix_element_size)
+        self.fix_element_size = Constraint(self.fe_t, self.s, rule = _fix_element_size)
                
         # objective
         # assumes symmetric tree, i.e. every node branches into the same number of children nodes
@@ -1108,15 +1109,15 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         for i in self.fe_t:
             w[i] = max(1.0, self.s_max**(1.0-float(i)/self.nr))
         def _eobj(self):
-#            return 1.0/self.s_max *( sum(sum(self.tf[i,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
+#            return 1.0/self.s_max*(sum(sum(self.tf[i,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
 #                    + self.rho*(sum(sum(self.eps[k,s] for s in self.s) for k in self.epc) \
 #                    + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) for k in self.pc) for j in self.cp if j > 0)))
             return 1.0/self.s_max*(sum(sum(self.tf[i,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
                     + self.rho*(sum(sum(self.eps[k,s] for s in self.s) for k in self.epc) \
                     + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) for k in self.pc) for j in self.cp if j > 0))\
                     + self.gamma * sum((self.MX[self.nfe,self.ncp,1,s]*self.MX1_scale/(self.MX[self.nfe,self.ncp,0,s]*self.MX0_scale)*self.mw_PO*self.num_OH + self.mw_PG - self.molecular_weight)**2 for s in self.s))
-        self.mw_ub.deactivate()
-        self.mw.deactivate() 
+        self.epc_mw_ub.deactivate()
+        self.epc_mw.deactivate() 
         
         self.eobj = Objective(rule=_eobj,sense=minimize)
         
@@ -1207,7 +1208,26 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 for key in var.index_set():
                     var[key].setlb(None)
                     var[key].setub(None)
-     
+
+        # real degrees of freedom
+        # u1, u2
+        # tf[i,s] if self.scenario_tree[i,s][2] == True and i > self.nr + 1
+        # idea behind that: 
+        # choose nominal case as deciding factor for batch time --> equidistant
+        #                                                       --> after robust horizon keep equidistantly spaced
+       
+        # handle control bounds better to avoid redundant bounds
+        dof = ['u1','u2','tf']
+        for d in dof:
+            var = getattr(self, d)
+            for key in var.index_set():
+                if not(self.scenario_tree[key][2]):
+                    var[key].setlb(None)
+                    var[key].setub(None)
+                if var.name == 'tf' and ((key[1] == 1 and key[0] > 1) or (key[0] > self.nr + 1)):
+                    var[key].setlb(None)
+                    var[key].setub(None)
+                    
     def clear_all_bounds(self):
         for var in self.component_objects(Var):
             for key in var.index_set():
@@ -1219,13 +1239,13 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
             for i in self.fe_t:
                 self.tf[i,s].setlb(min(10.0,10.0*24.0/self.nfe))
                 self.tf[i,s].setub(min(25.0,25.0*24.0/self.nfe))#14*60/24)
-                self.dT_cw_dt[i,s].setlb(-5.0)
+                self.dT_cw_dt[i,s].setlb(-6.0)
                 self.u1[i,s].setlb(-5.0)
-                self.dT_cw_dt[i,s].setub(5.0)
+                self.dT_cw_dt[i,s].setub(6.0)
                 self.u1[i,s].setub(5.0)
-                self.F[i,s].setlb(0.0)
+                self.F[i,s].setlb(-1.0)
                 self.u2[i,s].setlb(0.0)
-                self.F[i,s].setub(3.0) #5*self.n_PO/(3.0*60))
+                self.F[i,s].setub(4.0) #5*self.n_PO/(3.0*60))
                 self.u2[i,s].setub(3.0)
                 for j in self.cp:
                     self.T_cw[i,j,s].setlb(298.15/self.T_scale)

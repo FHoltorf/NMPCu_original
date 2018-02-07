@@ -33,9 +33,9 @@ def run():
     y_vars = {"Y":[()],"PO":[()],"m_tot":[()],'T':[()],"MW":[()]}
     
     nfe = 24
-    tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
+    tf_bounds = [10.0*24.0/nfe, 30.1*24.0/nfe]
 
-    cons = ['PO_ptg','unsat','mw','temp_b','T_min','T_max']
+    cons = ['PO_ptg','unsat','temp_b','T_min','T_max']#,'mw'
     pc = ['Tad','T']
     p_noisy = {"A":[('p',),('i',)],'kA':[()]}
     alpha = {('A',('p',)):0.2,('A',('i',)):0.2,('kA',()):0.2,

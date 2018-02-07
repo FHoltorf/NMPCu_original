@@ -1123,11 +1123,15 @@ class NmpcGen(DynGen):
             # check whether optimal control problem feasible
             flag = False
             for index in m.eps.index_set():
-                if m.eps[index].value > 1e-3:
+                if m.eps[index].value > 1e-1:
                     flag = True
+                    #m.eps.pprint()
+                    #sys.exit()
             for index in m.eps_pc.index_set():
-                if m.eps_pc[index].value > 1e-3:
+                if m.eps_pc[index].value > 1e-1:
                     flag = True
+                    #m.eps.pprint()
+                    #sys.exit()
                     
             if flag:
                 print('Restricted Problem infeasible')

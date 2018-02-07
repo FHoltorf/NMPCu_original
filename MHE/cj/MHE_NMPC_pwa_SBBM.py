@@ -36,11 +36,11 @@ u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)}
 y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
 y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
 nfe = 24
-tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
+tf_bounds = [10.0*24.0/nfe, 700.0/nfe]
 
 
 
-cons = ['PO_ptg','unsat','temp_b','T_min','T_max']
+cons = ['PO_ptg','unsat','temp_b','T_min','T_max']#
 pc = ['Tad','T']
 p_noisy = {"A":[('p',),('i',)],'kA':[()]}
 alpha = {('A',('p',)):0.2,('A',('i',)):0.2,('kA',()):0.2}
@@ -63,7 +63,7 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            u=u,
            noisy_inputs = False,
            noisy_params = True,
-           adapt_params = False,
+           adapt_params = True,
 #           process_noise_model = 'params',
            u_bounds=u_bounds,
            tf_bounds = tf_bounds,

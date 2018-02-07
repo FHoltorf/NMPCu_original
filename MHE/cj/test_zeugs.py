@@ -32,8 +32,8 @@ p_noisy = {"A":[('p',),('i',)],'kA':[()]}
 u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
 p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2),('kA',()):(-0.2,0.2)}
-cons = ['PO_ptg','unsat','mw','temp_b','T_min','T_max']
-
+#cons = ['PO_ptg','unsat','mw','temp_b','T_min','T_max']
+cons = ['temp_b','T_min','T_max']
 #y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
 #y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
 y = {"Y","PO","m_tot",'T'}
@@ -46,8 +46,8 @@ pc = ['Tad','T']
 
 # scenario_tree
 st = {} # scenario tree : {parent_node, scenario_number on current stage, base node (True/False), scenario values {'name',(index):value}}
-s_max = 6
-nr = 1
+s_max = 4
+nr = 2
 alpha = 0.2
 for i in range(1,nfe+1):
     if i < nr + 1:
@@ -62,12 +62,12 @@ for i in range(1,nfe+1):
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
             elif s%s_max == 5:
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
-#            elif s%s_max == 6:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
-#            elif s%s_max == 7:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
-#            elif s%s_max == 8:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
+            elif s%s_max == 6:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
+            elif s%s_max == 7:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
+            elif s%s_max == 8:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
             else:
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
     else:
@@ -133,7 +133,7 @@ for i in range(1,nfe):
         e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)          
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE        
-        e.SBWCS_hyrec(pc=cons[4:],epc=cons[0:4],par_bounds=p_bounds)
+        e.SBWCS_hyrec(pc=cons,par_bounds=p_bounds)
         e.cycle_nmpc(e.store_results(e.olnmpc))   
 
     # solve mhe problem

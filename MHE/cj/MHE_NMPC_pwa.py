@@ -36,7 +36,7 @@ u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)}
 y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
 y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
 nfe = 24
-tf_bounds = [10.0*24.0/nfe, 20.0*24.0/nfe]
+tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
 
 pc = ['Tad','T']
 e = MheGen(d_mod=SemiBatchPolymerization,
@@ -48,9 +48,9 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            p_noisy=p_noisy,
            u=u,
            noisy_inputs = False,
-           noisy_params = False,
-           adapt_params = False,
-           process_noise_model = 'params',
+           noisy_params = True,
+           adapt_params = True,
+#           process_noise_model = 'params',
            u_bounds=u_bounds,
            tf_bounds = tf_bounds,
            diag_QR=False,
@@ -90,7 +90,6 @@ for i in range(1,nfe):
 
     # here measurement becomes available
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-    sys.exit()
     # solve the advanced step problems
     e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
 
