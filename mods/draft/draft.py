@@ -158,6 +158,8 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         
         # reactor and product specs
         self.T_safety = Param(initialize=170.0) #190.0 [°C] maximum allowed temperature after adiabatic temperature rise
+        self.T_max = Param(initialize=150.0)
+        self.T_min = Param(initialize=100.0)
         self.molecular_weight = Param(initialize=949.5, mutable=True) # 3027.74 # [g/mol] or [kg/kmol] target molecular weights
         self.unsat_value = Param(initialize=0.032) #0.032 # unsaturation value
         self.unreacted_PO = Param(initialize=120.0) #120.0 # [PPM] unreacted PO
@@ -942,7 +944,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         def _pc_T_max(self,i,j,s):
             if (i,s) in self.scenario_tree:
                 if j > 0:
-                    return 0.0 == (self.T_safety + self.Tb) - self.T[i,j,s]*self.T_scale - self.s_T_max[i,j,s] + self.eps_pc[i,j,2,s]
+                    return 0.0 == (self.T_max + self.Tb) - self.T[i,j,s]*self.T_scale - self.s_T_max[i,j,s] + self.eps_pc[i,j,2,s]
                 else:
                     return Constraint.Skip
             else:
@@ -953,7 +955,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         def _pc_T_min(self,i,j,s):
             if (i,s) in self.scenario_tree:
                 if j > 0:
-                    return 0.0 == self.T[i,j,s]*self.T_scale - (100.0 + self.Tb) - self.s_T_min[i,j,s] + self.eps_pc[i,j,3,s]
+                    return 0.0 == self.T[i,j,s]*self.T_scale - (self.T_min + self.Tb) - self.s_T_min[i,j,s] + self.eps_pc[i,j,3,s]
                 else:
                     return Constraint.Skip
             else:
@@ -1231,7 +1233,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 self.u2[i,s].setub(3.0)
                 for j in self.cp:
                     self.T_cw[i,j,s].setlb(298.15/self.T_scale)
-                    self.T_cw[i,j,s].setub((170.0 + self.Tb)/self.T_scale)
+                    self.T_cw[i,j,s].setub((self.T_max + self.Tb)/self.T_scale)
                     self.T[i,j,s].setlb((25 + self.Tb)/self.T_scale)
                     self.T[i,j,s].setub((225 + self.Tb)/self.T_scale)
                     self.int_T[i,j,s].setlb((1.1*(100+self.Tb) + 2.72*(100+self.Tb)**2/2000)/self.int_T_scale)

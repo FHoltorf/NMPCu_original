@@ -234,6 +234,10 @@ class MheGen(NmpcGen):
             k = 0
             for p in self.p_noisy:
                 par = getattr(self.lsmhe, 'p_' + p)  #: Noisy param
+                if par._implicit_subsets == None or par._implicit_subsets[0] != self.lsmhe.fe_t:
+                    # do not consider parameters that are time-invariant
+                    print('Parameter ' + p + ' is not time-variant')
+                    continue
                 for jth in self.p_noisy[p]:  #: the jth variable
                     self.pkN_l.append(par[(1,) + jth])
                     self.pkN_nexcl.append(1)  #: non-exclusion list for active bounds
@@ -247,6 +251,9 @@ class MheGen(NmpcGen):
             j = 0
             for p in self.p_noisy:
                 par = getattr(self.lsmhe, 'p_' + p)
+                if par._implicit_subsets == None or par._implicit_subsets[0].name != self.lsmhe.fe_t:
+                    # do not consider parameters that are time-invariant
+                    continue
                 for key in self.p_noisy[p]:
                     for t in range(1,self.nfe_mhe + 1):
                         self.lsmhe.noisy_pars.add(par[(t,)+key] - 1.0 - self.lsmhe.xik_mhe[t,j] == 0.0)

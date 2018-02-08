@@ -1448,6 +1448,8 @@ class NmpcGen(DynGen):
         m.sens_init_constr  = Suffix(direction=Suffix.EXPORT) # flag constraint that are artificial Var(actual paramter) == Param(nominal_parameter_value)
         
     def SBWCS_hyrec(self, pc = [], epc = [], **kwargs):
+        """ procedure has to be called before self.cycle_nmpc! """
+        
         # sensitivity-based worst-case scenario detection
         # either hyperrectangle or hyperellipsoid
         # for hyperrectangles:
@@ -1470,6 +1472,7 @@ class NmpcGen(DynGen):
          
         bounds = kwargs.pop('par_bounds',{}) # uncertainty bounds
         crit = kwargs.pop('crit','overall')
+        
         # prepare sensitivity computation
         self.olnmpc.eps_pc.fix()
         self.olnmpc.eps.fix()
@@ -1483,15 +1486,16 @@ class NmpcGen(DynGen):
         for u in self.u:
             non_anti = getattr(self.olnmpc, 'non_anticipativity_' + u)
             non_anti.deactivate()
+        # deactivate fixed element size
         self.olnmpc.fix_element_size.deactivate()
+        # deavtivate non_anticipativity for tf
         self.olnmpc.non_anticipativity_tf.deactivate()
             
         # set suffixes
         self.olnmpc.var_order = Suffix(direction=Suffix.EXPORT)
         self.olnmpc.dcdp = Suffix(direction=Suffix.EXPORT)
         
-        # tailored for two stage
-        # include parameters at the first stage after the robust horizon     
+        # cols = variables for which senstivities shall be computed
         i = 0
         cols ={}
         for p in self.p_noisy:
@@ -1503,7 +1507,8 @@ class NmpcGen(DynGen):
                 dummy_con = getattr(self.olnmpc, dummy)
                 for index in dummy_con.index_set():
                     #index[0] = time_step \in {2, ... ,nfe+1}
-                    #index[1] = scenario \in {1, ... , s_per_branch}
+                    #index[-1] = scenario \in {1, ... , s_per_branch}
+                    #only for nominal scenario otw. very intricat to implement
                     if index[0] > 1 and \
                        index[0] < self.nr + 2 and \
                        index[-1] == 1:
@@ -1517,33 +1522,33 @@ class NmpcGen(DynGen):
         
         i = 0
         rows = {}
-        #path constraints only at next stage
-        for k in pc:
-            s = getattr(self.olnmpc, 's_'+k)
+        #sensitivities of path constraints
+        for c in pc:
+            s = getattr(self.olnmpc, 's_'+c)
             for index in s.index_set():
                 if not(s[index].stale): # only take
                     #index[0] = time_step \in {2, ... ,nfe+1}
-                    #index[1] = collocation point = all of them here  (alternatively ncp_t: consider only endpoint of interval)
+                    #index[1] = collocation point: all of them here  (alternatively ncp_t: consider only endpoint of interval)
                     #index[-1] = scenario: only nominal scenario as base for linearization
-                    #index[2:-1] = additional indices = all there are
+                    #index[2:-1] = additional indices: all there are
                     if index[0] > 1 and \
                        index[0] < self.nr + 2 and \
                        index[-1] == 1: #
                         self.olnmpc.var_order.set_value(s[index], i+1)
-                        rows[i] = ('s_'+ k,index)
+                        rows[i] = ('s_'+ c,index)
                         i += 1
                         
         # endpoint constraints only in last iteration
-        # epc dont make sense in this framework
+        # can consider epc in every stage
         #if self.iterations == self.nfe_t_0 - 1: 
-#        for k in epc:
-#            s = getattr(self.olnmpc, 's_'+k)
-#            for index in s.index_set():
-#                if not(s[index].stale): # only take
-#                    if index[-1] == 1: # only nominal scenario as base for linearization
-#                    self.olnmpc.var_order.set_value(s[index], i+1)
-#                    rows[i] = ('s_'+ k,index)
-#                    i += 1
+        for c in epc:
+            s = getattr(self.olnmpc, 's_'+c)
+            for index in s.index_set():
+                if not(s[index].stale): # only take
+                    if index[-1] == 1: # only nominal scenario as base for linearization
+                    self.olnmpc.var_order.set_value(s[index], i+1)
+                    rows[i] = ('s_'+ c,index)
+                    i += 1
                         
         # row j in sensitivity matrix corresponds to rhs of constraint x 
         rows_r = {value:key for key, value in rows.items()}
@@ -1569,10 +1574,14 @@ class NmpcGen(DynGen):
         for u in self.u:
             non_anti = getattr(self.olnmpc, 'non_anticipativity_' + u)
             non_anti.activate()
-        self.olnmpc.fix_element_size.activate()    
+        # activate non_anticipativity for tf
         self.olnmpc.non_anticipativity_tf.activate()     
+        # unfix element size
+        self.olnmpc.fix_element_size.activate()    
         
-        # read sensitivity matrix
+        # read sensitivity matrix from file "dxdp_.dat"
+        # rows correspond to variables
+        # cols correspond to parameters
         sens = np.zeros((tot_rows,tot_cols))
         with open('dxdp_.dat') as f:
             reader = csv.reader(f, delimiter="\t")
@@ -1591,7 +1600,8 @@ class NmpcGen(DynGen):
             con = rows[i] # ('s_name', index)
             c_stage = con[1][0]
             c_scen = con[1][-1]
-            dsdp = sens[i][:].transpose() # gets row i in dsdp, transpose not required
+            c_name = con[0][2:]
+            dsdp = sens[i][:].transpose() # gets row i in dsdp, transpose not required but makes clear what is done
             delta_p_wc_iter = {}
             vertex = {}
             aux = 0.0
@@ -1601,16 +1611,23 @@ class NmpcGen(DynGen):
                 key = par[1][:-2]
                 p_stage = par[1][-2]
                 p_scen = par[1][-1]
-                if [p_stage,p_scen] == [c_stage,c_scen]: # only compute for relevant parameters
+                # only compute for relevant parameters
+                if     ([p_stage,p_scen] == [c_stage,c_scen] and c_name in pc) \ # path constraint
+                    or ([p_stage,p_scen] == [min(self.nr+1,self.nfe_t),c_scen] and c_name in epc):# endpoint constraint
                     p_var = getattr(self.olnmpc, 'p_' + p)
-                    delta = p_var[par[1]].value - 1.0
+                    # just a preparation for linearizing around different scenarios
+                    # will be zero here
+                    delta = p_var[par[1]].value - 1.0 
                     # delta = 0.0 # change if necessary
                     # bounds[par][0]: lower bound on delta_p
                     # bounds[par][1]: upper bound on delta_p
-                    # shift depending on which corner was looked at before that
+                    # shift depending around which scenario is linearized
                     delta_p_wc_iter[p,key] = bounds[(p,key)][0] - delta if dsdp[j] < 0.0 else bounds[(p,key)][1] - delta
                     vertex[p,key] = 'L' if dsdp[j] < 0.0 else 'U'
                     aux += dsdp[j]*delta_p_wc_iter[p,key]
+                elif con[0][2:] in epc: # epc
+                    delta_p_wc_iter[p,key]
+                    pass
                 else:
                     continue
             if crit == 'overall':
@@ -1639,6 +1656,9 @@ class NmpcGen(DynGen):
         s_stage = {0:1}
         # overall wc 
         if crit == 'overall':
+        # wc among all constraints
+        # i.e, if for the same constraint two scenarios result in higher first-order
+        # violations than any scenario for any other constraint both are included
             for i in range(2,min(self.nr+2,self.nfe_t+1)):
                 con_vio_copy = {con:con_vio[con] for con in con_vio if con[1][0]==i}
                 print('copy',i, con_vio_copy)
@@ -1885,7 +1905,7 @@ class NmpcGen(DynGen):
         # solution analytically derivable:
         #               delta_p^* = A^{-1} * ds/dp / sqrt(ds/dp^T A^{-1} ds/dp)
         #
-        # note: - A \in \in \mathbb{S}^{n_p}_{++} describes ellipsoidal uncertainty set
+        # note: - A \in \mathbb{S}^{n_p}_{++} describes ellipsoidal uncertainty set
         #       - natural choice: A = 1/chisquare * V_p^{-1} in case normally distributed parameters 
         #       - red_hessian^-1 approx. V_p which ultimately is required
         #            - scaled_red_hessian \in \mathbb{S}^{n_p}_{++} obtained from KKT matrix by k_aug (efficient, backsolves basically)
@@ -1992,6 +2012,9 @@ class NmpcGen(DynGen):
         m.non_anticipativity_tf.activate()
         
         # read sensitivity matrix
+        # dxdp_dat organization: 
+        #           rows = constraints
+        #           cols = parameters
         sens = np.zeros((tot_rows,tot_cols))
         with open('dxdp_.dat') as f:
             reader = csv.reader(f, delimiter="\t")

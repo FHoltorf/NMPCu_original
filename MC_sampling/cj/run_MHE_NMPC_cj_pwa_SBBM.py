@@ -38,14 +38,14 @@ def run():
     cons = ['PO_ptg','unsat','temp_b','T_min','T_max']#,'mw'
     pc = ['Tad','T']
     p_noisy = {"A":[('p',),('i',)],'kA':[()]}
-    alpha = {('A',('p',)):0.2,('A',('i',)):0.2,('kA',()):0.2,
-              ('T_ic',()):0.01,
-              ('W_ic',()):0.01,
-              ('PO_ic',()):0.01,
-              ('Y_ic',()):0.01,
-              ('MX_ic',(0,)):0.01,
-              ('MX_ic',(1,)):0.01,
-              ('MY_ic',()):0.01}
+    alpha = {('A',('p',)):0.2,('A',('i',)):0.2,('kA',()):0.2}#,
+#              ('T_ic',()):0.01,
+#              ('W_ic',()):0.01,
+#              ('PO_ic',()):0.01,
+#              ('Y_ic',()):0.01,
+#              ('MX_ic',(0,)):0.01,
+#              ('MX_ic',(1,)):0.01,
+#              ('MY_ic',()):0.01}
     e = MheGen(d_mod=SemiBatchPolymerization,
                linapprox = True,
                alpha = alpha,

@@ -356,6 +356,11 @@ class NmpcGen(DynGen):
         # probably redundant
         self.plant_simulation_model.clear_aux_bounds()
 
+        # really nice example for not nicely working OLNMPC
+        # adapt, 
+        #self.plant_simulation_model.A['p'] = 0.8*13504.2
+        #self.plant_simulation_model.kA['i'] = 0.8*0.07170172
+        #self.plant_simulation_model.A['i'] = 1.0108695384819*396400.0
         # solve statement
         ip = SolverFactory("asl:ipopt")
         ip.options["halt_on_ampl_error"] = "yes"
@@ -368,7 +373,7 @@ class NmpcGen(DynGen):
         #self.plant_simulation_model.A['i'] = 300000.0  #337678.098021# 302423.866195 # 426854.024419
         #self.plant_simulation_model.kA =   0.06  # 0.057361376673# 0.0562482825565 # 0.0539566959
 
-
+        self.plant_simulation_model.clear_all_bounds()
         out = ip.solve(self.plant_simulation_model, tee=True, symbolic_solver_labels=True)
         
         # check if converged otw. run again and hope for numerical issues
@@ -439,8 +444,9 @@ class NmpcGen(DynGen):
         # Update adpated params
         if self.adapt_params and self.iterations > 1:
             for index in self.curr_epars:
+                key = index[1] if index[1] != () else None
                 p = getattr(self.forward_simulation_model, index[0])
-                p[index[1]].value = self.curr_epars[index]
+                p[key].value = self.curr_epars[index]
 
         # general initialization
         for var in self.olnmpc.component_objects(Var, active=True):
@@ -487,7 +493,8 @@ class NmpcGen(DynGen):
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
         ip.options["max_iter"] = 3000
-  
+        
+        self.forward_simulation_model.clear_all_bounds()
         out = ip.solve(self.forward_simulation_model, tee=True, symbolic_solver_labels=True)
         self.simulation_trajectory[self.iterations,'obj_fun'] = 0.0
         

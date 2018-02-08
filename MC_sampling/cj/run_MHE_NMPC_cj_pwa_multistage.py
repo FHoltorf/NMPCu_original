@@ -86,8 +86,8 @@ def run():
                s_max = sr,
                noisy_inputs = False,
                noisy_params = True,
-               adapt_params = True,
-               update_scenario_tree = True,
+               adapt_params = False,
+               update_scenario_tree = False,
                confidence_threshold = alpha,
                robustness_threshold = 0.05,
                estimate_exceptance = 10000,
@@ -128,7 +128,7 @@ def run():
         
         # here measurement becomes available
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-        e.compute_confidence_ellipsoid()
+        #e.compute_confidence_ellipsoid()
         
         # solve the advanced step problems
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
@@ -154,6 +154,8 @@ def run():
         print('constraint inf: ', e.nmpc_trajectory[i,'eps'])
         print('plant: ',end='')
         print(e.plant_trajectory[i,'solstat'])
+    
+    #print(e.st)
         
     e.plant_simulation(e.store_results(e.olnmpc))
     tf = e.nmpc_trajectory[k,'tf']

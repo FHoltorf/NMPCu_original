@@ -80,17 +80,16 @@ class SemiBatchPolymerization(ConcreteModel):
         self.r_Hrxn_aux_par = Param(self.r, self.s, initialize=1.0, mutable=True)
         self.r_kA = Var(self.s, initialize=1.0)
         self.r_kA_par = Param(self.s, initialize=1.0, mutable=True)
+        self.r_n_KOH = Var(self.s, initialize=1.0)
+        self.r_n_KOH_par = Param(self.s, initialize=1.0, mutable=True)
         
         # noisy parameter estimation
         self.p_A = Var(self.fe_t, self.r, self.s, initialize=1.0)
         self.p_A.fix()
-        self.p_A_par = Param(self.fe_t, self.r, self.s, initialize=1.0, mutable=True)
         self.p_Hrxn_aux = Var(self.fe_t, self.r, self.s, initialize=1.0)
         self.p_Hrxn_aux.fix()
-        self.p_Hrxn_aux_par = Param(self.fe_t, self.r, self.s, initialize=1.0, mutable=True)
         self.p_kA = Var(self.fe_t, self.s, initialize=1.0)
         self.p_kA.fix() 
-        self.p_kA_par = Param(self.fe_t, self.s, initialize=1.0, mutable=True)
         #for index in self.p_A.index_set():
         #    if index[0] != 'p':
         #        self.p_A[index].fix()
@@ -143,11 +142,14 @@ class SemiBatchPolymerization(ConcreteModel):
         self.m_total = Param(initialize=self.m_H2O+self.m_PO+self.m_KOH+self.m_PG) # [kg] total mass in the reactor
         self.n_H2O = Param(initialize=self.m_H2O/self.mw_H2O) # [kmol] mole of H2O
         self.n_PO = Param(initialize=self.m_PO/self.mw_PO) # [kmol] mole of PO
-        self.n_KOH = Param(initialize=self.m_KOH/self.mw_KOH) # [kmol] mole of KOH
+        self.n_KOH = Var(initialize=self.m_KOH/self.mw_KOH) # [kmol] mole of KOH
+        self.n_KOH.fix()
         self.n_PG = Param(initialize=self.m_PG/self.mw_PG) # [kmol] mole of PG;
         
         # reactor and product specs
         self.T_safety = Param(initialize=170.0) #190 [°C] maximum allowed temperature after adiabatic temperature rise
+        self.T_max = Param(initialize=150.0)
+        self.T_min = Param(initialize=100.0)
         self.molecular_weight = Param(initialize=949.5, mutable=True) # 3027.74 # [g/mol] or [kg/kmol] target molecular weights
         self.unsat_value = Param(initialize=0.032) #0.032 # unsaturation value
         self.unreacted_PO = Param(initialize=120.0) #120.0 # [PPM] unreacted PO
@@ -789,7 +791,7 @@ class SemiBatchPolymerization(ConcreteModel):
         
         def _pc_T_max(self,i,j,s):
             if j > 0:
-                return 0.0 == (self.T_safety + self.Tb) - self.T[i,j,s]*self.T_scale - self.s_T_max[i,j,s] + self.eps_pc[i,j,2,s] - self.xi_T_max[i,j,s]
+                return 0.0 == (self.T_max + self.Tb) - self.T[i,j,s]*self.T_scale - self.s_T_max[i,j,s] + self.eps_pc[i,j,2,s] - self.xi_T_max[i,j,s]
             else:
                 return Constraint.Skip
         
@@ -797,7 +799,7 @@ class SemiBatchPolymerization(ConcreteModel):
         
         def _pc_T_min(self,i,j,s):
             if j > 0:
-                return 0.0 == self.T[i,j,s]*self.T_scale - (100.0 + self.Tb) - self.s_T_min[i,j,s] + self.eps_pc[i,j,3,s] - self.xi_T_min[i,j,s]
+                return 0.0 == self.T[i,j,s]*self.T_scale - (self.T_min + self.Tb) - self.s_T_min[i,j,s] + self.eps_pc[i,j,3,s] - self.xi_T_min[i,j,s]
             else:
                 return Constraint.Skip
         
@@ -874,6 +876,8 @@ class SemiBatchPolymerization(ConcreteModel):
         self.dummy_constraint_r_A_i = Constraint(self.s, rule = lambda self,s: self.r_A['i',s] == self.r_A_par['i',s])
         self.dummy_constraint_r_Hrxn_aux_p = Constraint(self.s, rule = lambda self,s: self.r_Hrxn_aux['p',s] == self.r_Hrxn_aux_par['p',s])
         self.dummy_constraint_r_kA = Constraint(self.s, rule=lambda self,s: self.r_kA[s] == self.r_kA_par[s])
+        self.dummy_constraint_r_n_KOH = Constraint(self.s, rule=lambda self,s: self.r_n_KOH[s] == self.r_n_KOH_par[s])
+        
         self.dummy_constraint_r_T_ic = Constraint(self.s, rule=lambda self,s: self.r_T_ic[s] == self.r_T_ic_par[s])
         self.dummy_constraint_r_W_ic = Constraint(self.s, rule=lambda self,s: self.r_W_ic[s] == self.r_W_ic_par[s])
         self.dummy_constraint_r_PO_ic = Constraint(self.s, rule=lambda self,s: self.r_PO_ic[s] == self.r_PO_ic_par[s])
@@ -1008,7 +1012,7 @@ class SemiBatchPolymerization(ConcreteModel):
             for j in self.cp:    
                 for s in self.s:
                     self.T_cw[i,j,s].setlb(298.15/self.T_scale)
-                    self.T_cw[i,j,s].setub((self.T_safety + self.Tb)/self.T_scale)
+                    self.T_cw[i,j,s].setub((self.T_max + self.Tb)/self.T_scale)
                     self.T[i,j,s].setlb((25 + self.Tb)/self.T_scale)
                     self.T[i,j,s].setub((225 + self.Tb)/self.T_scale)
                     self.int_T[i,j,s].setlb((1.1*(100+self.Tb) + 2.72*(100+self.Tb)**2/2000)/self.int_T_scale)

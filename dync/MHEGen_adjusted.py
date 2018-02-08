@@ -220,7 +220,11 @@ class MheGen(NmpcGen):
                     self.lsmhe.noisy_cont.add(cp_exp[t, key] == self.lsmhe.wk_mhe[t, j])
                 j += 1
                 
-        #introduce variable for estimated state
+        #introduce variable for estimated state at current time point
+        #removes conflict between using wk_mhe[k-1] to fit the state at [k-1] 
+        #and fit state at [k] 
+        #Should I remove this because it creates all sorts of trouble that
+        #has to be resolved in dirty ways in the end (see set_cov_meas)
         for x in self.x_noisy:
             e_state_expr = getattr(self.lsmhe, x + "_e_expr")
             e_state_constr = getattr(self.lsmhe, x + "_e_c")
@@ -262,7 +266,11 @@ class MheGen(NmpcGen):
             self.pkN_key = {}
             k = 0
             for p in self.p_noisy:
-                par = getattr(self.lsmhe, 'p_' + p)  #: Noisy param
+                try:# check whether parameter is time-variant
+                    par = getattr(self.lsmhe, 'p_' + p)
+                except:# catch time-invariant parameters
+                    print('Parameter ' + p + ' is not time-variant')
+                    continue
                 for key in self.p_noisy[p]:  #: the jth variable
                     if self.linapprox:
                         jth = key + (1,)
@@ -279,7 +287,10 @@ class MheGen(NmpcGen):
             self.lsmhe.noisy_pars = ConstraintList()
             j = 0
             for p in self.p_noisy:
-                par = getattr(self.lsmhe, 'p_' + p)
+                try:# check whether parameter is time-variant
+                    par = getattr(self.lsmhe, 'p_' + p)
+                except:# catch time-invariant parameters
+                    continue
                 for key in self.p_noisy[p]:
                     j = self.pkN_key[(p,key)]
                     for t in range(1,self.nfe_mhe + 1):

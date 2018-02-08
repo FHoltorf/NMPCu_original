@@ -29,12 +29,16 @@ import numpy.linalg as linalg
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)], "T":[()], "T_cw":[()]}
+#p_noisy = {"A":[('p',),('i',)],'kA':[()],'Hrxn_aux':[('p',)]}
 p_noisy = {"A":[('p',),('i',)],'kA':[()]}
 u = ["u1", "u2"]
 u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)} 
 
-y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
-y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
+#y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
+#y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
+y = {"Y","PO", "MW","m_tot",'T'}
+y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],'T':[()]}
+
 nfe = 24
 tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
 
@@ -242,7 +246,7 @@ max_tf = max(t[0])
 plt.figure(l)
 for i in Tad:
     plt.plot(t[i],Tad[i], color='grey')
-plt.plot([0,max_tf],[4.4315,4.4315], color='red', linestyle='dashed')
+plt.plot([0,max_tf],[443.15/100,443.15/100], color='red', linestyle='dashed')
 plt.xlabel('t [min]')
 plt.ylabel('Tad [K]')
     
@@ -250,7 +254,7 @@ l += 1
 plt.figure(l)
 for i in heat_removal:
     plt.plot(t[i],heat_removal[i], color='grey')
-plt.plot([0,max_tf],[443.15/100,443.15/100], color='red', linestyle='dashed')
+plt.plot([0,max_tf],[2.7315+1.5,2.7315+1.5], color='red', linestyle='dashed')
 plt.plot([0,max_tf],[373.15/100,373.15/100], color='red', linestyle='dashed')
 plt.xlabel('t [min]')
 plt.ylabel('T [K]')

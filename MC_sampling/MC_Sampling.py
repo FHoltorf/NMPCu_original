@@ -20,8 +20,8 @@ import time
 # model with cooling jacket 
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBSG import *
-from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
-#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBBM import *
+#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
+from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBBM import *
 #from main.MC_sampling.cj.run_MHE_asNMPC_cj_pwa import *
 
 #################################################################
@@ -34,7 +34,7 @@ from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
 # inputs
 sample_size = 50
 # specifiy directory where to save the resulting files
-path = 'results/cj/MHE/multistage/tf+mw_penalty/' 
+path = 'results/cj/SBBM/' 
 # colors
 color = ['green','red','blue']
 tf = {}
@@ -175,7 +175,7 @@ plt.figure(6)
 for i in Tad:
     plt.plot(t[i],T[i], color='grey')
 #plt.plot([0,max_tf],[1.43403,1.43403], color='red', linestyle='dashed')
-plt.plot([0,max_tf],[4.4315,4.4315], color='red', linestyle='dashed')
+plt.plot([0,max_tf],[4.2315,4.2315], color='red', linestyle='dashed')
 plt.plot([0,max_tf],[3.7315,3.7315], color='red', linestyle='dashed')
 plt.xlabel('t [min]')
 plt.ylabel('T')
