@@ -43,7 +43,7 @@ mcov[("PO_fed",()), ("PO_fed",())] = 0.0 # measurement_error
 mcov[("heat_removal",()),("heat_removal",())] =  measurement_error
 mcov[("T",()),("T",())] = 0.01
 mcov[("T_cw",()),("T_cw",())] = 0.0
-#mcov[("ByProd",()),("ByProd",())] = measurement_error
+mcov[("ByProd",()),("ByProd",())] = measurement_error
 
 # relative variance that is associated with the controls
 ucov = {}

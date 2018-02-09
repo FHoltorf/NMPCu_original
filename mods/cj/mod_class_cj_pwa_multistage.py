@@ -1118,13 +1118,13 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
             w[i] = s_max/aux # total number of scenarios self.s_max  divided by sum over all scenarios
             
         def _eobj(self):
-#            return 1.0/s_max*(sum(sum(self.tf[i,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
-#                    + self.rho*(sum(sum(self.eps[k,s] for s in self.s) for k in self.epc) \
-#                    + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) for k in self.pc) for j in self.cp if j > 0)))
             return 1.0/s_max*(sum(sum(self.tf[i,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
                     + self.rho*(sum(sum(self.eps[k,s] for s in self.s) for k in self.epc) \
-                    + sum(sum(sum(sum(self.eps_pc[i,j,k,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) for k in self.pc) for j in self.cp if j > 0))\
-                    + self.gamma * sum((self.MX[self.nfe,self.ncp,1,s]*self.MX1_scale/(self.MX[self.nfe,self.ncp,0,s]*self.MX0_scale)*self.mw_PO*self.num_OH + self.mw_PG - self.molecular_weight)**2 for s in self.s))
+                    + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) for k in self.pc) for j in self.cp if j > 0)))
+#            return 1.0/s_max*(sum(sum(self.tf[i,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
+#                    + self.rho*(sum(sum(self.eps[k,s] for s in self.s) for k in self.epc) \
+#                    + sum(sum(sum(sum(self.eps_pc[i,j,k,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) for k in self.pc) for j in self.cp if j > 0))\
+#                    + self.gamma * sum((self.MX[self.nfe,self.ncp,1,s]*self.MX1_scale/(self.MX[self.nfe,self.ncp,0,s]*self.MX0_scale)*self.mw_PO*self.num_OH + self.mw_PG - self.molecular_weight)**2 for s in self.s))
         self.epc_mw_ub.deactivate()
         self.epc_mw.deactivate() 
         
@@ -1582,9 +1582,9 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
             f.close()
 
 ## create scenario_tree
-s_max = 9
+s_max = 3
 nr = 2
-nfe = 1
+nfe = 24
 alpha = 0.2
 st = {}
 for i in range(1,nfe+1):
@@ -1624,10 +1624,10 @@ f.close()
 #
 m = SemiBatchPolymerization_multistage(nfe,3,robust_horizon=nr,s_max=s_max**nr,scenario_tree=st)
 ##
-#m.initialize_element_by_element()
-#m.create_output_relations()
-#m.create_bounds()
-#m.clear_aux_bounds()
-#Solver.solve(m,tee=True)
-#m.Tad_ic = Var(initialize=3)
-#m.plot_profiles(var_list=['W', 'X', 'm_tot','MY','PO', 'T_cw', 'T', 'Tad'],control_list=['F'])
+m.initialize_element_by_element()
+m.create_output_relations()
+m.create_bounds()
+m.clear_aux_bounds()
+Solver.solve(m,tee=True)
+m.Tad_ic = Var(initialize=3)
+m.plot_profiles(var_list=['W', 'X', 'm_tot','MY','PO', 'T_cw', 'T', 'Tad'],control_list=['F'])

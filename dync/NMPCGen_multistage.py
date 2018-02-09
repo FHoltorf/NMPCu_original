@@ -532,12 +532,13 @@ class NmpcGen(DynGen):
     def recipe_optimization(self, multimodel=False):
         self.nfe_t_0 = self.nfe_t # set self.nfe_0 to keep track of the length of the reference trajectory
         self.generate_state_index_dictionary()
-        self.recipe_optimization_model = self.d_mod(self.nfe_t,self.ncp_t,scenario_tree = self.st, s_max = self.s_used, nr = self.nr)#self.d_mod(self.nfe_t, self.ncp_t, scenario_tree = self.st)
-        self.recipe_optimization_model.initialize_element_by_element()
-        self.recipe_optimization_model.create_bounds()
-        self.recipe_optimization_model.clear_aux_bounds()
+        self.recipe_optimization_model = self.d_mod(self.nfe_t,self.ncp_t,scenario_tree = self.st, s_max = self.s_used, robust_horizon = self.nr)#self.d_mod(self.nfe_t, self.ncp_t, scenario_tree = self.st)
+        self.recipe_optimization_model.initialize_element_by_element()       
         self.recipe_optimization_model.create_output_relations()
+        self.recipe_optimization_model.create_bounds()
         self.create_tf_bounds(self.recipe_optimization_model)
+        self.recipe_optimization_model.clear_aux_bounds()
+        
         
         if multimodel:
             self.recipe_optimization_model.multimodel()
