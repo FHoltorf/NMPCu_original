@@ -154,6 +154,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.T_max = Param(initialize=150.0)
         self.T_min = Param(initialize=100.0)
         self.molecular_weight = Param(initialize=949.5, mutable=True) # 3027.74 # [g/mol] or [kg/kmol] target molecular weights
+        self.molecular_weight_max = Param(initialize=949.5+10, mutable=True)
         self.unsat_value = Param(initialize=0.032) #0.032 # unsaturation value
         self.unreacted_PO = Param(initialize=120.0) #120.0 # [PPM] unreacted PO
         self.rxr_volume = Param(initialize=41.57) # [m^3] volume of the reactor
@@ -1025,7 +1026,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         def _epc_mw_ub(self,i,j,s):
             if (i,s) in self.scenario_tree:
                 if i == nfe and j == ncp:
-                    return 0.0 == self.MX[nfe,ncp,1,s]*self.MX1_scale - (50.0 + self.molecular_weight - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[nfe,ncp,0,s]*self.MX0_scale - self.eps[4,s] + self.s_mw_ub[s]
+                    return 0.0 == self.MX[nfe,ncp,1,s]*self.MX1_scale - (self.molecular_weight_max + self.molecular_weight - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[nfe,ncp,0,s]*self.MX0_scale - self.eps[4,s] + self.s_mw_ub[s]
                 else:
                     return Constraint.Skip
             else:
@@ -1110,15 +1111,19 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         # assumes symmetric tree, i.e. every node branches into the same number of children nodes
         # weights for obj. function:
         w = {}
+        aux = 1.0
+        s_max = sum(1 for key in self.scenario_tree if key[0] == self.nfe)
         for i in self.fe_t:
-            w[i] = max(1.0, self.s_max**(1.0-float(i)/self.nr))
+            aux *= sum(1 for key in self.scenario_tree if self.scenario_tree[key][:2] == self.scenario_tree[i,1][:2])
+            w[i] = s_max/aux # total number of scenarios self.s_max  divided by sum over all scenarios
+            
         def _eobj(self):
-#            return 1.0/self.s_max*(sum(sum(self.tf[i,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
+#            return 1.0/s_max*(sum(sum(self.tf[i,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
 #                    + self.rho*(sum(sum(self.eps[k,s] for s in self.s) for k in self.epc) \
 #                    + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) for k in self.pc) for j in self.cp if j > 0)))
-            return 1.0/self.s_max*(sum(sum(self.tf[i,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
+            return 1.0/s_max*(sum(sum(self.tf[i,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
                     + self.rho*(sum(sum(self.eps[k,s] for s in self.s) for k in self.epc) \
-                    + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) for k in self.pc) for j in self.cp if j > 0))\
+                    + sum(sum(sum(sum(self.eps_pc[i,j,k,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) for k in self.pc) for j in self.cp if j > 0))\
                     + self.gamma * sum((self.MX[self.nfe,self.ncp,1,s]*self.MX1_scale/(self.MX[self.nfe,self.ncp,0,s]*self.MX0_scale)*self.mw_PO*self.num_OH + self.mw_PG - self.molecular_weight)**2 for s in self.s))
         self.epc_mw_ub.deactivate()
         self.epc_mw.deactivate() 
@@ -1139,13 +1144,28 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.non_anticipativity_tf.deactivate()
         self.non_anticipativity_u1.deactivate()
         self.non_anticipativity_u2.deactivate()
+        self.fix_element_size.deactivate()
         
         self.u1_multimodel = Constraint(self.fe_t, self.s, rule=lambda self,i,s: self.u1[i,s] == self.u1[i,1] if s != 1 else Constraint.Skip)
         self.u2_multimodel = Constraint(self.fe_t, self.s, rule=lambda self,i,s: self.u2[i,s] == self.u2[i,1] if s != 1 else Constraint.Skip)
-        self.tf_multimodel = Constraint(self.fe_t, self.s, rule=lambda self,i,s: self.tf[i,s] == self.tf[i,1] if s != 1 else Constraint.Skip)
+        self.tf_multimodel = Constraint(self.fe_t, self.s, rule=lambda self,i,s: self.tf[i,s] == self.tf[1,1] if (i,s) in self.scenario_tree and (i,s) != (1,1) else Constraint.Skip)
+        #self.tf_multimodel = Constraint(self.fe_t, self.s, rule=lambda self,i,s: self.tf[i,s] == self.tf[i,1] if s != 1 else Constraint.Skip)
         
-        self.theta = Var(initialize=1e4, bounds=(0.0,None))
-        
+        #clear bounds that are not required anymore
+        dof = ['u1','u2','tf']
+        for v in dof:
+            var = getattr(self, v)
+            for index in var.index_set():
+                if index[-1] == 1:
+                    continue
+                else:
+                    var[index].setlb(None)
+                    var[index].setub(None)
+       
+        for s in self.s:
+            self.eps[3,s].fix(0.0)
+       
+        self.theta = Var(initialize=1e3, bounds=(0.0,None))
         self.epi = ConstraintList()        
         self.epc_mw.deactivate()
         for index in self.MW.index_set():
@@ -1153,13 +1173,13 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
             j = index[1]
             s = 1
             if j != 0 and (i,s) in self.scenario_tree:
-                self.MW[index] = (self.MX[i,j,1,s].value*self.MX1_scale/(self.MX[i,j,0,s].value*self.MX0_scale)*self.mw_PO.value*self.num_OH.value + self.mw_PG.value)/self.MW_scale
+                self.MW[index].value = (self.MX[i,j,1,s].value*self.MX1_scale/(self.MX[i,j,0,s].value*self.MX0_scale)*self.mw_PO.value*self.num_OH.value + self.mw_PG.value)/self.MW_scale
             
         for s in self.s:
             self.epi.add(sum(self.tf[i,s] for i in self.fe_t) \
                          + self.rho*(sum(self.eps[k,s] for k in self.epc) \
                          + sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t)for k in self.pc) for j in self.cp if j > 0))\
-                         + 100*(self.MW[self.nfe,self.ncp,s]*self.MW_scale-self.molecular_weight)**2.0 <= self.theta)
+                         + 10*(self.MW[self.nfe,self.ncp,s]*self.MW_scale-self.molecular_weight)**2.0 <= self.theta)
         self.eobj.expr = self.theta 
                 
     def par_to_var(self):
@@ -1231,9 +1251,10 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         for d in dof:
             var = getattr(self, d)
             for key in var.index_set():
-                if not(self.scenario_tree[key][2]):
+                if key in self.scenario_tree and not(self.scenario_tree[key][2]):
                     var[key].setlb(None)
                     var[key].setub(None)
+                # tf[nr+1,s] yields the degree of freedom in this optimization problem
                 if var.name == 'tf' and ((key[1] == 1 and key[0] > 1) or (key[0] > self.nr + 1)):
                     var[key].setlb(None)
                     var[key].setub(None)
@@ -1561,47 +1582,47 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
             f.close()
 
 ## create scenario_tree
-#s_max = 9
-#nr = 1
-#nfe = 24
-#alpha = 0.2
-#st = {}
-#for i in range(1,nfe+1):
-#    if i < nr + 1:
-#        for s in range(1,s_max**i+1):
-#            if s%s_max == 1:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A',('p',)):1.0,('A',('i',)):1.0,('kA',()):1.0}) 
-#            elif s%s_max == 2:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0+alpha,('kA',()):1.0-alpha})
-#            elif s%s_max == 3:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0+alpha,('kA',()):1.0-alpha})
-#            elif s%s_max == 4:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
-#            elif s%s_max == 5:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
-#            elif s%s_max == 6:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
-#            elif s%s_max == 7:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
-#            elif s%s_max == 8:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
-#            else:
-#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
-#    else:
-#        for s in range(1,s_max**nr+1):
-#            st[(i,s)] = (i-1,s,True,st[(i-1,s)][3])
+s_max = 9
+nr = 2
+nfe = 1
+alpha = 0.2
+st = {}
+for i in range(1,nfe+1):
+    if i < nr + 1:
+        for s in range(1,s_max**i+1):
+            if s%s_max == 1:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A',('p',)):1.0,('A',('i',)):1.0,('kA',()):1.0}) 
+            elif s%s_max == 2:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0+alpha,('kA',()):1.0-alpha})
+            elif s%s_max == 3:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0+alpha,('kA',()):1.0-alpha})
+            elif s%s_max == 4:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
+            elif s%s_max == 5:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
+            elif s%s_max == 6:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
+            elif s%s_max == 7:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
+            elif s%s_max == 8:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
+            else:
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
+    else:
+        for s in range(1,s_max**nr+1):
+            st[(i,s)] = (i-1,s,True,st[(i-1,s)][3])
+
+            
+Solver = SolverFactory('ipopt')
+Solver.options["halt_on_ampl_error"] = "yes"
+Solver.options["max_iter"] = 1000
+Solver.options["tol"] = 1e-8
+Solver.options["linear_solver"] = "ma57"
+f = open("ipopt.opt", "w")
+f.write("print_info_string yes")
+f.close()
 #
-#            
-#Solver = SolverFactory('ipopt')
-#Solver.options["halt_on_ampl_error"] = "yes"
-#Solver.options["max_iter"] = 1000
-#Solver.options["tol"] = 1e-8
-#Solver.options["linear_solver"] = "ma57"
-#f = open("ipopt.opt", "w")
-#f.write("print_info_string yes")
-#f.close()
-##
-#m = SemiBatchPolymerization_multistage(nfe,3,robust_horizon=nr,s_max=s_max**nr,scenario_tree=st)
+m = SemiBatchPolymerization_multistage(nfe,3,robust_horizon=nr,s_max=s_max**nr,scenario_tree=st)
 ##
 #m.initialize_element_by_element()
 #m.create_output_relations()

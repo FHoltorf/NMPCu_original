@@ -605,6 +605,7 @@ class MheGen(NmpcGen):
                                 self.curr_epars[(p,key)] = p_mhe[pkey].value
                             else:
                                 self.curr_epars[(p,key)] = p_nom[pkey].value
+                                
             except KeyError: # adapt parameters blindly
                 if self.adapt_params:
                     for p in self.p_noisy:
@@ -612,7 +613,8 @@ class MheGen(NmpcGen):
                         for key in self.p_noisy[p]:
                             pkey = None if key == () else key
                             self.curr_epars[(p,key)] = p_mhe[pkey].value
-                             
+            
+            self.nmpc_trajectory[self.iterations,'e_pars'] = deepcopy(self.curr_epars)
             ###############################################################
             ### DISCLAIMER:
             ### currently tailored to single stage which is reasonable since multiple stages do not make sense
@@ -661,7 +663,7 @@ class MheGen(NmpcGen):
                                 self.st[p,key,l] = scenarios[(p,key),l]
                             except KeyError:
                                 continue
-                                              
+                            
                             
             if self.update_uncertainty_set:
                 # tailored to hyperrectangles and linear approximation of LLP

@@ -36,8 +36,8 @@ u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)}
 
 #y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
 #y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
-y = {"Y","PO", "MW","m_tot",'T'}
-y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],'T':[()]}
+y = {"MY","PO", "MW","m_tot",'T'}
+y_vars = {"MY":[()],"PO":[()],"MW":[()], "m_tot":[()],'T':[()]}
 
 nfe = 24
 tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
@@ -94,13 +94,12 @@ for i in range(1,nfe):
 
     # here measurement becomes available
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-    # solve the advanced step problems
+    e.compute_confidence_ellipsoid()
     e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
 
     e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
     e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
     e.solve_olnmpc() # solves the olnmpc problem
-    
 
     e.cycle_iterations()
     k += 1
@@ -119,9 +118,6 @@ for i in range(1,k):
     print(e.plant_trajectory[i,'solstat'])
 
 e.plant_simulation(e.store_results(e.olnmpc))
-
-
-
 
 # Uncertainty Realization
 print('uncertainty realization')
@@ -214,6 +210,93 @@ for b in plots:
 e.plant_simulation_model.check_feasibility(display=True)
 
 # print uncertatinty realization
+###############################################################################
+###         Plotting 1st Order Approximation of Confidence Region 
+###############################################################################
+try:
+    error_bounds = {}
+    estimates = [e.nmpc_trajectory[i,'e_pars'] for i in range(2,nfe)]
+    plt.figure(l)
+    dimension = 3 # dimension n of the n x n matrix = #DoF
+    rhs_confidence = chi2.isf(1.0-0.95,dimension) # 0.1**2*5% measurment noise, 95% confidence level, dimension degrees of freedo
+    rows = {}
+    for r in range(1,24):
+        A_dict = e.mhe_confidence_ellipsoids[r]
+        center = [0,0]
+        for m in range(dimension):
+            rows[m] = np.array([A_dict[(m,i)] for i in range(dimension)])
+        A = 1/rhs_confidence*np.array([np.array(rows[i]) for i in range(dimension)])
+        center = np.array([0]*dimension)
+        U, s, V = linalg.svd(A) # singular value decomposition 
+        radii = 1/np.sqrt(s) # length of half axes, V rotation
+        
+        # transform in polar coordinates for simpler waz of plotting
+#        theta = np.linspace(0.0, 2.0 * np.pi, 100) # angle = idenpendent variable
+#        x = radii[0] * np.sin(theta) # x-coordinate
+#        y = radii[1] * np.cos(theta) # y-coordinate
+#        for i in range(len(x)):
+#            [x[i],y[i]] = np.dot([x[i],y[i]], V) + center
+#        plt.plot(x,y, label = str(r))
+    
+        dev = {(p,key):1e20 for p in e.p_noisy for key in e.p_noisy[p]}
+        for p in e.p_noisy:
+            p_mhe = getattr(e.lsmhe,p)
+            for key in e.p_noisy[p]:
+                pkey = key if key != () else None
+                k = e.PI_indices[p,key]
+                A_k = deepcopy(A)
+                A_k[:,k] = 0.0
+                A_k[k,:] = 0.0
+                A_k[k,k] = 1.0
+                Z_k = np.zeros(dimension)
+                Z_k[:] = -A[:,k]
+                Z_k[k] = 1.0
+                a_k = A[k,:]
+                D_k = np.linalg.solve(A_k,Z_k)
+                dev_k = np.sqrt(1/np.dot(a_k,D_k))/p_mhe[pkey].value
+                # use new interval if robustness_threshold < dev_k < confidence_threshold
+                dev[(p,key)] = dev_k
+        error_bounds[r] = deepcopy(dev)
+            
+    l +=1
+    est_Ap = [estimates[i][('A',('p',))] for i in range(22)]
+    est_Ai = [estimates[i][('A',('i',))] for i in range(22)]
+    est_kA = [estimates[i][('kA',())] for i in range(22)]
+    lb_Ap = [error_bounds[i][('A',('p',))] for i in range(2,24)]
+    lb_Ai = [error_bounds[i][('A',('i',))] for i in range(2,24)]
+    lb_kA = [error_bounds[i][('kA',())] for i in range(2,24)]
+    err_Ap = [est_Ap[i]*lb_Ap[i] for i in range(22)]
+    err_Ai = [est_Ai[i]*lb_Ai[i] for i in range(22)]
+    err_kA = [est_kA[i]*lb_kA[i] for i in range(22)]
+    x = [i for i in range(2,24)]
+    plt.figure(l)
+    plt.errorbar(x,est_Ap, yerr=err_Ap, fmt='bo', capsize=5)
+    plt.ylabel('A_p')
+    plt.xlabel('iteration')
+    l+=1
+    plt.figure(l)
+    plt.errorbar(x,est_Ai, yerr=err_Ai, fmt='bo', capsize=5)
+    plt.ylabel('A_i')
+    plt.xlabel('iteration')
+    l+=1
+    plt.figure(l)
+    plt.errorbar(x,est_kA, yerr=err_kA, fmt='bo', capsize=5)
+    plt.ylabel('kA')
+    plt.xlabel('iteration')
+        # plot half axis
+#    for p in range(dimension):
+#        x = radii[p]*U[p][0]
+#        y = radii[p]*U[p][1]
+#        plt.plot([0,x],[0,y],color='red')
+#    plt.xlabel(r'$\Delta A_i$')
+#    plt.ylabel(r'$\Delta A_p$')
+    
+    
+    
+
+    
+except KeyError:
+    pass
 
 
 ###############################################################################

@@ -148,7 +148,7 @@ class NmpcGen(DynGen):
         self.simulation_model.deactivate_pc()
         self.simulation_model.eobj.deactivate()
         self.simulation_model.del_pc_bounds()
-        self.simulation_model.clear_aux_bounds()
+        self.simulation_model.clear_all_bounds()
         self.simulation_model.fix_element_size.deactivate()
         
         # load initial guess from recipe optimization
@@ -382,7 +382,9 @@ class NmpcGen(DynGen):
             self.plant_simulation_model.equalize_u(direction="u_to_r") 
                  
         # probably redundant
-        self.plant_simulation_model.clear_aux_bounds()
+        self.plant_simulation_model.clear_all_bounds()
+        
+        #self.plant_simulation_model.clear_aux_bounds()
         
         # solve statement
         ip = SolverFactory("asl:ipopt")
@@ -495,7 +497,9 @@ class NmpcGen(DynGen):
             control[1,1].fix(current_control_info[u])
             self.forward_simulation_model.equalize_u(direction="u_to_r") # xxx
         
-        self.forward_simulation_model.clear_aux_bounds()
+        #self.forward_simulation_model.clear_aux_bounds()
+        self.forward_simulation_model.clear_all_bounds()
+        
         # solve statement
         ip = SolverFactory("asl:ipopt")
         ip.options["halt_on_ampl_error"] = "yes"
@@ -1545,10 +1549,12 @@ class NmpcGen(DynGen):
             s = getattr(self.olnmpc, 's_'+c)
             for index in s.index_set():
                 if not(s[index].stale): # only take
-                    if index[-1] == 1: # only nominal scenario as base for linearization
-                    self.olnmpc.var_order.set_value(s[index], i+1)
-                    rows[i] = ('s_'+ c,index)
-                    i += 1
+                    nominal = True if (type(index) == tuple and index[-1] == 1) or index==1 else False
+                    if nominal:
+                        # only nominal scenario as base for linearization
+                        self.olnmpc.var_order.set_value(s[index], i+1)
+                        rows[i] = ('s_'+ c,index)
+                        i += 1
                         
         # row j in sensitivity matrix corresponds to rhs of constraint x 
         rows_r = {value:key for key, value in rows.items()}
@@ -1598,8 +1604,8 @@ class NmpcGen(DynGen):
         con_vio = {}
         for i in rows: # constraints
             con = rows[i] # ('s_name', index)
-            c_stage = con[1][0]
-            c_scen = con[1][-1]
+            c_stage = con[1][0] if type(con[1])==tuple else con[1]
+            c_scen = con[1][-1] if type(con[1])==tuple else con[1]
             c_name = con[0][2:]
             dsdp = sens[i][:].transpose() # gets row i in dsdp, transpose not required but makes clear what is done
             delta_p_wc_iter = {}
@@ -1611,9 +1617,11 @@ class NmpcGen(DynGen):
                 key = par[1][:-2]
                 p_stage = par[1][-2]
                 p_scen = par[1][-1]
-                # only compute for relevant parameters
-                if     ([p_stage,p_scen] == [c_stage,c_scen] and c_name in pc) \ # path constraint
-                    or ([p_stage,p_scen] == [min(self.nr+1,self.nfe_t),c_scen] and c_name in epc):# endpoint constraint
+                # only compute for relevant parameters 
+                # distinguish between endpoint and path constraints
+                # endpoint constraints are only considered on last stage
+                if  ([p_stage,p_scen] == [c_stage,c_scen] and c_name in pc) \
+                    or ([p_stage,p_scen] == [min(self.nr+1,self.nfe_t),c_scen] and c_name in epc):
                     p_var = getattr(self.olnmpc, 'p_' + p)
                     # just a preparation for linearizing around different scenarios
                     # will be zero here
@@ -1625,9 +1633,6 @@ class NmpcGen(DynGen):
                     delta_p_wc_iter[p,key] = bounds[(p,key)][0] - delta if dsdp[j] < 0.0 else bounds[(p,key)][1] - delta
                     vertex[p,key] = 'L' if dsdp[j] < 0.0 else 'U'
                     aux += dsdp[j]*delta_p_wc_iter[p,key]
-                elif con[0][2:] in epc: # epc
-                    delta_p_wc_iter[p,key]
-                    pass
                 else:
                     continue
             if crit == 'overall':
@@ -1660,7 +1665,7 @@ class NmpcGen(DynGen):
         # i.e, if for the same constraint two scenarios result in higher first-order
         # violations than any scenario for any other constraint both are included
             for i in range(2,min(self.nr+2,self.nfe_t+1)):
-                con_vio_copy = {con:con_vio[con] for con in con_vio if con[1][0]==i}
+                con_vio_copy = {con:con_vio[con] for con in con_vio if (type(con[1])==tuple and con[1][0] == i) or (con[1] == i)}
                 print('copy',i, con_vio_copy)
                 for s in range(2,int(np.round(self.s_max**(1.0/self.nr)))+1): # scenario 1 is reserved for the nomnal sscenario
                     wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
@@ -1669,7 +1674,7 @@ class NmpcGen(DynGen):
                     con_vio_copy = {key: value for key, value in con_vio_copy.items() if (delta_p_wc[key] != delta_p_wc[wc_scenario])}
                     if len(con_vio_copy) == 0:
                         break
-                s_branch[i-1] = s 
+                s_branch[i-1] = s
                 s_stage[i-1] = s*s_stage[i-2]
         elif crit == 'con':            
         # wc for every constraint

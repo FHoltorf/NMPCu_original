@@ -19,8 +19,8 @@ import matplotlib.pyplot as plt
 import numpy.linalg as linalg
 
 
-path = 'results/cj/OL/' 
-sample_size = 100
+path = 'results/cj/OL/nominal/150/' 
+sample_size = 1000
 
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","PO_fed","T"] # all the states are noisy  
@@ -137,7 +137,7 @@ plt.ylabel('Tad')
 plt.figure(6)
 for i in Tad:
     plt.plot(t[i],heat_removal[i], color='grey')
-plt.plot([0,t[1][-1]],[4.4315,4.4315], color='red', linestyle='dashed')
+plt.plot([0,t[1][-1]],[4.2315,4.2315], color='red', linestyle='dashed')
 plt.plot([0,t[1][-1]],[3.7315,3.7315], color='red', linestyle='dashed')
 plt.xlabel('t [min]')
 plt.ylabel('T')

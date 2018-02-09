@@ -358,9 +358,9 @@ class NmpcGen(DynGen):
 
         # really nice example for not nicely working OLNMPC
         # adapt, 
-        #self.plant_simulation_model.A['p'] = 0.8*13504.2
-        #self.plant_simulation_model.kA['i'] = 0.8*0.07170172
-        #self.plant_simulation_model.A['i'] = 1.0108695384819*396400.0
+#        self.plant_simulation_model.A['p'] = 0.8*13504.2
+#        self.plant_simulation_model.kA = 0.8*0.07170172
+#        self.plant_simulation_model.A['i'] = 1.0108695384819*396400.0
         # solve statement
         ip = SolverFactory("asl:ipopt")
         ip.options["halt_on_ampl_error"] = "yes"

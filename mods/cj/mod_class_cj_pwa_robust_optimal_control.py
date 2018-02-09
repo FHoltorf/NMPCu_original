@@ -70,7 +70,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.r = Set(initialize=['a','i','p','t']) # reactions
         self.fe_t = Set(initialize=[i for i in range(1,nfe+1)])
         self.cp = Set(initialize=[i for i in range(ncp+1)])
-        self.epc = Set(initialize=[i for i in range(1,4)])
+        self.epc = Set(initialize=[i for i in range(1,5)])
         self.pc = Set(initialize=[i for i in range(1,4)])
    
         # parameter for different models
@@ -151,6 +151,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.T_max = Param(initialize=150.0)
         self.T_min = Param(initialize=100.0)
         self.molecular_weight = Param(initialize=949.5, mutable=True) # 3027.74 # [g/mol] or [kg/kmol] target molecular weights
+        self.molecular_weight_max = Param(initialize=949.5+20, mutable=True)
         self.unsat_value = Param(initialize=0.032) #0.032 # unsaturation value
         self.unreacted_PO = Param(initialize=120.0) #120.0 # [PPM] unreacted PO
         self.rxr_volume = Param(initialize=41.57) # [m^3] volume of the reactor
@@ -278,11 +279,12 @@ class SemiBatchPolymerization(ConcreteModel):
         self.s_PO_ptg = Var(self.s, initialize=0, bounds=(0,None))
         self.s_unsat = Var(self.s, initialize=0, bounds=(0,None))
         self.s_PO_fed = Var(self.s, initialize=0, bounds=(0,None))
-        #self.s_mw_ub = Var(self.s, initialize=0, bounds=(0,None))
+        self.s_mw_ub = Var(self.s, initialize=0, bounds=(0,None))
         self.s_T_max = Var(self.fe_t, self.cp, self.s, initialize=0.0, bounds=(0,None))
         self.s_T_min = Var(self.fe_t, self.cp, self.s, initialize=0.0, bounds=(0,None))
         
         # auxiliary variable to compute sensitivities
+        self.xi_mw_ub = Param(self.s, initialize=0.0, mutable=True)
         self.xi_mw = Param(self.s, initialize=0.0, mutable=True)
         self.xi_PO_ptg = Param(self.s, initialize=0.0, mutable=True)
         self.xi_unsat = Param(self.s, initialize=0.0, mutable=True)
@@ -860,10 +862,10 @@ class SemiBatchPolymerization(ConcreteModel):
         #process_constraint_mw(k,q)$(ord(k) = card(k) and ord(q) = card(q))..
         #        (selfolecular_weight - mw_PG)/mw_PO/num_OH*MX('1',k,q) =l= MX('2',k,q);
         
-        #def _epc_mw_ub(self,s):
-        #    return 0.0 == (self.MX[nfe,ncp,1,s]*self.MX1_scale - (30.0 + self.molecular_weight - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[nfe,ncp,0,s]*self.MX0_scale) + self.eps[4,s] - self.s_mw_ub[s]
+        def _epc_mw_ub(self,s):
+            return 0.0 == - (self.MX[nfe,ncp,1,s]*self.MX1_scale - (self.molecular_weight_max - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[nfe,ncp,0,s]*self.MX0_scale) + self.eps[4,s] - self.s_mw_ub[s] - self.xi_mw_ub[s]
         
-        #self.epc_mw_ub = Constraint(self.s, rule=_epc_mw_ub)
+        self.epc_mw_ub = Constraint(self.s, rule=_epc_mw_ub)
         
         # controls (technicalities)
         self.u1_e = Expression(self.fe_t, rule = lambda self, i: self.dT_cw_dt[i])
@@ -888,13 +890,13 @@ class SemiBatchPolymerization(ConcreteModel):
         
         # objective
         def _eobj(self):
-#            return self.tf + self.rho*(sum(sum(self.eps[i,s] for i in self.epc) for s in self.s) \
-#                           + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc) for s in self.s))
             return self.tf + self.rho*(sum(sum(self.eps[i,s] for i in self.epc) for s in self.s) \
-                                       + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc) for s in self.s)) \
-                                       + self.gamma*sum((self.MX[self.nfe,self.ncp,1,s]*self.MX1_scale/(self.MX[self.nfe,self.ncp,0,s]*self.MX0_scale)*self.mw_PO*self.num_OH + self.mw_PG - self.molecular_weight)**2 for s in self.s)
-
-        self.epc_mw.deactivate() 
+                           + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc) for s in self.s))
+#            return self.tf + self.rho*(sum(sum(self.eps[i,s] for i in self.epc) for s in self.s) \
+#                                       + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc) for s in self.s)) \
+#                                       + self.gamma*sum((self.MX[self.nfe,self.ncp,1,s]*self.MX1_scale/(self.MX[self.nfe,self.ncp,0,s]*self.MX0_scale)*self.mw_PO*self.num_OH + self.mw_PG - self.molecular_weight)**2 for s in self.s)
+#
+#        self.epc_mw.deactivate() 
         self.eobj = Objective(rule=_eobj,sense=minimize)
         
         #Suffixes

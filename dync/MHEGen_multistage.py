@@ -540,6 +540,8 @@ class MheGen(NmpcGen):
                                 self.curr_epars[(p,key)] = p_mhe[pkey].value
                             else:
                                 self.curr_epars[(p,key)] = p_nom[pkey].value
+                    
+                    
                                 
             except KeyError: # adapt parameters blindly
                 if self.adapt_params:
@@ -550,6 +552,9 @@ class MheGen(NmpcGen):
                             self.curr_epars[(p,key)] = p_mhe[pkey].value
                     else:
                         pass
+                    
+            # {timestep after which the parameters were identified, 'e_pars':dictionary with estimates}
+            self.nmpc_trajectory[self.iterations,'e_pars'] = deepcopy(self.curr_epars)
                 
 
 
@@ -1063,7 +1068,7 @@ class MheGen(NmpcGen):
         
         try:
             self.k_aug.solve(self.lsmhe, tee=True)
-        except ApplicationError:
+        except:
             self.nmpc_trajectory[self.iterations,'solstat_mhe'] = ['Inversion of Reduced Hessian failed','Inversion of Reduced Hessian failed']
       
         self.lsmhe.f_timestamp.display(ostream=sys.stderr)

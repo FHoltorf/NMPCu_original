@@ -146,6 +146,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.T_max = Param(initialize=150.0)
         self.T_min = Param(initialize=100.0)
         self.molecular_weight = Param(initialize=949.5, mutable=True) # 3027.74 # [g/mol] or [kg/kmol] target molecular weights
+        self.molecular_weight_max = Param(initialize=949.5+10, mutable=True)
         self.unsat_value = Param(initialize=0.032) #0.032 # unsaturation value
         self.unreacted_PO = Param(initialize=120.0) #120.0 # [PPM] unreacted PO
         self.rxr_volume = Param(initialize=41.57) # [m^3] volume of the reactor
@@ -758,7 +759,7 @@ class SemiBatchPolymerization(ConcreteModel):
         #        (selfolecular_weight - mw_PG)/mw_PO/num_OH*MX('1',k,q) =l= MX('2',k,q);
         
         def _epc_mw_ub(self):
-            return 0.0 == -(self.MX[nfe,ncp,1]*self.MX1_scale - (30.0+self.molecular_weight - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[nfe,ncp,0]*self.MX0_scale) + self.eps[4] - self.s_mw_ub
+            return 0.0 == -(self.MX[nfe,ncp,1]*self.MX1_scale - (self.molecular_weight_max - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[nfe,ncp,0]*self.MX0_scale) + self.eps[4] - self.s_mw_ub
         
         self.epc_mw_ub = Constraint(rule =_epc_mw_ub)
         
@@ -832,11 +833,18 @@ class SemiBatchPolymerization(ConcreteModel):
     def create_output_relations(self):
         self.add_component('MW', Var(self.fe_t,self.cp, initialize=0.0, bounds=(0,None)))
         self.add_component('MW_c', Constraint(self.fe_t, self.cp))            
-        self.MW_c.rule = lambda self, i, j: 0.0 == self.MX[i,j,1]*self.MX1_scale - (self.MW[i,j]*self.MW_scale - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[i,j,0]*self.MX0_scale if j > 0 else Constraint.Skip
+        self.MW_c.rule = lambda self, i, j: self.MX[i,j,1]*self.MX1_scale - (self.MW[i,j]*self.MW_scale - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[i,j,0]*self.MX0_scale == 0.0 if j > 0 else Constraint.Skip
         self.MW_c.reconstruct()
-        #for i in self.MX.index_set():
-            #self.MX[i].setlb(1.0)
-        #self.MW_c.deactivate()
+        
+        self.add_component('ByProd', Var(self.fe_t, self.cp, initialize=0.0, bounds=(0,None)))
+        self.add_component('ByProd_c', Constraint(self.fe_t, self.cp))
+        self.ByProd_c.rule = lambda self, i, j:  self.MY[i,j] + self.Y[i,j] - self.ByProd[i,j] == 0.0 if j > 0 else Constraint.Skip
+        self.ByProd_c.reconstruct()
+        
+#        self.add_component('Prod', Var(self.fe_t, self.cp, initialize=0.0, bounds=(0,None)))
+#        self.add_component('Prod_c', Constraint(self.fe_t, self.cp))
+#        self.Prod_c.rule = lambda self, i, j:  self.MX[i,j,0] + self.X[i,j] - self.Prod[i,j] == 0.0 if j > 0 else Constraint.Skip
+#        self.Prod_c.reconstruct()
         
     def equalize_u(self, direction="u_to_r"):
         """set current controls to the values of their respective dummies"""

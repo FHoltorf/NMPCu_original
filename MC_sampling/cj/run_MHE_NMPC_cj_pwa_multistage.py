@@ -86,7 +86,7 @@ def run():
                s_max = sr,
                noisy_inputs = False,
                noisy_params = True,
-               adapt_params = False,
+               adapt_params = True,
                update_scenario_tree = False,
                confidence_threshold = alpha,
                robustness_threshold = 0.05,
