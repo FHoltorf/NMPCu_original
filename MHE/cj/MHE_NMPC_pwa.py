@@ -34,10 +34,10 @@ p_noisy = {"A":[('p',),('i',)],'kA':[()]}
 u = ["u1", "u2"]
 u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)} 
 
-#y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
-#y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
-y = {"ByProd","PO",'T'}
-y_vars = {"ByProd":[()],"PO":[()],'T':[()]}
+y = {"Y","PO", "W", "MY", "MX", "m_tot",'T'}
+y_vars = {"Y":[()],"PO":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
+#y = {"ByProd","PO",'T'}
+#y_vars = {"ByProd":[()],"PO":[()],'T':[()]}
 
 nfe = 24
 tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
@@ -283,18 +283,21 @@ try:
     plt.plot([2,23],[e.plant_simulation_model.A['p'].value]*2,color='red',linestyle='dashed')
     plt.ylabel('A_p')
     plt.xlabel('iteration')
+    plt.figure(l).savefig('Ap.pdf')
     l+=1
     plt.figure(l)
     plt.errorbar(x,est_Ai, yerr=err_Ai, fmt='bo', capsize=5)
     plt.plot([2,23],[e.plant_simulation_model.A['i'].value]*2,color='red',linestyle='dashed')
     plt.ylabel('A_i')
     plt.xlabel('iteration')
+    plt.figure(l).savefig('Ai.pdf')
     l+=1
     plt.figure(l)
     plt.errorbar(x,est_kA, yerr=err_kA, fmt='bo', capsize=5)
     plt.plot([2,23],[e.plant_simulation_model.kA.value]*2,color='red',linestyle='dashed')
     plt.ylabel('kA')
     plt.xlabel('iteration')
+    plt.figure(l).savefig('kA.pdf')
 except KeyError:
     pass
 

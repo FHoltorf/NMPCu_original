@@ -46,8 +46,8 @@ pc = ['Tad','T']
 
 # scenario_tree
 st = {} # scenario tree : {parent_node, scenario_number on current stage, base node (True/False), scenario values {'name',(index):value}}
-s_max = 3
-nr = 2
+s_max = 7
+nr = 1
 alpha = 0.2
 for i in range(1,nfe+1):
     if i < nr + 1:
@@ -133,7 +133,7 @@ for i in range(1,nfe):
         e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)          
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE        
-        e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds)
+        e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con')
         e.cycle_nmpc(e.store_results(e.olnmpc))   
 
     # solve mhe problem
@@ -286,7 +286,7 @@ l += 1
 plt.figure(l)
 for i in heat_removal:
     plt.plot(t[i],heat_removal[i], color='grey')
-plt.plot([0,max_tf],[443.15/100,443.15/100], color='red', linestyle='dashed')
+plt.plot([0,max_tf],[423.15/100,423.15/100], color='red', linestyle='dashed')
 plt.plot([0,max_tf],[373.15/100,373.15/100], color='red', linestyle='dashed')
 plt.xlabel('t [min]')
 plt.ylabel('T [K]')

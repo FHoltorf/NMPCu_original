@@ -78,7 +78,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         # scenarios
         self.s = Set(initialize=[i for i in range(1,self.s_max+1)])
         # stage
-        self.sg = Set(initialize=[i for i in range(1,self.nr+2)])
+        self.sg = Set(initialize=[i for i in range(1,min(self.nr+2,nfe+1))])
         self.o = Set(initialize=[i for i in range(2)]) # moments
         self.r = Set(initialize=['a','i','p','t']) # reactions
         self.fe_t = Set(initialize=[i for i in range(1,nfe+1)])
@@ -270,9 +270,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.s_unsat = Var(self.s, initialize=0, bounds=(0,None))
         self.s_PO_fed = Var(self.s, initialize=0, bounds=(0,None))
         self.s_mw_ub = Var(self.s, initialize=0, bounds=(0,None))
-        
-        
-        
+
         # closures
         def _total_mass_balance(self,i,j,s):
             if (i,s) in self.scenario_tree:

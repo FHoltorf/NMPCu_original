@@ -12,9 +12,9 @@ from mpl_toolkits.mplot3d import Axes3D # for 3d histogram plots
 import sys
 
 #folders = ['online_estimation','multistage','backoff','standard']
-folders = ['cj/MHE/ideal/tiv-few_meas/parnoise','cj/MHE/multistage/tiv-few_meas/parest-noadapt','cj/MHE/multistage/tiv-few_meas/stadapt'] # save the run specific plots here
+folders = ['cj/MHE/ideal/tiv-few_meas/parnoise','cj/MHE/ideal/tiv-few_meas/parest-adapt','cj/MHE/ideal/tiv-few_meas/parest-noadapt','cj/MHE/multistage/tiv-few_meas/parest-noadapt','cj/MHE/multistage/tiv-few_meas/stadapt','cj/MHE/SBBM/tiv-few_meas/parest-adapt'] # save the run specific plots here
 directory = 'results/cj/' # save overall plots here
-method = {'cj/MHE/ideal/tiv-few_meas/parnoise':'ideal NMPC','cj/MHE/multistage/tiv-few_meas/parest-noadapt':'msNMPC','cj/MHE/multistage/tiv-few_meas/stadapt':'msNMPC ST'}
+method = {'cj/MHE/ideal/tiv-few_meas/parnoise':'iNMPC-pn','cj/MHE/ideal/tiv-few_meas/parest-adapt':'iNMPC-adapt','cj/MHE/ideal/tiv-few_meas/parest-noadapt':'iNMPC','cj/MHE/multistage/tiv-few_meas/parest-noadapt':'msNMPC','cj/MHE/multistage/tiv-few_meas/stadapt':'msNMPC ST','cj/MHE/SBBM/tiv-few_meas/parest-adapt':'rNMPC-adapt'}
 comparison = {}
 for folder in folders: 
     print(folder)
@@ -83,27 +83,27 @@ for folder in folders:
         # compute standard deviation
         std = np.std(x) 
         mu = np.mean(x)
-        n = 100
+        n = 5
         # remove outliers (not in interval +-n x std)
         x = [i for i in x if i >= mu-n*std and i <= mu+n*std]
         comparison[folder,constraint_name[k]] = x
-        plt.figure(k)
-        fig, ax = plt.subplots()
-        n, bins, patches = ax.hist(x, 'auto', normed=None, facecolor=color[k], edgecolor='black', alpha=1.0)
-        length = max(n)
-        ax.plot([set_points[constraint_name[k]],set_points[constraint_name[k]]],[0.0,1.1*length],color='red',linestyle='dashed',linewidth=2)
-        ax.set_xlim(axes[constraint_name[k]])
-        # add label for feasible/infeasible regions
-        if feasible_region[constraint_name[k]] == 'l':
-            ax.text((set_points[constraint_name[k]]+axes[constraint_name[k]][0])/2,1.05*length,'feasible', fontweight='bold', horizontalalignment='center', verticalalignment='center')
-            ax.text((axes[constraint_name[k]][1]+set_points[constraint_name[k]])/2,1.05*length,'infeasible', fontweight='bold', horizontalalignment='center', verticalalignment='center')
-        else:
-            ax.text((set_points[constraint_name[k]]+axes[constraint_name[k]][0])/2,1.05*length,'infeasible', fontweight='bold', horizontalalignment='center', verticalalignment='center')
-            ax.text((axes[constraint_name[k]][1]+set_points[constraint_name[k]])/2,1.05*length,'feasible', fontweight='bold', horizontalalignment='center', verticalalignment='center')
-        plt.xlabel(xlabel[constraint_name[k]])
-        plt.ylabel('Frequency [-]')
-        fig.savefig(path + constraint_name[k] +'.pdf')
-    
+#        plt.figure(k)
+#        fig, ax = plt.subplots()
+#        n, bins, patches = ax.hist(x, 'auto', normed=None, facecolor=color[k], edgecolor='black', alpha=1.0)
+#        length = max(n)
+#        ax.plot([set_points[constraint_name[k]],set_points[constraint_name[k]]],[0.0,1.1*length],color='red',linestyle='dashed',linewidth=2)
+#        ax.set_xlim(axes[constraint_name[k]])
+#        # add label for feasible/infeasible regions
+#        if feasible_region[constraint_name[k]] == 'l':
+#            ax.text((set_points[constraint_name[k]]+axes[constraint_name[k]][0])/2,1.05*length,'feasible', fontweight='bold', horizontalalignment='center', verticalalignment='center')
+#            ax.text((axes[constraint_name[k]][1]+set_points[constraint_name[k]])/2,1.05*length,'infeasible', fontweight='bold', horizontalalignment='center', verticalalignment='center')
+#        else:
+#            ax.text((set_points[constraint_name[k]]+axes[constraint_name[k]][0])/2,1.05*length,'infeasible', fontweight='bold', horizontalalignment='center', verticalalignment='center')
+#            ax.text((axes[constraint_name[k]][1]+set_points[constraint_name[k]])/2,1.05*length,'feasible', fontweight='bold', horizontalalignment='center', verticalalignment='center')
+#        plt.xlabel(xlabel[constraint_name[k]])
+#        plt.ylabel('Frequency [-]')
+#        fig.savefig(path + constraint_name[k] +'.pdf')
+#    
     
     # compute final time histogram
     plt.figure(4)
@@ -170,33 +170,32 @@ for folder in folders:
     fig.savefig(path+'T.pdf')
     #plt.ylabel('Q [kW]')
     #fig.savefig(path+'heat_removal.pdf')
-    
-    
+
     fes = 0
     infes = 0
     
-    for i in range(iters):
-        # problem is feasible
-        if endpoint_constraints[i]['feasible'] == True:
-            fes += 1
-        elif endpoint_constraints[i]['feasible'] == False:
-            infes += 1
-    sizes = [fes, infes, iters-fes-infes]
-    
-    plt.figure(7)
-    fig, ax = plt.subplots()
-    explode = (0.0, 0.1, 0.0) 
-    wedges= ax.pie(sizes,explode,labels=['feasible','infeasible','crashed'], autopct='%1.1f%%',shadow=True)
-    for w in wedges[0]:
-        w.set_edgecolor('black')
-    plt.axis('equal')
-    fig.savefig(path + 'feas.pdf')
+#    for i in range(iters):
+#        # problem is feasible
+#        if endpoint_constraints[i]['feasible'] == True:
+#            fes += 1
+#        elif endpoint_constraints[i]['feasible'] == False:
+#            infes += 1
+#    sizes = [fes, infes, iters-fes-infes]
+#    
+#    plt.figure(7)
+#    fig, ax = plt.subplots()
+#    explode = (0.0, 0.1, 0.0) 
+#    wedges= ax.pie(sizes,explode,labels=['feasible','infeasible','crashed'], autopct='%1.1f%%',shadow=True)
+#    for w in wedges[0]:
+#        w.set_edgecolor('black')
+#    plt.axis('equal')
+#    fig.savefig(path + 'feas.pdf')
     
     
 # plot the comparison distribution plots
 # colors
 spacing = list(np.linspace(10*(len(folders)-1),0,len(folders)))
-colors = ['y', 'g', 'b', 'y']
+colors = ['r', 'g', 'b', 'y','c','m','k']
 yticks = [method[f] for f in folders]
 for k in range(3):
     fig = plt.figure()
@@ -216,7 +215,7 @@ for k in range(3):
         ax.bar(xs, hist, zs=z, zdir='y', width = 0.8*(bins[2]-bins[1]), color=c, ec='black', alpha=0.8)#
     #plot setpoint
     ax.plot([set_points[constraint_name[k]],set_points[constraint_name[k]]],[0,0],[min(spacing),max(spacing)],zdir='y',c='r',linestyle='dashed')
-    ax.set_xlim(axes[constraint_name[k]])
+    #ax.set_xlim(axes[constraint_name[k]])
     ax.set_xlabel(xlabel[constraint_name[k]],labelpad=15.0)
     ax.set_yticks(spacing)
     ax.set_yticklabels(yticks) #can hold text

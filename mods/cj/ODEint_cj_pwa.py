@@ -68,6 +68,7 @@ kA = 2200.0*60.0/20.0/Hrxn # [kJ/min/K]
 Tf = 298.15
 nx = 10
 
+
 # ODE System
 def fun_gen(u1,u2):
     def fun(t,x):
@@ -115,7 +116,7 @@ def fun_gen(u1,u2):
         # T
         dxdt[7] = (Qr - Qc - F*monomer_cooling*mw_PO)*Hrxn/(m_tot*(bulk_cp_1 + bulk_cp_2*T))/T_scale # [kJ/min] / [kg] / [kJ/kg/K] = [K/min]
         # T_cw
-        dxdt[8] = u1/T_scale
+        dxdt[8] = u1*(2.9815-x[8]) + Qc*Hrxn/5e3/4.18
         # t
         dxdt[9] = 1.0
         # pwa F
@@ -169,15 +170,15 @@ timesteps = 3
 u1_l = []
 u2_l = []
 for i in range(1,nfe+1):
-    u1 = traj['u1',i]
+    u1 = 1.0#traj['u1',i]
     u1_l.append(u1)
-    u2 = traj['u2',i]
+    u2 = 0.2 #traj['u2',i]
     u2_l.append(u2)
     fx = fun_gen(u1,u2)
     #sol = odeint(fx,x0,t)
     #t = np.linspace(0.0,delta_t,timesteps)
     #t = [0.0*delta_t, 0.15505102572168217*delta_t, 0.64494897427831777*delta_t, 1.0*delta_t]
-    sol = solve_ivp(fx,(0.0,delta_t),x0,method='Radau')#t_eval=t)
+    sol = solve_ivp(fx,(0.0,delta_t),x0,method='BDF')#t_eval=t)
     results[i] = sol.y
     x0 = [results[i][k][-1] for k in range(len(x0))]
 

@@ -363,7 +363,7 @@ class NmpcGen(DynGen):
 #        self.plant_simulation_model.A['i'] = 1.0108695384819*396400.0
         # solve statement
         ip = SolverFactory("asl:ipopt")
-        ip.options["halt_on_ampl_error"] = "yes"
+        #ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
@@ -488,7 +488,7 @@ class NmpcGen(DynGen):
         self.forward_simulation_model.clear_aux_bounds()
         # solve statement
         ip = SolverFactory("asl:ipopt")
-        ip.options["halt_on_ampl_error"] = "yes"
+        #ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8

@@ -35,15 +35,12 @@ class NmpcGen(DynGen):
         self.curr_sp = {}  #: Values that we would like to keep track (from ss2)
         self.curr_off_soi = {}
         self.curr_ur = dict.fromkeys(self.u, 0.0)  #: Controls that we would like to keep track of(from ss2)
-#        for k in self.ref_state.keys():
-#            self.curr_soi[k] = 0.0
-#            self.curr_sp[k] = 0.0
+
 
         self.soi_dict = {}  #: State-of-interest
         self.sp_dict = {}  #: Set-point
         self.u_dict = dict.fromkeys(self.u, [])
 
-        # self.res_file_name = "res_nmpc_" + str(int(time.time())) + ".txt"
 ###########################################################################        
 ###########################################################################        
 ###########################################################################        
@@ -388,7 +385,7 @@ class NmpcGen(DynGen):
         
         # solve statement
         ip = SolverFactory("asl:ipopt")
-        ip.options["halt_on_ampl_error"] = "yes"
+        #ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
@@ -502,7 +499,7 @@ class NmpcGen(DynGen):
         
         # solve statement
         ip = SolverFactory("asl:ipopt")
-        ip.options["halt_on_ampl_error"] = "yes"
+        #ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
@@ -1636,38 +1633,34 @@ class NmpcGen(DynGen):
                     aux += dsdp[j]*delta_p_wc_iter[p,key]
                 else:
                     continue
+            s = getattr(self.olnmpc, con[0])
             if crit == 'overall':
-                s = getattr(self.olnmpc, con[0])
                 con_vio[con] = -s[con[1]].value + aux
                 delta_p_wc[con] = vertex
             elif crit == 'con':
                 if key in con_vio:
                     if con_vio[con] < -s[con[1]].value + aux:
-                        delta_p_wc = vertex
+                        delta_p_wc[con] = vertex
                         con_vio[con] = -s[con[1]].value + aux
                 else:
                     delta_p_wc[con] = vertex
                     con_vio[con] = -s[con[1]].value + aux
             else:
                 sys.exit('Error: Wrong specification of worst case criteria')
-        print('cols',cols) 
-        print('\n')
-        print('rows',rows)
-        print('\n')
+                
         print('con_vio',con_vio)
-        print('\n')
-        print('delta_p_wc',delta_p_wc)
+        print(' ')
         scenarios = {}
         s_branch = {}
         s_stage = {0:1}
         # overall wc 
+        #print(delta_p_wc)
         if crit == 'overall':
         # wc among all constraints
         # i.e, if for the same constraint two scenarios result in higher first-order
         # violations than any scenario for any other constraint both are included
             for i in range(2,min(self.nr+2,self.nfe_t+1)):
                 con_vio_copy = {con:con_vio[con] for con in con_vio if (type(con[1])==tuple and con[1][0] == i) or (con[1] == i)}
-                print('copy',i, con_vio_copy)
                 for s in range(2,int(np.round(self.s_max**(1.0/self.nr)))+1): # scenario 1 is reserved for the nomnal sscenario
                     wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
                     scenarios[i-1,s] = delta_p_wc[wc_scenario]
@@ -1681,25 +1674,26 @@ class NmpcGen(DynGen):
         # wc for every constraint
             for i in range(2,min(self.nr+2,self.nfe_t+1)):
                 s=1
-                con_vio_copy = {con:con_vio[con] for con in con_vio if con[1][0]==i}
-                scenarios_copy = {}
+                con_vio_copy = {con:con_vio[con] for con in con_vio if (type(con[1])==tuple and con[1][0] == i) or (con[1] == i)}
+                included_scenarios = {}
                 for con in con_vio_copy:
-                    scenarios[i-1,s] = delta_p_wc[con] if not(delta_p_wc[con] in scenarios_copy.values()) else 1
-                    if scenarios[s]:
+                    scenarios[i-1,s+1] = delta_p_wc[con] if not(delta_p_wc[con] in included_scenarios.values()) else 1
+                    if type(scenarios[i-1,s+1]) == int:
                         continue
-                    scenarios_copy[s] = delta_p_wc[con]
+                    included_scenarios[s] = delta_p_wc[con]
                     s+=1
+                    print(s)
                 s_branch[i-1] = s 
                 s_stage[i-1] = s*s_stage[i-2]
         else:
             sys.exit('Error: Wrong specification of worst case criteria')
-        print('scenarios',scenarios)
-        
-        
+                
         self.s_used = s_stage[min(self.nr,self.nfe_t-1)]# nfe_t-1 since it is called before cycle_nmpc
-        self.nmpc_trajectory[self.iterations, 's_max'] = s**self.nr
+        self.nmpc_trajectory[self.iterations, 's_max'] = self.s_used
     
+        print(scenarios)
         # update scenario tree
+        self.st = {}
         for i in range(1,self.nfe_t-1+1):
             if i < self.nr + 1:
                 for s in range(1,s_stage[i]+1):
@@ -1711,6 +1705,8 @@ class NmpcGen(DynGen):
             else:
                 for s in range(1,self.s_used+1):
                     self.st[(i,s)] = (i-1,s,True,self.st[(i-1,s)][3])
+        # save scenario_tree that is used at timestep k = self.iterations + 1 (since st is generated one step in advance)
+        self.nmpc_trajectory[self.iterations+1,'st'] = deepcopy(self.st)
     
     def st_adaption(self, set_type=None, cons = [], **kwargs):
         epsilon = kwargs.pop('epsilon',0.2)

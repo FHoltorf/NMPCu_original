@@ -1125,8 +1125,8 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
 #                    + self.rho*(sum(sum(self.eps[k,s] for s in self.s) for k in self.epc) \
 #                    + sum(sum(sum(sum(self.eps_pc[i,j,k,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) for k in self.pc) for j in self.cp if j > 0))\
 #                    + self.gamma * sum((self.MX[self.nfe,self.ncp,1,s]*self.MX1_scale/(self.MX[self.nfe,self.ncp,0,s]*self.MX0_scale)*self.mw_PO*self.num_OH + self.mw_PG - self.molecular_weight)**2 for s in self.s))
-        self.epc_mw_ub.deactivate()
-        self.epc_mw.deactivate() 
+#        self.epc_mw_ub.deactivate()
+#        self.epc_mw.deactivate() 
         
         self.eobj = Objective(rule=_eobj,sense=minimize)
         
