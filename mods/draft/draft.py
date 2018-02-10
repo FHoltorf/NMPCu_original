@@ -23,9 +23,7 @@ import sys
 # specify discretization
 #nfe = 24 # number of finite elements
 #ncp = 3 # number collocation points
-
 #sys.stdout = open('consol_output.txt','w')    
-
 
 class SemiBatchPolymerization_multistage(ConcreteModel):
     def __init__(self, nfe, ncp, **kwargs):   
