@@ -237,6 +237,20 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.dPO_fed_dt = Var(self.fe_t,self.cp,self.s)
         #        PO_fed(k,q), PO_fed0(k), PO_feddot(k,q)
         
+        # initial uncertainty
+        self.p_PO_ic = Var(self.s, initialize=1.0)
+        self.p_PO_ic_par = Param(self.s, initialize=1.0)
+        self.p_W_ic = Var(self.s, initialize=1.0)
+        self.p_W_ic_par = Param(self.s, initialize=1.0)
+        self.p_MY_ic = Var(self.s, initialize=1.0)
+        self.p_MY_ic_par = Param(self.s, initialize=1.0)
+        self.p_MX_ic = Var(self.o, self.s, initialize=1.0)
+        self.p_MX_ic_par = Param(self.o, self.s, initialize=1.0)
+        self.p_Y_ic = Var(self.s, initialize=1.0)
+        self.p_Y_ic_par = Param(self.s, initialize=1.0)
+        self.p_T_ic = Var(self.s, initialize=1.0)
+        self.p_T_ic_par = Param(self.s, initialize=1.0)
+        
         # reactions
         self.k_l = Var(self.fe_t, self.cp, self.r, self.s, bounds=(None,20)) # rate coefficients (?)
         self.kr = Var(self.fe_t,self.cp,self.r, self.s) # rate coefficients (?)
@@ -336,7 +350,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 if s == 1:
                     return self.W[1,0,s] - self.W_ic
                 else:
-                    return self.W[1,0,s] - self.W[1,0,1]
+                    return self.W[1,0,s] - self.W[1,0,1]*self.p_W_ic[s]
             else:
                 return Expression.Skip
             
@@ -388,7 +402,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 if s == 1:
                     return self.PO[1,0,s] - self.PO_ic
                 else:
-                    return self.PO[1,0,s] - self.PO[1,0,1]
+                    return self.PO[1,0,s] - self.PO[1,0,1]*self.p_PO_ic[s]
             else:
                 return Expression.Skip
             
@@ -564,7 +578,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 if s == 1:
                     return self.MX[1,0,o,s] - self.MX_ic[o]
                 else:
-                    return self.MX[1,0,o,s] - self.MX[1,0,o,1]
+                    return self.MX[1,0,o,s] - self.MX[1,0,o,1]*self.p_MX_ic[o,s]
             else:
                 return Expression.Skip
             
@@ -623,7 +637,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 if s == 1:
                     return self.Y[1,0,s] - self.Y_ic
                 else:
-                    return self.Y[1,0,s] - self.Y[1,0,1]
+                    return self.Y[1,0,s] - self.Y[1,0,1]*self.p_Y_ic[s]
             else:
                 return Expression.Skip
             
@@ -675,7 +689,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 if s == 1:
                     return self.MY[1,0,s] - self.MY_ic
                 else:
-                    return self.MY[1,0,s] - self.MY[1,0,1]
+                    return self.MY[1,0,s] - self.MY[1,0,1]*self.p_MY_ic[s]
             else:
                 return Expression.Skip
         
@@ -775,7 +789,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 if s == 1:
                     return self.T[1, 0, s] - self.T_ic
                 else:
-                    return self.T[1,0,s] - self.T[1,0,1]
+                    return self.T[1,0,s] - self.T[1,0,1]*self.p_T_ic[s]
             else:
                 return Expression.Skip
         
@@ -1134,6 +1148,15 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
             self.dummy_constraint_p_kA = Constraint(self.sg, self.s, rule = lambda self,k,s: self.p_kA[k,s] == self.p_kA_par[k,s] if (k,s) in self.scenario_tree else Constraint.Skip)
         if ('n_KOH',()) in self.scenario_tree[1,1][3]:
             self.dummy_constraint_n_KOH = Constraint(self.sg, self.s, rule = lambda self,k,s: self.p_n_KOH[k,s] == self.p_n_KOH_par[k,s] if (k,s) in self.scenario_tree else Constraint.Skip)
+        
+        self.dummy_constraint_p_W_ic = Constraint(self.s, rule = lambda self,s: self.p_W_ic[s] == self.p_W_ic_par[s])
+        self.dummy_constraint_p_PO_ic = Constraint(self.s, rule = lambda self,s: self.p_PO_ic[s] == self.p_PO_ic_par[s])
+        self.dummy_constraint_p_Y_ic = Constraint(self.s, rule = lambda self,s: self.p_Y_ic[s] == self.p_Y_ic_par[s])
+        self.dummy_constraint_p_MY_ic = Constraint(self.s, rule = lambda self,s: self.p_MY_ic[s] == self.p_MY_ic_par[s])
+        self.dummy_constraint_p_MX_ic_0 = Constraint(self.s, rule = lambda self,s: self.p_MX_ic[0,s] == self.p_MX_ic_par[0,s])
+        self.dummy_constraint_p_MX_ic_1 = Constraint(self.s, rule = lambda self,s: self.p_MX_ic[1,s] == self.p_MX_ic_par[1,s])
+        self.dummy_constraint_p_T_ic = Constraint(self.s, rule = lambda self,s: self.p_T_ic[s] == self.p_T_ic_par[s])
+        
         # objective
         # assumes symmetric tree, i.e. every node branches into the same number of children nodes
         # weights for obj. function:

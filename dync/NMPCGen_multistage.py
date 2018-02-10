@@ -1474,7 +1474,8 @@ class NmpcGen(DynGen):
          
         bounds = kwargs.pop('par_bounds',{}) # uncertainty bounds
         crit = kwargs.pop('crit','overall')
-        
+        p_noisy_tiv = kwargs('p_noisy_tiv',{})
+
         # prepare sensitivity computation
         self.olnmpc.eps_pc.fix()
         self.olnmpc.eps.fix()
@@ -1502,10 +1503,7 @@ class NmpcGen(DynGen):
         cols ={}
         for p in self.p_noisy:
             for key in self.p_noisy[p]:
-                if key != ():
-                    dummy = 'dummy_constraint_p_' + p + '_' + str(key[0])
-                else:
-                    dummy = 'dummy_constraint_p_' + p
+                dummy = 'dummy_constraint_p_' + p + '_' + str(key[0]) if key != () else 'dummy_constraint_p_' + p
                 dummy_con = getattr(self.olnmpc, dummy)
                 for index in dummy_con.index_set():
                     #index[0] = time_step \in {2, ... ,nfe+1}
@@ -1517,7 +1515,18 @@ class NmpcGen(DynGen):
                         self.olnmpc.dcdp.set_value(dummy_con[index], i+1)
                         cols[i] = (p,key+index)
                         i += 1
-           
+         
+        for p in p_noisy_tiv:
+            for key in p_noisy_tiv[p]:
+                dummy = 'dummy_constraint_p_' + p + '_' + str(key[0]) if key != () else 'dummy_constraint_p_' + p
+                dummy_con = getattr(self.olnmpc, dummy)
+                for index in dummy_con.index_set():
+                    if index[-1] == 1:
+                        # nominal scenario
+                        self.olnmpc.dcdp.set_value(dummy_con[index], i+1)
+                        cols[i] = (p,key+index)
+                        i += 1
+                                                 
         # column i in sensitivity matrix corresponds to paramter p
         cols_r = {value:key for key, value in cols.items()}
         tot_cols = i
@@ -1612,18 +1621,24 @@ class NmpcGen(DynGen):
             for j in cols: # parameters
                 par = cols[j] # cols[j] = ('pname', index)
                 p = par[0] 
-                key = par[1][:-2]
-                p_stage = par[1][-2]
-                p_scen = par[1][-1]
+                if p in p_noisy_tiv:
+                    key = par[1][:-2]
+                    p_stage = par[1][-2]
+                    p_scen = par[1][-1]
+                else:
+                    key = par[1]
+                    p_stage = None
+                    p_scen = par[1][-1]
                 # only compute for relevant parameters 
                 # distinguish between endpoint and path constraints
                 # endpoint constraints are only considered on last stage
                 if  ([p_stage,p_scen] == [c_stage,c_scen] and c_name in pc) \
-                    or ([p_stage,p_scen] == [min(self.nr+1,self.nfe_t),c_scen] and c_name in epc):
+                    or ([p_stage,p_scen] == [min(self.nr+1,self.nfe_t),c_scen] and c_name in epc) \
+                    or (p in p_noisy_tiv and c_stage == 1):
                     p_var = getattr(self.olnmpc, 'p_' + p)
                     # just a preparation for linearizing around different scenarios
                     # will be zero here
-                    delta = p_var[par[1]].value - 1.0 
+                    delta = p_var[key].value - 1.0 
                     # delta = 0.0 # change if necessary
                     # bounds[par][0]: lower bound on delta_p
                     # bounds[par][1]: upper bound on delta_p
