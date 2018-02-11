@@ -629,7 +629,7 @@ class NmpcGen(DynGen):
                     continue
          
     def create_enmpc(self):
-        self.olnmpc = self.d_mod(self.nfe_t, self.ncp_t, scenario_tree = self.st, s_max = self.s_used, nr = self.nr)
+        self.olnmpc = self.d_mod(self.nfe_t, self.ncp_t, scenario_tree = self.st, s_max = self.s_used, robust_horizon = self.nr)
         self.olnmpc.name = "olnmpc (Open-Loop eNMPC)"
         self.olnmpc.create_bounds() 
         self.create_tf_bounds(self.olnmpc)
@@ -784,15 +784,15 @@ class NmpcGen(DynGen):
                 else:
                     j = (key[2:],)
                 fe = key[0]
-                try:
-                    self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j]
-                    #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j] + 0.01)**2
-                    self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
-                except KeyError:
-                    self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j]
-                    #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j] + 0.01)**2
-                    self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
-                        
+                
+                self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j]
+                self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
+                #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j] + 0.01)**2
+#                except KeyError:
+#                    self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j]
+#                    #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j] + 0.01)**2
+#                    self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
+#                        
         
         for u in self.u:    
             uvar = getattr(self.olnmpc, u)
@@ -1451,7 +1451,6 @@ class NmpcGen(DynGen):
         
     def SBWCS_hyrec(self, pc = [], epc = [], **kwargs):
         """ procedure has to be called before self.cycle_nmpc! """
-        
         # sensitivity-based worst-case scenario detection
         # either hyperrectangle or hyperellipsoid
         # for hyperrectangles:
@@ -1471,32 +1470,34 @@ class NmpcGen(DynGen):
             # exclude that vertex for future scenarios
             #           
             # repeat until as many scenarios as possible are included
-         
         bounds = kwargs.pop('par_bounds',{}) # uncertainty bounds
         crit = kwargs.pop('crit','overall')
-        p_noisy_tiv = kwargs('p_noisy_tiv',{})
-
+        noisy_ics = kwargs.pop('noisy_ics',{})
+    
+        #
+        m = self.olnmpc if self.iterations > 1 else self.recipe_optimization_model
+        
         # prepare sensitivity computation
-        self.olnmpc.eps_pc.fix()
-        self.olnmpc.eps.fix()
+        m.eps_pc.fix()
+        m.eps.fix()
         for u in self.u:
-            u_var = getattr(self.olnmpc,u)
+            u_var = getattr(m,u)
             u_var.fix()
-        self.olnmpc.tf.fix()
-        self.olnmpc.clear_all_bounds()
+        m.tf.fix()
+        m.clear_all_bounds()
         
         # deactivate nonanticipativity
         for u in self.u:
-            non_anti = getattr(self.olnmpc, 'non_anticipativity_' + u)
+            non_anti = getattr(m, 'non_anticipativity_' + u)
             non_anti.deactivate()
         # deactivate fixed element size
-        self.olnmpc.fix_element_size.deactivate()
+        m.fix_element_size.deactivate()
         # deavtivate non_anticipativity for tf
-        self.olnmpc.non_anticipativity_tf.deactivate()
+        m.non_anticipativity_tf.deactivate()
             
         # set suffixes
-        self.olnmpc.var_order = Suffix(direction=Suffix.EXPORT)
-        self.olnmpc.dcdp = Suffix(direction=Suffix.EXPORT)
+        m.var_order = Suffix(direction=Suffix.EXPORT)
+        m.dcdp = Suffix(direction=Suffix.EXPORT)
         
         # cols = variables for which senstivities shall be computed
         i = 0
@@ -1504,7 +1505,7 @@ class NmpcGen(DynGen):
         for p in self.p_noisy:
             for key in self.p_noisy[p]:
                 dummy = 'dummy_constraint_p_' + p + '_' + str(key[0]) if key != () else 'dummy_constraint_p_' + p
-                dummy_con = getattr(self.olnmpc, dummy)
+                dummy_con = getattr(m, dummy)
                 for index in dummy_con.index_set():
                     #index[0] = time_step \in {2, ... ,nfe+1}
                     #index[-1] = scenario \in {1, ... , s_per_branch}
@@ -1512,18 +1513,19 @@ class NmpcGen(DynGen):
                     if index[0] > 1 and \
                        index[0] < self.nr + 2 and \
                        index[-1] == 1:
-                        self.olnmpc.dcdp.set_value(dummy_con[index], i+1)
+                        m.dcdp.set_value(dummy_con[index], i+1)
                         cols[i] = (p,key+index)
                         i += 1
          
-        for p in p_noisy_tiv:
-            for key in p_noisy_tiv[p]:
+        for p in noisy_ics:
+            for key in noisy_ics[p]:
                 dummy = 'dummy_constraint_p_' + p + '_' + str(key[0]) if key != () else 'dummy_constraint_p_' + p
-                dummy_con = getattr(self.olnmpc, dummy)
+                dummy_con = getattr(m, dummy)
                 for index in dummy_con.index_set():
-                    if index[-1] == 1:
-                        # nominal scenario
-                        self.olnmpc.dcdp.set_value(dummy_con[index], i+1)
+                    if index[-1] == 1 and index[0] == 2:
+                        #index[0] = time_step --> 2
+                        #index[-1] = scenrio (only nominal scenario)
+                        m.dcdp.set_value(dummy_con[index], i+1)
                         cols[i] = (p,key+index)
                         i += 1
                                                  
@@ -1535,7 +1537,7 @@ class NmpcGen(DynGen):
         rows = {}
         #sensitivities of path constraints
         for c in pc:
-            s = getattr(self.olnmpc, 's_'+c)
+            s = getattr(m, 's_'+c)
             for index in s.index_set():
                 if not(s[index].stale): # only take
                     #index[0] = time_step \in {2, ... ,nfe+1}
@@ -1545,21 +1547,20 @@ class NmpcGen(DynGen):
                     if index[0] > 1 and \
                        index[0] < self.nr + 2 and \
                        index[-1] == 1: #
-                        self.olnmpc.var_order.set_value(s[index], i+1)
+                        m.var_order.set_value(s[index], i+1)
                         rows[i] = ('s_'+ c,index)
-                        i += 1
-                        
+                        i += 1                
         # endpoint constraints only in last iteration
         # can consider epc in every stage
         #if self.iterations == self.nfe_t_0 - 1: 
         for c in epc:
-            s = getattr(self.olnmpc, 's_'+c)
+            s = getattr(m, 's_'+c)
             for index in s.index_set():
                 if not(s[index].stale): # only take
                     nominal = True if (type(index) == tuple and index[-1] == 1) or index==1 else False
                     if nominal:
                         # only nominal scenario as base for linearization
-                        self.olnmpc.var_order.set_value(s[index], i+1)
+                        m.var_order.set_value(s[index], i+1)
                         rows[i] = ('s_'+ c,index)
                         i += 1
                         
@@ -1570,27 +1571,27 @@ class NmpcGen(DynGen):
         # compute sensitivity matrix (ds/dp , rows = s const., cols = p const.)
         k_aug = SolverFactory("k_aug",executable="/home/flemmingholtorf/KKT_matrix/k_aug/src/kmatrix/k_aug")
         k_aug.options["compute_dsdp"] = ""
-        k_aug.solve(self.olnmpc, tee=True)
+        k_aug.solve(m, tee=True)
             
         # no idea if necessery, I am lost in the code
-        self.olnmpc.eps.unfix()
-        self.olnmpc.eps_pc.unfix()
+        m.eps.unfix()
+        m.eps_pc.unfix()
         for u in self.u:
-            u_var = getattr(self.olnmpc,u)
+            u_var = getattr(m,u)
             u_var.unfix()
-        self.olnmpc.tf.unfix()
-        self.olnmpc.create_bounds()
-        self.create_tf_bounds(self.olnmpc)
-        self.olnmpc.clear_aux_bounds()
+        m.tf.unfix()
+        m.create_bounds()
+        self.create_tf_bounds(m)
+        m.clear_aux_bounds()
         
         # activate non_anticipativity
         for u in self.u:
-            non_anti = getattr(self.olnmpc, 'non_anticipativity_' + u)
+            non_anti = getattr(m, 'non_anticipativity_' + u)
             non_anti.activate()
         # activate non_anticipativity for tf
-        self.olnmpc.non_anticipativity_tf.activate()     
+        m.non_anticipativity_tf.activate()     
         # unfix element size
-        self.olnmpc.fix_element_size.activate()    
+        m.fix_element_size.activate()    
         
         # read sensitivity matrix from file "dxdp_.dat"
         # rows correspond to variables
@@ -1621,24 +1622,18 @@ class NmpcGen(DynGen):
             for j in cols: # parameters
                 par = cols[j] # cols[j] = ('pname', index)
                 p = par[0] 
-                if p in p_noisy_tiv:
-                    key = par[1][:-2]
-                    p_stage = par[1][-2]
-                    p_scen = par[1][-1]
-                else:
-                    key = par[1]
-                    p_stage = None
-                    p_scen = par[1][-1]
+                key = par[1][:-2]
+                p_stage = par[1][-2]
+                p_scen = par[1][-1]
                 # only compute for relevant parameters 
                 # distinguish between endpoint and path constraints
                 # endpoint constraints are only considered on last stage
                 if  ([p_stage,p_scen] == [c_stage,c_scen] and c_name in pc) \
-                    or ([p_stage,p_scen] == [min(self.nr+1,self.nfe_t),c_scen] and c_name in epc) \
-                    or (p in p_noisy_tiv and c_stage == 1):
-                    p_var = getattr(self.olnmpc, 'p_' + p)
+                    or ([p_stage,p_scen] == [min(self.nr+1,self.nfe_t),c_scen] and c_name in epc):
+                    p_var = getattr(m, 'p_' + p)
                     # just a preparation for linearizing around different scenarios
                     # will be zero here
-                    delta = p_var[key].value - 1.0 
+                    delta = p_var[key+(p_stage,p_scen)].value - 1.0 
                     # delta = 0.0 # change if necessary
                     # bounds[par][0]: lower bound on delta_p
                     # bounds[par][1]: upper bound on delta_p
@@ -1648,60 +1643,63 @@ class NmpcGen(DynGen):
                     aux += dsdp[j]*delta_p_wc_iter[p,key]
                 else:
                     continue
-            s = getattr(self.olnmpc, con[0])
+            s = getattr(m, con[0])
             if crit == 'overall':
                 con_vio[con] = -s[con[1]].value + aux
-                delta_p_wc[con] = vertex
+                delta_p_wc[con] = deepcopy(vertex)
             elif crit == 'con':
                 if key in con_vio:
-                    if con_vio[con] < -s[con[1]].value + aux:
-                        delta_p_wc[con] = vertex
-                        con_vio[con] = -s[con[1]].value + aux
+                    if con_vio[c_name,c_stage] < -s[con[1]].value + aux:
+                        delta_p_wc[c_name,c_stage] = deepcopy(vertex)
+                        con_vio[c_name,c_stage] = -s[con[1]].value + aux
                 else:
-                    delta_p_wc[con] = vertex
-                    con_vio[con] = -s[con[1]].value + aux
+                    delta_p_wc[c_name,c_stage] = deepcopy(vertex)
+                    con_vio[c_name,c_stage] = -s[con[1]].value + aux
             else:
                 sys.exit('Error: Wrong specification of worst case criteria')
                 
-        print('con_vio',con_vio)
-        print(' ')
         scenarios = {}
         s_branch = {}
         s_stage = {0:1}
         # overall wc 
         #print(delta_p_wc)
-        if crit == 'overall':
+        #if crit == 'overall':
         # wc among all constraints
         # i.e, if for the same constraint two scenarios result in higher first-order
         # violations than any scenario for any other constraint both are included
-            for i in range(2,min(self.nr+2,self.nfe_t+1)):
+        for i in range(2,min(self.nr+2,self.nfe_t+1)):
+            if crit == 'overall':
                 con_vio_copy = {con:con_vio[con] for con in con_vio if (type(con[1])==tuple and con[1][0] == i) or (con[1] == i)}
-                for s in range(2,int(np.round(self.s_max**(1.0/self.nr)))+1): # scenario 1 is reserved for the nomnal sscenario
-                    wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
-                    scenarios[i-1,s] = delta_p_wc[wc_scenario]
-                    # remove scenario from scenarios:
-                    con_vio_copy = {key: value for key, value in con_vio_copy.items() if (delta_p_wc[key] != delta_p_wc[wc_scenario])}
-                    if len(con_vio_copy) == 0:
-                        break
-                s_branch[i-1] = s
-                s_stage[i-1] = s*s_stage[i-2]
-        elif crit == 'con':            
-        # wc for every constraint
-            for i in range(2,min(self.nr+2,self.nfe_t+1)):
-                s=1
-                con_vio_copy = {con:con_vio[con] for con in con_vio if (type(con[1])==tuple and con[1][0] == i) or (con[1] == i)}
-                included_scenarios = {}
-                for con in con_vio_copy:
-                    scenarios[i-1,s+1] = delta_p_wc[con] if not(delta_p_wc[con] in included_scenarios.values()) else 1
-                    if type(scenarios[i-1,s+1]) == int:
-                        continue
-                    included_scenarios[s] = delta_p_wc[con]
-                    s+=1
-                    print(s)
-                s_branch[i-1] = s 
-                s_stage[i-1] = s*s_stage[i-2]
-        else:
-            sys.exit('Error: Wrong specification of worst case criteria')
+            elif crit == 'con':
+                con_vio_copy = {con:con_vio[con] for con in con_vio if con[1] == i}
+            else:
+                sys.exit('Error: Wrong specification of scenario tree generation criterion')         
+            for s in range(2,int(np.round(self.s_max**(1.0/self.nr)))+1): # scenario 1 is reserved for the nomnal sscenario
+                wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
+                scenarios[i-1,s] = delta_p_wc[wc_scenario]
+                # remove scenario from scenarios:
+                con_vio_copy = {key: value for key, value in con_vio_copy.items() if (delta_p_wc[key] != delta_p_wc[wc_scenario])}
+                if len(con_vio_copy) == 0:
+                    break
+            s_branch[i-1] = s
+            s_stage[i-1] = s*s_stage[i-2]
+#        elif crit == 'con':            
+#        # wc for every constraint
+#        # Rank the scenarios according to first order approx.
+#            for i in range(2,min(self.nr+2,self.nfe_t+1)):
+#                s=1
+#                con_vio_copy = {con:con_vio[con] for con in con_vio if (type(con[1])==tuple and con[1][0] == i) or (con[1] == i)}
+#                included_scenarios = {}
+#                for con in con_vio_copy:
+#                    wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
+#                    scenarios[i-1,s+1] = delta_p_wc[con] if not(delta_p_wc[con] in included_scenarios.values()) else 1
+#                    if type(scenarios[i-1,s+1]) == int:
+#                        continue
+#                    included_scenarios[s] = delta_p_wc[con]
+#                    s+=1
+#                    print(s)
+#                s_branch[i-1] = s 
+#                s_stage[i-1] = s*s_stage[i-2]
                 
         self.s_used = s_stage[min(self.nr,self.nfe_t-1)]# nfe_t-1 since it is called before cycle_nmpc
         self.nmpc_trajectory[self.iterations, 's_max'] = self.s_used
@@ -1715,8 +1713,13 @@ class NmpcGen(DynGen):
                     if s%s_branch[i]==1:
                         self.st[(i,s)] = (i-1,int(np.ceil(s/float(s_branch[i]))),True,{(p,key) : 1.0 for p in self.p_noisy for key in self.p_noisy[p]})
                     else:
-                        scenario_key = s%s_branch[i] if s%s_branch[i] != 0 else s_branch[i] 
-                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(s_branch[i]))),False,{(p,key) : 1.0 + bounds[p,key][0] if scenarios[i,scenario_key][(p,key)]=='L' else 1 + bounds[p,key][1] for p in self.p_noisy for key in self.p_noisy[p]})
+                        scenario_key = s%s_branch[i] if s%s_branch[i] != 0 else s_branch[i]
+                        if i == 1:
+                            self.st[(i,s)] = (i-1,int(np.ceil(s/float(s_branch[i]))),False,{index: 1.0 + bounds[index][0] if scenarios[i,scenario_key][index]=='L' else 1 + bounds[index][1] \
+                                               for index in bounds})    
+                        else:
+                            self.st[(i,s)] = (i-1,int(np.ceil(s/float(s_branch[i]))),False,{(p,key): 1.0 + bounds[(p,key)][0] if scenarios[i,scenario_key][(p,key)]=='L' else 1 + bounds[(p,key)][1] \
+                                               for p in self.p_noisy for key in self.p_noisy[p]})
             else:
                 for s in range(1,self.s_used+1):
                     self.st[(i,s)] = (i-1,s,True,self.st[(i-1,s)][3])
@@ -1758,11 +1761,9 @@ class NmpcGen(DynGen):
             # exclude that vertex for future scenarios
             #           
             # repeat until as many scenarios as possible are included
-        if self.iterations > 1:
-            m = self.olnmpc
-        else:
-            m = self.recipe_optimization_model
-            
+        
+        m = self.olnmpc if self.iterations > 1 else self.recipe_optimization_model
+        
         bounds = kwargs.pop('par_bounds',{}) # uncertainty bounds
         
         # prepare sensitivity computation
@@ -1935,10 +1936,7 @@ class NmpcGen(DynGen):
             # exclude everything that lies inside a ball neighborhood around WC-scenario parameter realization
             #           
             # repeat until as many scenarios as possible are included 
-        if self.iterations > 1:
-            m = self.olnmpc
-        else:
-            m = self.recipe_optimization_model
+        m = self.olnmpc if self.iterations > 1 else self.recipe_optimization_model
         
         epsilon = kwargs.pop('epsilon',0.2)
         shape_matrix = kwargs.pop('shape_matrix',self._scaled_shape_matrix)
