@@ -37,7 +37,7 @@ class MheGen(NmpcGen):
 
         self.x_noisy = kwargs.pop('x_noisy', [])
         self.x_vars = kwargs.pop('x_vars', {})
-        self.deact_ics = kwargs.pop('del_ics', True)
+        self.noisy_ics = kwargs.pop('noisy_ics', True)
         self.diag_Q_R = kwargs.pop('diag_QR', True)  #: By default use diagonal matrices for Q and R matrices
         self.u = kwargs.pop('u', [])
         
@@ -158,11 +158,7 @@ class MheGen(NmpcGen):
         self.lsmhe.U_mhe = Param(self.lsmhe.fe_t, self.u, initialize=1, mutable=True)
 
         #: Deactivate icc constraints
-        if self.deact_ics:
-            pass
-
-        #: Maybe only for a subset of the states
-        else:
+        if self.noisy_ics:
             # for semi-batch need to introduce also penalty for the initial conditions
             self.lsmhe.noisy_ic = ConstraintList()
             for i in self.x_noisy:
@@ -176,14 +172,16 @@ class MheGen(NmpcGen):
                         k = self.xkN_key[(i,j)] # key that belongs to the certain variable
                         if j == ():
                             x[(1,0)+j] = xic.value # set reasoable initial guess
-                            self.lsmhe.noisy_ic.add(ic_exp == 1000*self.lsmhe.wk_mhe[0,k]) # add noisy initial condition
+                            self.lsmhe.noisy_ic.add(ic_exp == self.lsmhe.wk_mhe[0,k]) # add noisy initial condition
                         else:
                             x[(1,0)+j] = xic[j].value
-                            self.lsmhe.noisy_ic.add(ic_exp[j] == 1000*self.lsmhe.wk_mhe[0,k]) # add noisy initial condition
+                            self.lsmhe.noisy_ic.add(ic_exp[j] == self.lsmhe.wk_mhe[0,k]) # add noisy initial condition
                         
                     for k in ic_con.keys():
                         ic_con[k].deactivate() # deactivate the old constraints
-                    
+        else:
+            pass
+        
         #: Put the noise in the continuation equations (finite-element)
         j = 0
         self.lsmhe.noisy_cont = ConstraintList()
@@ -478,6 +476,16 @@ class MheGen(NmpcGen):
         # is up to the user to do it by hand
         output = self.store_results(self.lsmhe) # saves the results to initialize the upcoming mhe problem
     
+        if self.adapt_params:
+            # {timestep after which the parameters were identified, 'e_pars':dictionary with estimates}
+            for p in self.p_noisy:
+                p_mhe = getattr(self.lsmhe,p)
+                for key in self.p_noisy[p]:
+                    pkey = key if key != () else None 
+                    self.curr_epars[(p,key)] = p_mhe[pkey].value
+                    
+            self.nmpc_trajectory[self.iterations,'e_pars'] = deepcopy(self.curr_epars)
+            
         # saves the predicted initial_values for the states
         for x in self.states:
             for j in self.x_vars[x]:
@@ -553,8 +561,7 @@ class MheGen(NmpcGen):
                     else:
                         pass
                     
-            # {timestep after which the parameters were identified, 'e_pars':dictionary with estimates}
-            self.nmpc_trajectory[self.iterations,'e_pars'] = deepcopy(self.curr_epars)
+
                 
 
 
@@ -755,10 +762,6 @@ class MheGen(NmpcGen):
             con_w = getattr(self.lsmhe, "w_" + u + "c_mhe")  #: Get the constraint-noisy
             cc.deactivate()
             con_w.activate()
-
-        # if self.deact_ics:
-        #     for i in self.states:
-        #         self.lsmhe.del_component(i + "_icc")
 
         self.journalizer("I", self._c_it, "initialize_lsmhe", "Attempting to initialize lsmhe Done")
 
@@ -1215,26 +1218,6 @@ class MheGen(NmpcGen):
                     self.xkN_nexcl.append(1)  #: Not active, add it to the non-exclusion list.
         if k > 0:
             print("I[[check_active_bound_noisy]] {:d} Active bounds.".format(k))
-
-    def deact_icc_mhe(self):
-        """Deactivates the icc constraints in the mhe problem"""
-        if self.deact_ics:
-            for i in self.states:
-                try:
-                    icccon = getattr(self.lsmhe, i + "_icc")
-                    self.lsmhe.del_component(icccon)
-                except AttributeError:
-                    continue
-
-
-        #: Maybe only for a subset of the states
-        else:
-            for i in self.states:
-                if i in self.x_noisy:
-                    ic_con = getattr(self.lsmhe, i + "_icc")
-                    for k in ic_con.keys():
-                        if k[2:] in self.x_vars[i]:
-                            ic_con[k].deactivate()
 
     def regen_objective_fun(self):
         """Given the exclusion list, regenerate the expression for the arrival cost"""

@@ -125,7 +125,7 @@ for i in range(1,nfe):
         e.cycle_nmpc(e.store_results(e.olnmpc))  
     
     # here measurement becomes available
-    previous_mhe = e.solve_mhe(fix_noise=False) # solves the mhe problem
+    #previous_mhe = e.solve_mhe(fix_noise=False) # solves the mhe problem
       
     # solve the advanced step problems
     e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc

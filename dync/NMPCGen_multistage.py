@@ -1476,6 +1476,7 @@ class NmpcGen(DynGen):
     
         #
         m = self.olnmpc if self.iterations > 1 else self.recipe_optimization_model
+        m = kwargs.pop('m',m)
         
         # prepare sensitivity computation
         m.eps_pc.fix()
@@ -1485,6 +1486,12 @@ class NmpcGen(DynGen):
             u_var.fix()
         m.tf.fix()
         m.clear_all_bounds()
+        
+        for var in m.ipopt_zL_in:
+            var.set_suffix_value(m.ipopt_zL_in, 0.0)
+                
+        for var in m.ipopt_zU_in:
+            var.set_suffix_value(m.ipopt_zU_in, 0.0)
         
         # deactivate nonanticipativity
         for u in self.u:
@@ -1656,7 +1663,7 @@ class NmpcGen(DynGen):
                     delta_p_wc[c_name,c_stage] = deepcopy(vertex)
                     con_vio[c_name,c_stage] = -s[con[1]].value + aux
             else:
-                sys.exit('Error: Wrong specification of worst case criteria')
+                sys.exit('Error: Wrong specification of worst case criterion')
                 
         scenarios = {}
         s_branch = {}
@@ -1667,6 +1674,7 @@ class NmpcGen(DynGen):
         # wc among all constraints
         # i.e, if for the same constraint two scenarios result in higher first-order
         # violations than any scenario for any other constraint both are included
+        print(con_vio)
         for i in range(2,min(self.nr+2,self.nfe_t+1)):
             if crit == 'overall':
                 con_vio_copy = {con:con_vio[con] for con in con_vio if (type(con[1])==tuple and con[1][0] == i) or (con[1] == i)}
@@ -1774,7 +1782,14 @@ class NmpcGen(DynGen):
             u_var.fix()
         m.tf.fix()
         m.clear_all_bounds()
-        
+
+        for var in m.ipopt_zL_in:
+            var.set_suffix_value(m.ipopt_zL_in, 0.0)
+                
+        for var in m.ipopt_zU_in:
+            var.set_suffix_value(m.ipopt_zU_in, 0.0)
+
+
         # deactivate nonanticipativity
         for u in self.u:
             non_anti = getattr(m, 'non_anticipativity_' + u)
@@ -1950,7 +1965,13 @@ class NmpcGen(DynGen):
             u_var.fix()
         m.tf.fix()
         m.clear_all_bounds()
-        
+
+        for var in m.ipopt_zL_in:
+            var.set_suffix_value(m.ipopt_zL_in, 0.0)
+                
+        for var in m.ipopt_zU_in:
+            var.set_suffix_value(m.ipopt_zU_in, 0.0)
+
         # deactivate nonanticipativity
         for u in self.u:
             non_anti = getattr(m, 'non_anticipativity_' + u)

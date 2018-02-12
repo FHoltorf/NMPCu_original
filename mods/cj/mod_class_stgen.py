@@ -1195,8 +1195,6 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
             # holds for symmetric trees that branch into different numbers of roots at every stage
             aux *= sum(1 for key in self.scenario_tree if self.scenario_tree[key][:2] == self.scenario_tree[i,1][:2])
             w[i] = s_max/aux # total number of scenarios self.s_max  divided by sum over all scenarios
-            # only holds for symmetric trees that branch into the same number of nodes at every stage
-            # max(1.0, self.s_max**(1.0-float(i)/min(self.nr,self.fe_t[-1])))
             
         def _eobj(self):
             return 1.0/s_max * (sum(sum(self.tf[i,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \

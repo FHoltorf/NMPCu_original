@@ -28,20 +28,20 @@ from main.noise_characteristics_cj import *
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)],"T":[()],"T_cw":[()]}
-p_noisy = {"A":[('p',),('i',)]}#,'kA':[()]
+p_noisy = {"A":[('p',),('i',)],'kA':[()]}
 u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
 
-cons = ['PO_ptg','unsat','mw','temp_b','T_max']#'T_min',
+cons = ['PO_ptg','unsat','mw','temp_b','T_max','T_min']
 #cons = ['temp_b','T_min','T_max']
 #y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
 #y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
 y = {"Y","MY","PO",'T'}
 y_vars = {"Y":[()],"MY":[()],"PO":[()],'T':[()]}
 
-noisy_ics = {'PO_ic':[()],'W_ic':[()],'T_ic':[()],'MY_ic':[()],'Y_ic':[()]}
+noisy_ics = {'PO_ic':[()],'T_ic':[()],'MY_ic':[()],'Y_ic':[()]}
 p_bounds = {('A', ('i',)):(-0.3,0.3),('A', ('p',)):(-0.3,0.3),('kA',()):(-0.3,0.3),
-            ('PO_ic',()):(-0.02,0.02),('W_ic',()):(-0.02,0.02),('T_ic',()):(-0.01,0.01),
+            ('PO_ic',()):(-0.02,0.02),('T_ic',()):(-0.02,0.02),
             ('MY_ic',()):(-0.02,0.02),('Y_ic',()):(-0.02,0.02)}
 
 nfe = 24
@@ -51,8 +51,8 @@ pc = ['Tad','T']
 
 # scenario_tree
 st = {} # scenario tree : {parent_node, scenario_number on current stage, base node (True/False), scenario values {'name',(index):value}}
-s_max = 2
-nr = 3
+s_max = 9
+nr = 1
 alpha = 0.2
 for i in range(1,nfe+1):
     if i < nr + 1:
@@ -132,29 +132,32 @@ for i in range(1,nfe):
         e.set_measurement_prediction(e.store_results(e.recipe_optimization_model)) # only required for asMHE
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
         e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,p_cov=pcov, first_call=True) #adjusts the mhe problem according to new available measurements
-        e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
+        e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='overall',noisy_ics=noisy_ics)
         e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
         e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_noise",parameter_disturbance = v_param)
         e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)          
-        e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE   
-        e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
+        e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE        
         e.cycle_nmpc(e.store_results(e.olnmpc))   
 
-    # solve mhe problem
-    previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-    e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
-    
-    # e.load_reference_trajectories()
-    
-    #e.set_regularization_weights(K_w = 0.0, Q_w = 0.0, R_w = 0.0)
+    e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
     e.solve_olnmpc() # solves the olnmpc problem
+    e.create_suffixes_nmpc()
+    e.sens_k_aug_nmpc()
+    e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='overall',noisy_ics=noisy_ics, m=e.olnmpc)
     
     #sIpopt
+    previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
+    e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True
+    
+    # compute fast update for nmpc
+    e.compute_offset_state(src_kind="estimated")
+    e.sens_dot_nmpc()  
+    
+    e.forward_simulation()
     e.cycle_iterations()
     k += 1
-   
     #troubleshooting
     if  e.nmpc_trajectory[i,'solstat'] != ['ok','optimal'] or \
         e.nmpc_trajectory[i,'solstat_mhe'] != ['ok','optimal'] or \

@@ -11,7 +11,7 @@ from pyomo.environ import *
 from scipy.stats import chi2
 from copy import deepcopy
 from main.dync.MHEGen_adjusted import MheGen
-from main.mods.cj.mod_class_cj_pwa import *
+from main.mods.cj.test import *
 from main.noise_characteristics_cj import * 
 import itertools, sys, csv
 import numpy as np
@@ -27,19 +27,19 @@ import numpy.linalg as linalg
 ###############################################################################
 # all states + states that are subject to process noise (directly drawn from e.g. a gaussian distribution)
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
-x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
+x_noisy = ["PO","MX","MY","Y","W","T","T_cw"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)], "T":[()], "T_cw":[()]}
 #p_noisy = {"A":[('p',),('i',)],'kA':[()],'Hrxn_aux':[('p',)]}
 p_noisy = {"A":[('p',),('i',)],'kA':[()]}
 u = ["u1", "u2"]
-u_bounds = {"u1": (-5.0,5.0), "u2": (0.0, 3.0)} 
+u_bounds = {"u1": (0.0,0.3), "u2": (0.0, 3.0)} 
 
-y = {"Y","PO","MY",'T'}
-y_vars = {"Y":[()],"PO":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
+y = {'T','T_cw','m_tot','W','MX',"Y","PO","MY"}
+y_vars = {"Y":[()],"PO":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()],'T_cw':[()]}
 #y = {"ByProd","PO",'T'}
 #y_vars = {"ByProd":[()],"PO":[()],'T':[()]}
 
-nfe = 24
+nfe = 58
 tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
 
 pc = ['Tad','T']
@@ -52,12 +52,12 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            p_noisy=p_noisy,
            u=u,
            noisy_inputs = False,
-           noisy_params = True,
+           noisy_params = False,
            adapt_params = False,
-#           process_noise_model = 'params',
+           process_noise_model = 'params',
            u_bounds=u_bounds,
            tf_bounds = tf_bounds,
-           diag_QR=False,
+           diag_QR=True,
            nfe_t=nfe,
            del_ics=False,
            sens=None,
@@ -91,14 +91,16 @@ for i in range(1,nfe):
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) 
         e.cycle_nmpc(e.store_results(e.olnmpc))     
+    
 
     # here measurement becomes available
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
+    #sys.exit()
     e.compute_confidence_ellipsoid()
     e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
 
     e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
-    e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
+    e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=20.0) # R_w controls, Q_w states, K_w = control steps
     e.solve_olnmpc() # solves the olnmpc problem
 
     e.cycle_iterations()
