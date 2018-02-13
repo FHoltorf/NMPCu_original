@@ -355,7 +355,9 @@ class NmpcGen(DynGen):
     
         # probably redundant
         self.plant_simulation_model.clear_aux_bounds()
-
+#        self.plant_simulation_model.A['p'] = 0.8*13504.2
+#        self.plant_simulation_model.kA = 0.8*0.07170172
+#        self.plant_simulation_model.A['i'] = 0.8*396400.0        
         # really nice example for not nicely working OLNMPC
         # adapt, 
 #        self.plant_simulation_model.A['p'] = 0.8*13504.2
@@ -739,12 +741,12 @@ class NmpcGen(DynGen):
                 for fe in range(1, self.nfe_t+1):
                     try:
                         self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j]
-                        #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j] + 0.01)**2
-                        self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
+                        self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j] + 0.01)**2
+                        #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
                     except KeyError:
                         self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j]
-                        #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j] + 0.01)**2
-                        self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
+                        self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j] + 0.01)**2
+                        #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
                             
         
         for u in self.u:

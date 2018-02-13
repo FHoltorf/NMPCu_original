@@ -18,11 +18,20 @@ import time
 #from main.MC_sampling.no_cj.run_MHE_asNMPC_backoff import *
 
 # model with cooling jacket 
-from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
+#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBSG import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBBM import *
 #from main.MC_sampling.cj.run_MHE_asNMPC_cj_pwa import *
+#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage_stgen import *
+
+# final
+# nominal NMPC
+#from main.MC_sampling.final.run_MHE_NMPC import *
+# multistage NMPC
+#from main.MC_sampling.final.run_MHE_NMPC_multistage import *
+# SBBM
+from main.MC_sampling.final.run_MHE_NMPC_SBBM import *
 
 #################################################################
 #################################################################
@@ -32,15 +41,16 @@ from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
 #################################################################
 #################################################################
 # inputs
-sample_size = 50
+sample_size = 100
 # specifiy directory where to save the resulting files
-path = 'results/cj/MHE/ideal/tiv-few_meas/pnoise/' 
+path = 'results/final/timeinvariant/standard/SBBM/' 
 # colors
 color = ['green','red','blue']
 tf = {}
 endpoint_constraints = {}
 path_constraints = {}
 runtime = {} # runtime in seconds
+uncertainty_realization = {}
 # run sample_size batches and save the endpoint constraint violation
 iters = 0
 for i in range(sample_size):
@@ -55,12 +65,12 @@ for i in range(sample_size):
     print('#'*20)
     try:
         t0 = time.clock()
-        tf[i],endpoint_constraints[i],path_constraints[i] = run()
+        tf[i],endpoint_constraints[i],path_constraints[i],uncertainty_realization[i] = run()
         runtime[i] = time.clock() - t0
     except ValueError:
-        tf[i],endpoint_constraints[i],path_constraints[i] = 'error', {'epc_PO_ptg': 'error', \
+        tf[i],endpoint_constraints[i],path_constraints[i],uncertainty_realization[i] = 'error', {'epc_PO_ptg': 'error', \
                                    'epc_mw': 'error', \
-                                   'epc_unsat': 'error'}, 'error'
+                                   'epc_unsat': 'error'}, 'error', 'error'
         runtime[i]  = 0.0 
     
     feasible = True
@@ -134,6 +144,10 @@ f.close()
 
 f = open(path + 'path_constraints.pckl','wb')
 pickle.dump(path_constraints,f)
+f.close()
+
+f = open(path + 'uncertainty_realization.pckl','wb')
+pickle.dump(uncertainty_realization,f)
 f.close()
 
 f = open(path + 'runtime.pckl','wb')

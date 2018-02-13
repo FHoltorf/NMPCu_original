@@ -420,9 +420,8 @@ class MheGen(NmpcGen):
             control = getattr(self.lsmhe, u)
             control[self.nfe_mhe].value = self.curr_u[u]
             control.fix()
-            #for i in control.index_set():
-            #    control[i].value = self.nmpc_trajectory[i,u]
-            #    control[i].fixed = True
+        
+        self.lsmhe.equalize_u()
         
         # reapply the measured variables
         for t in self.lsmhe.fe_t:

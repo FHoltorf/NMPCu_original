@@ -783,15 +783,17 @@ class NmpcGen(DynGen):
                     j = key[2:]
                 else:
                     j = (key[2:],)
-                fe = key[0]
-                
-                self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j]
-                self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
-                #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j] + 0.01)**2
+                fe = key[0] 
+                self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(fe + self.iterations,self.ncp_t)+j]
+                self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(fe + self.iterations,self.ncp_t)+j] + 0.01)**2
+#                try:
+#                    self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j]
+#                    self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j] + 0.01)**2
+#                    #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
 #                except KeyError:
 #                    self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j]
-#                    #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j] + 0.01)**2
-#                    self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
+#                    self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j] + 0.01)**2
+#                    #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
 #                        
         
         for u in self.u:    

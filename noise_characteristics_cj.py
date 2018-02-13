@@ -53,7 +53,7 @@ ucov[("u2",())] = disturbance_error_2
 # relative variance that is associated with the parameters (only diagonal)
 pcov = {}
 pcov[('A',('i',)),('A',('i',))] = 0.1
-pcov[('A',('p',)),('A',('p',))] = 0.15
+pcov[('A',('p',)),('A',('p',))] = 0.1
 pcov[('kA',()),('kA',())] = 0.1
 
 # process disturbances
@@ -106,7 +106,7 @@ v_init[("T",())] = 0.0
 v_param = {} #[relative standard deviation, frequency for changes (measured in intervalls)]
 v_param[('A',('a',))] = [0.0,100]
 v_param[('A',('i',))] = [0.1,100]
-v_param[('A',('p',))] = [0.15,100]
+v_param[('A',('p',))] = [0.1,100]
 v_param[('A',('t',))] = [0.0,100]
 v_param[('Ea',('a',))] = [0.0,100] 
 v_param[('Ea',('i',))] = [0.0,100]  # have such strong impact that there is no way of makeing these uncertain

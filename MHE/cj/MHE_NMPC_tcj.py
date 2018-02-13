@@ -2,103 +2,69 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Sep 29 21:51:51 2017
+
 @author: flemmingholtorf
 """
-#### 
+####
 from __future__ import print_function
 from pyomo.environ import *
-from main.dync.MHEGen_multistage import MheGen
-from main.mods.cj.mod_class_cj_pwa_multistage import *
-from main.mods.cj.mod_class_cj_pwa import *
-import sys
+from scipy.stats import chi2
+from copy import deepcopy
+from main.dync.MHEGen_adjusted import MheGen
+from main.mods.final.mod_class import *
+from main.noise_characteristics_cj import * 
 import itertools, sys, csv
 import numpy as np
 import matplotlib.pyplot as plt
 import numpy.linalg as linalg
-from scipy.stats import chi2
-from main.noise_characteristics_cj import *
 
-# redirect system output to a file:
-#sys.stdout = open('consol_output','w')
+#redirect system output to a file:
+#sys.stdout = open('consol_output.txt','w')
+
 
 ###############################################################################
 ###                               Specifications
 ###############################################################################
-
+# all states + states that are subject to process noise (directly drawn from e.g. a gaussian distribution)
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
-x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
-x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)],"T":[()],"T_cw":[()]}
+x_noisy = ["PO","MX","MY","Y","W","T","T_cw"] # all the states are noisy  
+x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)], "T":[()], "T_cw":[()]}
+#p_noisy = {"A":[('p',),('i',)],'kA':[()],'Hrxn_aux':[('p',)]}
 p_noisy = {"A":[('p',),('i',)],'kA':[()]}
 u = ["u1", "u2"]
-u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)} 
+u_bounds = {"u1": (0.0,0.3), "u2": (0.0, 3.0)} 
 
-y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
-y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
+y = {'T','T_cw','m_tot','W','MX',"Y","PO","MY"}
+y_vars = {"Y":[()],"PO":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()],'T_cw':[()]}
+#y = {"ByProd","PO",'T'}
+#y_vars = {"ByProd":[()],"PO":[()],'T':[()]}
+
 nfe = 24
 tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
 
 pc = ['Tad','T']
-
-# scenario_tree
-st = {} # scenario tree : {parent_node, scenario_number on current stage, base node (True/False), scenario values {'name',(index):value}}
-s_max = 9
-nr = 1
-alpha = 0.2
-for i in range(1,nfe+1):
-    if i < nr + 1:
-        for s in range(1,s_max**i+1):
-            if s%s_max == 1:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A',('p',)):1.0,('A',('i',)):1.0,('kA',()):1.0}) 
-            elif s%s_max == 2:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0+alpha,('kA',()):1.0-alpha})
-            elif s%s_max == 3:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0+alpha,('kA',()):1.0-alpha})
-            elif s%s_max == 4:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
-            elif s%s_max == 5:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
-            elif s%s_max == 6:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
-            elif s%s_max == 7:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
-            elif s%s_max == 8:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
-            else:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
-    else:
-        for s in range(1,s_max**nr+1):
-            st[(i,s)] = (i-1,s,True,st[(i-1,s)][3])
-
-sr = s_max**nr
-
-e = MheGen(d_mod=SemiBatchPolymerization_multistage,
-           d_mod_mhe = SemiBatchPolymerization,
-           y=y,
-           y_vars=y_vars,
+e = MheGen(d_mod=SemiBatchPolymerization,
            x_noisy=x_noisy,
            x_vars=x_vars,
-           p_noisy=p_noisy,
+           y=y,
+           y_vars=y_vars,
            states=states,
+           p_noisy=p_noisy,
            u=u,
-           u_bounds = u_bounds,
-           tf_bounds = tf_bounds,
-           scenario_tree = st,
-           robust_horizon = nr,
-           s_max = sr,
            noisy_inputs = False,
            noisy_params = True,
-           adapt_params = True,
-           update_scenario_tree = False,
-           confidence_threshold = alpha,
-           robustness_threshold = 0.05,
-           estimate_exceptance = 10000,
-           process_noise_model = None,#'params',
-           obj_type='tracking',
+           adapt_params = False,
+#           process_noise_model = 'params',
+           u_bounds=u_bounds,
+           tf_bounds = tf_bounds,
+           diag_QR=True,
            nfe_t=nfe,
-           sens=None,
-           diag_QR=False,
            del_ics=False,
+           sens=None,
+           obj_type='tracking',
            path_constraints=pc)
+delta_u = True
+
 ###############################################################################
 ###                                     NMPC
 ###############################################################################
@@ -106,9 +72,10 @@ e.recipe_optimization()
 e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
 e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
 e.generate_state_index_dictionary()
+e.create_nmpc() # with tracking-type regularization
+e.load_reference_trajectories()
 
-e.create_enmpc()
-k = 1 
+k = 1
 for i in range(1,nfe):
     print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
     e.create_mhe()
@@ -116,36 +83,34 @@ for i in range(1,nfe):
         e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
         e.set_measurement_prediction(e.store_results(e.recipe_optimization_model))
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
-        e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,first_call=True) 
+        e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,p_cov=pcov) #adjusts the mhe problem according to new available measurements
         e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
         e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
         e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
-        e.cycle_mhe(previous_mhe,mcov,qcov,ucov) 
-        e.cycle_nmpc(e.store_results(e.olnmpc))  
+        e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) 
+        e.cycle_nmpc(e.store_results(e.olnmpc))     
     
+
     # here measurement becomes available
-    e.load_reference_trajectories()
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-    #e.compute_confidence_ellipsoid()
-    
-    # solve the advanced step problems
+    #sys.exit()
+    e.compute_confidence_ellipsoid()
     e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
+
+    e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
+    e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=20.0) # R_w controls, Q_w states, K_w = control steps
     e.solve_olnmpc() # solves the olnmpc problem
-    
-    e.olnmpc.write_nl()
+
     e.cycle_iterations()
     k += 1
-   
-    #troubleshooting
+
     if  e.nmpc_trajectory[i,'solstat'] != ['ok','optimal'] or \
-        e.plant_trajectory[i,'solstat'] != ['ok','optimal'] or \
-        e.nmpc_trajectory[i,'solstat_mhe'] != ['ok','optimal']:
+        e.nmpc_trajectory[i,'solstat'] != ['ok','optimal'] or \
+        e.plant_trajectory[i,'solstat'] != ['ok','optimal']:
         break
-
-# simulate the last step too
-
+    
 for i in range(1,k):
     print('iteration: %i' % i)
     print('open-loop optimal control: ', end='')
@@ -153,10 +118,10 @@ for i in range(1,k):
     print('constraint inf: ', e.nmpc_trajectory[i,'eps'])
     print('plant: ',end='')
     print(e.plant_trajectory[i,'solstat'])
-    
+
 e.plant_simulation(e.store_results(e.olnmpc))
 
-# uncertainty realization
+# Uncertainty Realization
 print('uncertainty realization')
 for p in p_noisy:
     pvar_r = getattr(e.plant_simulation_model, p)
@@ -166,8 +131,6 @@ for p in p_noisy:
             print('delta_p ',p,key,': ',(pvar_r[key].value-pvar_m[key].value)/pvar_m[key].value)
         else:
             print('delta_p ',p,key,': ',(pvar_r.value-pvar_m.value)/pvar_m.value)
-
-
 ###############################################################################
 ####                        plot results comparisons   
 ###############################################################################
@@ -175,15 +138,20 @@ for p in p_noisy:
 t_traj_nmpc = np.array([e.nmpc_trajectory[i,'tf'] for i in range(1,k)])
 t_traj_sim = np.array([e.nmpc_trajectory[i,'tf'] for i in range(1,k+1)])
 plt.figure(1)
-
-t = e.get_tf(1)
+tf = e.get_tf()
+t = []
+t.append(tf)
+for i in range(1,nfe):
+    aux = t[i-1] + tf
+    t.append(aux)
+#
 l = 0
 
 #moments
 moment = ['MX']
 for m in moment:
     for j in range(0,2):
-        state_traj_ref = np.array([e.reference_state_trajectory[(m,(i,3,j,1))] for i in range(1,nfe+1)]) 
+        state_traj_ref = np.array([e.reference_state_trajectory[(m,(i,3,j))] for i in range(1,nfe+1)]) 
         state_traj_nmpc = np.array([e.nmpc_trajectory[i,(m,(j,))] for i in range(1,k)])
         state_traj_sim = np.array([e.plant_trajectory[i,(m,(j,))] for i in range(1,k+1)])
         plt.figure(l)
@@ -194,9 +162,10 @@ for m in moment:
         plt.legend()
         l += 1
 
-plots = [('T',()),('T_cw',()),('Y',()),('PO',()),('PO_fed',()),('W',()),('MY',())]
+plots = [('Y',()),('PO',()),('PO_fed',()),('W',()),('MY',()),('T_cw',()),('T',())]
+#plots = [('PO',()),('T_cw',()),('T',())]
 for p in plots: 
-    state_traj_ref = np.array([e.reference_state_trajectory[(p[0],(i,3,1))] for i in range(1,nfe+1)]) 
+    state_traj_ref = np.array([e.reference_state_trajectory[(p[0],(i,3))] for i in range(1,nfe+1)]) 
     state_traj_nmpc = np.array([e.nmpc_trajectory[i,p] for i in range(1,k)])
     state_traj_sim = np.array([e.plant_trajectory[i,p] for i in range(1,k+1)])    
     plt.figure(l)
@@ -210,37 +179,30 @@ for p in plots:
 plots = ['u1','u2']
 t_traj_nmpc = [e.nmpc_trajectory[i,'tf'] for i in range(0,k+1)]
 aux1 = []
+aux2 = []
 for i in range(1,len(t_traj_nmpc)):
     aux1.append(t_traj_nmpc[i-1])
     aux1.append(t_traj_nmpc[i])
-
+    aux2.append((i-1)*tf)
+    aux2.append(i*tf)
+    
+t = np.array(aux2)
 t_traj_nmpc = np.array(aux1)
 t_traj_sim = t_traj_nmpc 
 for b in plots:
-    aux_ref = {}
-    for s in range(1,s_max+1):
-        aux_ref[s] = []
+    aux_ref = []
     aux_nmpc = []
     aux_sim = []
     for i in range(1,k+1):
         for z in range(2):
-            for s in range(1,s_max+1):
-                aux_ref[s].append(e.reference_control_trajectory[b,(i,s)]) # reference computed off-line/recipe optimization
-            aux_nmpc.append(e.nmpc_trajectory[i,b]) # nmpc --> predicted one step ahead
-            aux_sim.append(e.plant_trajectory[i,b]) # after advanced step --> one step ahead
-    
+            aux_ref.append(e.reference_control_trajectory[b,i])
+            aux_nmpc.append(e.nmpc_trajectory[i,b])
+            aux_sim.append(e.plant_trajectory[i,b])
+    control_traj_ref = np.array(aux_ref)
     control_traj_nmpc = np.array(aux_nmpc)
     control_traj_sim = np.array(aux_sim)
     plt.figure(l)
-    for s in range(1,s_max+1):
-        t = [0] + e.get_tf(s)
-        aux2 = []
-        for i in range(1,k+1):
-            aux2.append(t[i-1])
-            aux2.append(t[i])
-        t = np.array(aux2)
-        control_traj_ref = np.array(aux_ref[s])
-        plt.plot(t,control_traj_ref, color='blue',label = "reference scenario" + str(s))
+    plt.plot(t,control_traj_ref, label = "reference")
     plt.plot(t_traj_nmpc,control_traj_nmpc, label = "predicted")
     plt.plot(t_traj_sim,control_traj_sim, label = "SBU")
     plt.legend()
@@ -249,18 +211,18 @@ for b in plots:
     
 e.plant_simulation_model.check_feasibility(display=True)
 
-
-
-
+# print uncertatinty realization
 ###############################################################################
 ###         Plotting 1st Order Approximation of Confidence Region 
 ###############################################################################
 try:
+    error_bounds = {}
+    estimates = [e.nmpc_trajectory[i,'e_pars'] for i in range(2,nfe)]
     plt.figure(l)
-    dimension = 2 # dimension n of the n x n matrix = #DoF
+    dimension = 3 # dimension n of the n x n matrix = #DoF
     rhs_confidence = chi2.isf(1.0-0.95,dimension) # 0.1**2*5% measurment noise, 95% confidence level, dimension degrees of freedo
     rows = {}
-    for r in range(1,k):
+    for r in range(1,24):
         A_dict = e.mhe_confidence_ellipsoids[r]
         center = [0,0]
         for m in range(dimension):
@@ -271,21 +233,73 @@ try:
         radii = 1/np.sqrt(s) # length of half axes, V rotation
         
         # transform in polar coordinates for simpler waz of plotting
-        theta = np.linspace(0.0, 2.0 * np.pi, 100) # angle = idenpendent variable
-        x = radii[0] * np.sin(theta) # x-coordinate
-        y = radii[1] * np.cos(theta) # y-coordinate
-        for i in range(len(x)):
-            [x[i],y[i]] = np.dot([x[i],y[i]], V) + center
-        plt.plot(x,y, label = str(r))
+#        theta = np.linspace(0.0, 2.0 * np.pi, 100) # angle = idenpendent variable
+#        x = radii[0] * np.sin(theta) # x-coordinate
+#        y = radii[1] * np.cos(theta) # y-coordinate
+#        for i in range(len(x)):
+#            [x[i],y[i]] = np.dot([x[i],y[i]], V) + center
+#        plt.plot(x,y, label = str(r))
+
+        # plot half axis
+#    for p in range(dimension):
+#        x = radii[p]*U[p][0]
+#        y = radii[p]*U[p][1]
+#        plt.plot([0,x],[0,y],color='red')
+#    plt.xlabel(r'$\Delta A_i$')
+#    plt.ylabel(r'$\Delta A_p$')
     
         
-        # plot half axis
-    for p in range(dimension):
-        x = radii[p]*U[p][0]
-        y = radii[p]*U[p][1]
-        plt.plot([0,x],[0,y],color='red')
-    plt.xlabel(r'$\Delta A_i$')
-    plt.ylabel(r'$\Delta A_p$')
+        dev = {(p,key):1e20 for p in e.p_noisy for key in e.p_noisy[p]}
+        for p in e.p_noisy:
+            p_mhe = getattr(e.lsmhe,p)
+            for key in e.p_noisy[p]:
+                pkey = key if key != () else None
+                n = e.PI_indices[p,key]
+                A_k = deepcopy(A)
+                A_k[:,n] = 0.0
+                A_k[n,:] = 0.0
+                A_k[n,n] = 1.0
+                Z_k = np.zeros(dimension)
+                Z_k[:] = -A[:,n]
+                Z_k[n] = 1.0
+                a_k = A[n,:]
+                D_k = np.linalg.solve(A_k,Z_k)
+                dev_k = np.sqrt(1/np.dot(a_k,D_k))/p_mhe[pkey].value
+                # use new interval if robustness_threshold < dev_k < confidence_threshold
+                dev[(p,key)] = dev_k
+        error_bounds[r] = deepcopy(dev)
+            
+    l +=1
+    est_Ap = [estimates[i][('A',('p',))] for i in range(22)]
+    est_Ai = [estimates[i][('A',('i',))] for i in range(22)]
+    est_kA = [estimates[i][('kA',())] for i in range(22)]
+    lb_Ap = [error_bounds[i][('A',('p',))] for i in range(2,24)]
+    lb_Ai = [error_bounds[i][('A',('i',))] for i in range(2,24)]
+    lb_kA = [error_bounds[i][('kA',())] for i in range(2,24)]
+    err_Ap = [est_Ap[i]*lb_Ap[i] for i in range(22)]
+    err_Ai = [est_Ai[i]*lb_Ai[i] for i in range(22)]
+    err_kA = [est_kA[i]*lb_kA[i] for i in range(22)]
+    x = [i for i in range(2,24)]
+    plt.figure(l)
+    plt.errorbar(x,est_Ap, yerr=err_Ap, fmt='bo', capsize=5)
+    plt.plot([2,23],[e.plant_simulation_model.A['p'].value]*2,color='red',linestyle='dashed')
+    plt.ylabel('A_p')
+    plt.xlabel('iteration')
+    plt.figure(l).savefig('Ap.pdf')
+    l+=1
+    plt.figure(l)
+    plt.errorbar(x,est_Ai, yerr=err_Ai, fmt='bo', capsize=5)
+    plt.plot([2,23],[e.plant_simulation_model.A['i'].value]*2,color='red',linestyle='dashed')
+    plt.ylabel('A_i')
+    plt.xlabel('iteration')
+    plt.figure(l).savefig('Ai.pdf')
+    l+=1
+    plt.figure(l)
+    plt.errorbar(x,est_kA, yerr=err_kA, fmt='bo', capsize=5)
+    plt.plot([2,23],[e.plant_simulation_model.kA.value]*2,color='red',linestyle='dashed')
+    plt.ylabel('kA')
+    plt.xlabel('iteration')
+    plt.figure(l).savefig('kA.pdf')
 except KeyError:
     pass
 
@@ -306,7 +320,7 @@ for i in range(1): # loop over all runs
     heat_removal[i] = []
     t[i] = []
     Tad[i] = []
-    for fe in range(1,25):
+    for fe in range(1,k+1):
         for cp in range(1,4):        
             heat_removal[i].append(path_constraints[i]['T',(fe,(cp,))])
             Tad[i].append(path_constraints[i]['Tad',(fe,(cp,))])
@@ -320,18 +334,18 @@ max_tf = max(t[0])
 plt.figure(l)
 for i in Tad:
     plt.plot(t[i],Tad[i], color='grey')
-plt.plot([0,max_tf],[4.4315,4.4315], color='red', linestyle='dashed')
+plt.plot([0,max_tf],[443.15/100,443.15/100], color='red', linestyle='dashed')
 plt.xlabel('t [min]')
-plt.ylabel('T [K]')
+plt.ylabel('Tad [K]')
     
 l += 1
 plt.figure(l)
 for i in heat_removal:
     plt.plot(t[i],heat_removal[i], color='grey')
-plt.plot([0,max_tf],[4.4315,4.4315], color='red', linestyle='dashed')
-plt.plot([0,max_tf],[3.7315,3.7315], color='red', linestyle='dashed')
+plt.plot([0,max_tf],[(273.15+150.0)/100.0,(273.15+150.0)/100.0], color='red', linestyle='dashed')
+plt.plot([0,max_tf],[373.15/100,373.15/100], color='red', linestyle='dashed')
 plt.xlabel('t [min]')
-plt.ylabel('T [k]')
+plt.ylabel('T [K]')
 
 
 print('MULTISTAGE NMPC')

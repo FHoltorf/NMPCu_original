@@ -478,7 +478,9 @@ class MheGen(NmpcGen):
             control = getattr(self.lsmhe, u)
             control[self.nfe_mhe] = self.curr_u[u]
             control.fix()
-
+        
+        self.lsmhe.equalize_u()
+        
         # reapply the measured variables
         for t in self.lsmhe.fe_t:
             for y in self.y:
