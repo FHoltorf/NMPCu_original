@@ -1152,6 +1152,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         w = {}
         for i in self.fe_t:
             w[i] = max(1.0, self.s_max**(1.0-float(i)/self.nr))
+
         def _eobj(self):
             return 1.0/self.s_max * (sum(sum(self.tf[i,s]*w[i] for i in self.fe_t if (i,s) in self.scenario_tree) for s in self.s) \
                     + self.rho*(sum(sum(self.eps[k,s] for s in self.s) for k in self.epc) \

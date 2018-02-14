@@ -19,19 +19,21 @@ import time
 
 # model with cooling jacket 
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
-#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBSG import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
+#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBBM import *
+
+#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBSG import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBBM import *
 #from main.MC_sampling.cj.run_MHE_asNMPC_cj_pwa import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage_stgen import *
 
-# final
+# final cooling jacket
 # nominal NMPC
-#from main.MC_sampling.final.run_MHE_NMPC import *
+from main.MC_sampling.final.run_MHE_NMPC import *
 # multistage NMPC
 #from main.MC_sampling.final.run_MHE_NMPC_multistage import *
 # SBBM
-from main.MC_sampling.final.run_MHE_NMPC_SBBM import *
+#from main.MC_sampling.final.run_MHE_NMPC_SBBM import *
 
 #################################################################
 #################################################################
@@ -43,7 +45,7 @@ from main.MC_sampling.final.run_MHE_NMPC_SBBM import *
 # inputs
 sample_size = 100
 # specifiy directory where to save the resulting files
-path = 'results/final/timeinvariant/standard/SBBM/' 
+path = 'results/final/timeinvariant/parest/nominal/' 
 # colors
 color = ['green','red','blue']
 tf = {}

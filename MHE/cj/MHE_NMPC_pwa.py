@@ -11,7 +11,7 @@ from pyomo.environ import *
 from scipy.stats import chi2
 from copy import deepcopy
 from main.dync.MHEGen_adjusted import MheGen
-from main.mods.cj.mod_class_cj_pwa import *
+from main.mods.final_pwa.mod_class_cj_pwa import *
 from main.noise_characteristics_cj import * 
 import itertools, sys, csv
 import numpy as np
@@ -52,9 +52,9 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            p_noisy=p_noisy,
            u=u,
            noisy_inputs = False,
-           noisy_params = True,
+           noisy_params = False,
            adapt_params = False,
-#           process_noise_model = 'params',
+           process_noise_model = 'params_bias',
            u_bounds=u_bounds,
            tf_bounds = tf_bounds,
            diag_QR=False,
@@ -94,7 +94,7 @@ for i in range(1,nfe):
 
     # here measurement becomes available
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-    e.compute_confidence_ellipsoid()
+    #e.compute_confidence_ellipsoid()
     e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
 
     e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)

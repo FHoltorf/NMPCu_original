@@ -21,7 +21,6 @@ import matplotlib.pyplot as plt
 from six import itervalues, iterkeys, iteritems
 import sys
 import pickle
-from objective import *
 # specify discretization
 #nfe = 24 # number of finite elements
 #ncp = 3 # number collocation points
@@ -146,7 +145,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.T_max = Param(initialize=150.0)
         self.T_min = Param(initialize=100.0)
         self.molecular_weight = Param(initialize=949.5, mutable=True) # 3027.74 # [g/mol] or [kg/kmol] target molecular weights
-        self.molecular_weight_max = Param(initialize=949.5+10, mutable=True)
+        self.molecular_weight_max = Param(initialize=949.5+20, mutable=True)
         self.unsat_value = Param(initialize=0.032) #0.032 # unsaturation value
         self.unreacted_PO = Param(initialize=120.0) #120.0 # [PPM] unreacted PO
         self.rxr_volume = Param(initialize=41.57) # [m^3] volume of the reactor

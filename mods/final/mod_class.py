@@ -51,6 +51,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.U_scale = 1.0e-2
         self.monomer_cooling_scale = 1.0e-2
         self.scale = 1.0
+        self.D_scale = 1.0
         
         #these work perfectly fine too
 #        self.W_scale = 1#1
@@ -513,7 +514,7 @@ class SemiBatchPolymerization(ConcreteModel):
         # energy balance
         def _ode_T_cw(self,i,j):    
             if j > 0:
-                return self.dT_cw_dt[i,j] == (self.D[i]*self.tf*self.fe_dist[i]*(self.T_cw_in*self.T_scale - self.T_cw[i,j]*self.T_scale) + self.Qc[i,j]*self.Hrxn['p']/(self.m_cw*self.cp_cw))/self.T_scale
+                return self.dT_cw_dt[i,j] == (self.D[i]*self.D_scale*self.tf*self.fe_dist[i]*(self.T_cw_in*self.T_scale - self.T_cw[i,j]*self.T_scale) + self.Qc[i,j]*self.Hrxn['p']/(self.m_cw*self.cp_cw))/self.T_scale
             else:
                 return Constraint.Skip
     
@@ -544,8 +545,6 @@ class SemiBatchPolymerization(ConcreteModel):
         
         def _ode_T(self,i,j):    
             if j > 0:
-                #return self.dT_dt[i,j]*(self.m_tot[i,j]*self.m_tot_scale)*(self.bulk_cp_1 + self.bulk_cp_2*self.T[i,j]*self.T_scale) == (-self.F[i]*self.Hrxn['p']*self.monomer_cooling[i,j]*self.tf*self.fe_dist[i] + \
-                #                          self.Hrxn['p']*(self.F[i]*self.tf*self.fe_dist[i] - self.dPO_dt[i,j]*self.PO_scale + self.dW_dt[i,j]*self.W_scale) - self.k_c*self.tf*self.fe_dist[i]*(self.T[i,j]*self.T_scale - self.T_cw[i]*self.T_scale))/self.T_scale
                 return self.dT_dt[i,j]*(self.m_tot[i,j]*self.m_tot_scale*(self.bulk_cp_1 + self.bulk_cp_2*self.T[i,j]*self.T_scale))/self.Hrxn['p'] ==\
                             (self.Qr[i,j] - self.Qc[i,j] - self.F[i]*self.tf*self.fe_dist[i]*self.mw_PO*self.monomer_cooling[i,j]*self.monomer_cooling_scale)/self.T_scale
             else:
@@ -904,8 +903,8 @@ class SemiBatchPolymerization(ConcreteModel):
         for i in self.fe_t:
             self.D[i].setlb(0.0)
             self.u1[i].setlb(0.0)
-            self.D[i].setub(0.2)
-            self.u1[i].setub(0.2)
+            self.D[i].setub(0.2/self.D_scale)
+            self.u1[i].setub(0.2/self.D_scale)
             self.F[i].setlb(0.0)
             self.u2[i].setlb(0.0)
             self.F[i].setub(3.0) 

@@ -8,8 +8,8 @@ Created on Tue Dec 26 22:25:28 2017
 from __future__ import print_function
 from pyomo.environ import *
 from main.dync.MHEGen_multistage import MheGen
-from main.mods.cj.mod_class_cj_pwa_multistage import *
-from main.mods.cj.mod_class_cj_pwa import *
+from main.mods.final_pwa.mod_class_cj_pwa_multistage import *
+from main.mods.final_pwa.mod_class_cj_pwa import *
 import sys
 import itertools, sys, csv
 import numpy as np
@@ -31,8 +31,8 @@ def run():
   
 #    y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
 #    y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
-    y = {"Y","PO","m_tot",'T',"MW"}
-    y_vars = {"Y":[()],"PO":[()],"m_tot":[()],'T':[()],"MW":[()]}
+    y = {"MY","Y","PO",'T'}#"m_tot"
+    y_vars = {"MY":[()],"Y":[()],"PO":[()],'T':[()]} #"m_tot":[()],,"MW":[()]}
     nfe = 24
     tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
     
@@ -88,10 +88,10 @@ def run():
                noisy_params = True,
                adapt_params = True,
                update_scenario_tree = False,
+               process_noise_model = None,#'params_bias',
                confidence_threshold = alpha,
                robustness_threshold = 0.05,
                estimate_exceptance = 10000,
-#               process_noise_model = 'params',
                obj_type='tracking',
                nfe_t=nfe,
                sens=None,
@@ -107,7 +107,6 @@ def run():
     e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
     e.generate_state_index_dictionary()
     e.create_nmpc()
-    e.load_reference_trajectories()
 
     k = 1 
     for i in range(1,nfe):
@@ -128,7 +127,7 @@ def run():
         
         # here measurement becomes available
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-        #e.compute_confidence_ellipsoid()
+        e.compute_confidence_ellipsoid()
         
         # solve the advanced step problems
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
@@ -158,8 +157,17 @@ def run():
     #print(e.st)
         
     e.plant_simulation(e.store_results(e.olnmpc))
-    tf = e.nmpc_trajectory[k,'tf']
+    uncertainty_realization = {}
+    for p in p_noisy:
+        pvar_r = getattr(e.plant_simulation_model, p)
+        pvar_m = getattr(e.recipe_optimization_model, p)
+        for key in p_noisy[p]:
+            pkey = None if key ==() else key
+            print('delta_p ',p,key,': ',(pvar_r[pkey].value-pvar_m[pkey].value)/pvar_m[pkey].value)
+            uncertainty_realization[(p,key)] = pvar_r[pkey].value
+            
+    tf = e.nmpc_trajectory[k, 'tf']
     if k == 24 and e.plant_trajectory[24,'solstat'] == ['ok','optimal']:
-        return tf, e.plant_simulation_model.check_feasibility(display=True), e.pc_trajectory
+        return tf, e.plant_simulation_model.check_feasibility(display=True), e.pc_trajectory, uncertainty_realization
     else:
-        return 'error', {'epc_PO_ptg': 'error', 'epc_mw': 'error', 'epc_unsat': 'error'}, 'error'
+        return 'error', {'epc_PO_ptg': 'error', 'epc_mw': 'error', 'epc_unsat': 'error'}, 'error', 'error'

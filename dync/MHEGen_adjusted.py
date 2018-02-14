@@ -74,9 +74,9 @@ class MheGen(NmpcGen):
         self.lsmhe = self.d_mod(self.nfe_mhe, self.ncp_t, _t=self._t)
         self.lsmhe.name = "lsmhe (Least-Squares MHE)"
         self.lsmhe.create_bounds()
+        self.lsmhe.clear_aux_bounds()
         self.lsmhe.create_output_relations()
         self.lsmhe.e_state_relation()
-        self.lsmhe.clear_aux_bounds()
         
         #: Create list of noisy-states vars
         self.xkN_l = []
@@ -161,10 +161,6 @@ class MheGen(NmpcGen):
 
         if self.noisy_inputs:
             for u in self.u:
-                # cv = getattr(self.lsmhe, u)  #: Get the param
-                # c_val = [value(cv[i]) for i in cv.keys()]  #: Current value
-                # self.lsmhe.del_component(cv)  #: Delete the param
-                # self.lsmhe.add_component(u + "_mhe", Var(self.lsmhe.fe_t, initialize=lambda m, i: c_val[i-1]))
                 self.lsmhe.add_component("w_" + u + "_mhe", Var(self.lsmhe.fe_t, initialize=0.0))  #: Noise for input vars
                 self.lsmhe.add_component("w_" + u + "c_mhe", Constraint(self.lsmhe.fe_t))
                 self.lsmhe.equalize_u(direction="r_to_u")
@@ -173,19 +169,18 @@ class MheGen(NmpcGen):
                 cc.deactivate()
                 
                 con_w = getattr(self.lsmhe, "w_" + u + "c_mhe")  #: Get the constraint-noisy
-                var_w = getattr(self.lsmhe, "w_" + u + "_mhe")  #: Get the constraint-noisy
+                wu = getattr(self.lsmhe, "w_" + u + "_mhe")  #: Get the constraint-noisy
                 ce = getattr(self.lsmhe, u + "_e")  #: Get the expression
                 cp = getattr(self.lsmhe, u)  #: Get the param
     
-                con_w.rule = lambda m, i: cp[i] == ce[i] + var_w[i]
+                con_w.rule = lambda m, i: cp[i] == ce[i] + wu[i]
                 con_w.reconstruct()
                 con_w.deactivate()
 
-        # always Identitiy --> U_mhe is weighting of the control noise
+        # initialized as identitiy --> U_mhe = weighting/inv(covariance) of the control noise
         self.lsmhe.U_mhe = Param(self.lsmhe.fe_t, self.u, initialize=1, mutable=True)
 
         #: Deactivate icc constraints
-
         if self.noisy_ics:
             # for semi-batch need to introduce also penalty for the initial conditions
             self.lsmhe.noisy_ic = ConstraintList()
@@ -197,9 +192,9 @@ class MheGen(NmpcGen):
                 xic = getattr(self.lsmhe,i + "_ic")
                 x = getattr(self.lsmhe,i)
                 for j in self.x_vars[i]:
-                    k = self.xkN_key[(i,j)] # key that belongs to the certain variable
+                    k = self.xkN_key[(i,j)] # key that belongs to the certain variable for wk_mhe
                     if j == ():
-                        x[(1,0)+j] = xic.value # set reasoable initial guess
+                        x[(1,0)+j] = xic.value # set reasonable initial guess
                         self.lsmhe.noisy_ic.add(ic_exp == self.lsmhe.wk_mhe[0,k]) # add noisy initial condition
                     else:
                         x[(1,0)+j] = xic[j].value
@@ -258,7 +253,7 @@ class MheGen(NmpcGen):
         
         
         
-        # process_noise_model == time variant paramters
+        # process_noise_model == time-variant paramters
         self.lsmhe.P_e_mhe = Expression(expr= 0.0)
         if self.process_noise_model == 'params':
             self.pkN_l = []
@@ -269,13 +264,13 @@ class MheGen(NmpcGen):
                 try:# check whether parameter is time-variant
                     par = getattr(self.lsmhe, 'p_' + p)
                 except:# catch time-invariant parameters
+                    self.lsmhe.par_to_var()
+                    par = getattr(self.lsmhe, p)
+                    par.unfix()
                     print('Parameter ' + p + ' is not time-variant')
                     continue
                 for key in self.p_noisy[p]:  #: the jth variable
-                    if self.linapprox:
-                        jth = key + (1,)
-                    else:
-                        jth = key
+                    jth = key + (1,) if self.linapprox else key
                     self.pkN_l.append(par[(1,) + jth])
                     self.pkN_nexcl.append(1)  #: non-exclusion list for active bounds
                     self.pkN_key[(p, key)] = k
@@ -286,7 +281,6 @@ class MheGen(NmpcGen):
             self.lsmhe.P_mhe = Param(self.lsmhe.pkNk_mhe, initialize=1.0, mutable=True)
             self.lsmhe.noisy_pars = ConstraintList()
             
-            j = 0
             for p in self.p_noisy:
                 try:# check whether parameter is time-variant
                     par = getattr(self.lsmhe, 'p_' + p)
@@ -300,30 +294,37 @@ class MheGen(NmpcGen):
                         par[jth].unfix()
             self.lsmhe.P_e_mhe.expr = 1.0/2.0 * sum(sum(self.lsmhe.P_mhe[k] * self.lsmhe.dk_mhe[i, k]**2 \
                                                 for k in self.lsmhe.pkNk_mhe) for i in self.lsmhe.fe_t)
-        
-        elif self.process_noise_model == 'disturbances':
+        elif self.process_noise_model == 'params_bias':
             self.pkN_l = []
             self.pkN_nexcl = []
             self.pkN_key = {}
             k = 0
             for p in self.p_noisy:
-                par = getattr(self.lsmhe, 'p_' + p)  #: Noisy param
-                for jth in self.p_noisy[p]:  #: the jth variable
-                    if self.linapprox:
-                        jth = jth + (1,)
+                try:# check whether parameter is time-variant
+                    par = getattr(self.lsmhe, 'p_' + p)
+                except:# catch time-invariant parameters
+                    self.lsmhe.par_to_var()
+                    par = getattr(self.lsmhe, p)
+                    par.unfix()
+                    print('Parameter ' + p + ' is not time-variant')
+                    continue
+                for key in self.p_noisy[p]:  #: the jth variable
+                    jth = key + (1,) if self.linapprox else key
                     self.pkN_l.append(par[(1,) + jth])
                     self.pkN_nexcl.append(1)  #: non-exclusion list for active bounds
-                    self.pkN_key[(p, jth)] = k
+                    self.pkN_key[(p, key)] = k
                     k += 1
     
             self.lsmhe.pkNk_mhe = Set(initialize=[i for i in range(0, len(self.pkN_l))])  #: Create set of noisy_states
             self.lsmhe.dk_mhe = Var(self.lsmhe.fe_t, self.lsmhe.pkNk_mhe, initialize=0.0, bounds=(-0.99,1.0))
             self.lsmhe.P_mhe = Param(self.lsmhe.pkNk_mhe, initialize=1.0, mutable=True)
             self.lsmhe.noisy_pars = ConstraintList()
-            j = 0
             
             for p in self.p_noisy:
-                par = getattr(self.lsmhe, 'p_' + p)
+                try:# check whether parameter is time-variant
+                    par = getattr(self.lsmhe, 'p_' + p)
+                except:# catch time-invariant parameters
+                    continue
                 for key in self.p_noisy[p]:
                     j = self.pkN_key[(p,key)]
                     for t in range(1,self.nfe_mhe + 1):
@@ -334,10 +335,11 @@ class MheGen(NmpcGen):
                         self.lsmhe.noisy_pars.add(par[jth] - 1.0 - self.lsmhe.dk_mhe[t,j] == 0.0)
                         par[jth].unfix()
 
-            self.lsmhe.P_e_mhe.expr = 1.0/2.0 * sum(sum(self.lsmhe.P_mhe[k] * (self.lsmhe.dk_mhe[i, k]-self.lsmhe.dk_mhe[i-1,k])**2 \
-                                                for k in self.lsmhe.pkNk_mhe) for i in range(2,self.nfe_mhe+1))
+            self.lsmhe.P_e_mhe.expr = 1.0/2.0 * (sum(self.lsmhe.P_mhe[k] * (self.lsmhe.dk_mhe[1, k]-0.0)**2.0 for k in self.lsmhe.pkNk_mhe) +\
+                                                sum(sum(self.lsmhe.P_mhe[k] * (self.lsmhe.dk_mhe[i, k]-self.lsmhe.dk_mhe[i-1,k])**2 \
+                                                for k in self.lsmhe.pkNk_mhe) for i in range(2,self.nfe_mhe+1)))
         else:
-            pass # use standard process noise approach
+            pass # no process noise
               
         expr_u_obf = 0.0
         if self.noisy_inputs:
@@ -390,13 +392,10 @@ class MheGen(NmpcGen):
             self.y_real[y] = []
             self.y_noise_jrnl[y] = []
             self.yk0_jrnl[y] = []        
-            
-            
 
-
-        
+ 
     def set_measurement_prediction(self,results):
-        # needed for construction of lsmhe
+        # needs to be called for construction of lsmhe
         # however only of importance when asMHE is applied
         measured_state = {}
         for x in self.states:
@@ -415,12 +414,7 @@ class MheGen(NmpcGen):
         # prediction for these variables must have been generated beforehand 
         
         # Sets possibly more measured states than are loaded into the state estimation problem
-        # what is specified in self.y determines which states are considered as measured for estimation
-        # possibly: truncate noise at 2 sigma = 95.7%
-                #if noise_init[key] > 2*var_dict[key]:
-                #    noise_init[key] = 2*var_dict[key]
-                #elif noise_init[key] < -2*var_dict[key]:
-                #    noise_init[key] = -2*var_dict[key]
+        # what is specified in self.y determines which variables are considered as measured for estimation
         noise_init = {}
         measured_state = {}
         for key in var_dict:
@@ -440,7 +434,7 @@ class MheGen(NmpcGen):
                 self.lsmhe.yk0_mhe[self.nfe_mhe,vni] = self.measurement[self.nfe_mhe][(x,j)]
                 
     def cycle_mhe(self,initialguess,m_cov,q_cov,u_cov,p_cov={}):
-        # load initialguess from previous iteration lsmhe and olnmpc for the missing element
+        # open the parameters as degree of freedom
         if self.noisy_params: 
             self.lsmhe.par_to_var()
             for p in self.p_noisy:
@@ -448,6 +442,8 @@ class MheGen(NmpcGen):
                 for key in self.p_noisy[p]:
                     pkey = None if key == () else key
                     p_mhe[pkey].unfix()
+
+        # load initialguess from previous iteration lsmhe and olnmpc for the missing element    
         for var in self.lsmhe.component_objects(Var):
             for key in var.index_set():
                 try:
@@ -455,7 +451,6 @@ class MheGen(NmpcGen):
                 except KeyError:
                     try:
                         var_nmpc = getattr(self.olnmpc, var.name)
-                        # check if I need to account for anything else
                         if type(key) == int:
                             var[key].value = var_nmpc[key].value
                         else:
@@ -492,7 +487,8 @@ class MheGen(NmpcGen):
         self.set_covariance_meas(m_cov)
         self.set_covariance_disturb(q_cov)
         self.set_covariance_u(u_cov)
-        if self.process_noise_model == 'params':
+        if self.process_noise_model == 'params' or \
+           self.process_noise_model == 'params_bias':
             self.set_covariance_pnoise(p_cov)
         
         # activate whats necessary + leggo:

@@ -376,16 +376,15 @@ class NmpcGen(DynGen):
         for u in self.u:
             control = getattr(self.plant_simulation_model,u)
             control[1,1].fix(result[u,(1,1)]*(1.0+input_noise[u]))
-            self.plant_simulation_model.equalize_u(direction="u_to_r") 
+        
+        self.plant_simulation_model.equalize_u(direction="u_to_r") 
                  
         # probably redundant
-        self.plant_simulation_model.clear_all_bounds()
-        
+        self.plant_simulation_model.clear_all_bounds()      
         #self.plant_simulation_model.clear_aux_bounds()
         
         # solve statement
         ip = SolverFactory("asl:ipopt")
-        #ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8

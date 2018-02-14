@@ -961,7 +961,7 @@ class SemiBatchPolymerization(ConcreteModel):
     def equalize_u(self, direction="u_to_r"):
         """set current controls to the values of their respective dummies"""
         if direction == "u_to_r":
-            for i in iterkeys(self.T):
+            for i in iterkeys(self.dT_cw_dt):
                 self.dT_cw_dt[i].set_value(value(self.u1[i]))
             for i in iterkeys(self.F):
                 self.F[i].set_value(value(self.u2[i]))

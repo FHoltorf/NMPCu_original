@@ -907,8 +907,9 @@ class SemiBatchPolymerization(ConcreteModel):
 #            return self.tf + self.rho*(sum(sum(self.eps[i,s] for i in self.epc) for s in self.s) \
 #                                       + sum(sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t) for j in self.cp if j > 0) for k in self.pc) for s in self.s)) \
 #                                       + self.gamma*sum((self.MX[self.nfe,self.ncp,1,s]*self.MX1_scale/(self.MX[self.nfe,self.ncp,0,s]*self.MX0_scale)*self.mw_PO*self.num_OH + self.mw_PG - self.molecular_weight)**2 for s in self.s)
-#
+#        self.epc_mw_ub.deactivate()
 #        self.epc_mw.deactivate() 
+
         self.eobj = Objective(rule=_eobj,sense=minimize)
         
         #Suffixes

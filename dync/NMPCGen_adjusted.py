@@ -208,7 +208,7 @@ class NmpcGen(DynGen):
             ip.options["linear_solver"] = "ma57"
             ip.options["tol"] = 1e-8
             ip.options["max_iter"] = 3000
-                
+
             out = ip.solve(self.recipe_optimization_model, tee=True, symbolic_solver_labels=True)
             if  [str(out.solver.status), str(out.solver.termination_condition)] == ['ok','optimal']:
                 converged = True
@@ -352,29 +352,37 @@ class NmpcGen(DynGen):
         for u in self.u:
             control = getattr(self.plant_simulation_model,u)
             control[1].fix(result[u,1]*(1.0+input_noise[u]))
-    
+        
+        self.plant_simulation_model.equalize_u(direction="u_to_r")
         # probably redundant
+        #self.plant_simulation_model.clear_all_bounds()
         self.plant_simulation_model.clear_aux_bounds()
-#        self.plant_simulation_model.A['p'] = 0.8*13504.2
-#        self.plant_simulation_model.kA = 0.8*0.07170172
-#        self.plant_simulation_model.A['i'] = 0.8*396400.0        
-        # really nice example for not nicely working OLNMPC
-        # adapt, 
-#        self.plant_simulation_model.A['p'] = 0.8*13504.2
-#        self.plant_simulation_model.kA = 0.8*0.07170172
-#        self.plant_simulation_model.A['i'] = 1.0108695384819*396400.0
+
         # solve statement
         ip = SolverFactory("asl:ipopt")
-        #ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
         ip.options["max_iter"] = 3000
-        
+
+        #ip.options["halt_on_ampl_error"] = "yes"
         #self.plant_simulation_model.A['p'] = 11000.0 #12112.9911944# 14267.7530887 # 13288.0471352
         #self.plant_simulation_model.A['i'] = 300000.0  #337678.098021# 302423.866195 # 426854.024419
         #self.plant_simulation_model.kA =   0.06  # 0.057361376673# 0.0562482825565 # 0.0539566959
 
+        #        self.plant_simulation_model.A['p'].value =  (1-0.125464176253)*13504.2
+        #        self.plant_simulation_model.A['i'].value = (1-0.00108591113283)*396400.0
+        #        self.plant_simulation_model.kA.value =  (1+0.173065139955)*0.07170172
+
+        
+        #        self.plant_simulation_model.A['p'] = 0.8*13504.2
+        #        self.plant_simulation_model.kA = 0.8*0.07170172
+        #        self.plant_simulation_model.A['i'] = 0.8*396400.0        
+        # really nice example for not nicely working OLNMPC
+        # adapt, 
+        #        self.plant_simulation_model.A['p'] = 0.8*13504.2
+        #        self.plant_simulation_model.kA = 0.8*0.07170172
+        #        self.plant_simulation_model.A['i'] = 1.0108695384819*396400.0
         self.plant_simulation_model.clear_all_bounds()
         out = ip.solve(self.plant_simulation_model, tee=True, symbolic_solver_labels=True)
         
