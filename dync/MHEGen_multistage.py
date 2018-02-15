@@ -472,7 +472,8 @@ class MheGen(NmpcGen):
         self.set_covariance_meas(m_cov)
         self.set_covariance_disturb(q_cov)
         self.set_covariance_u(u_cov)
-        if self.process_noise_model == 'params' or 'params_bias':
+        if self.process_noise_model == 'params' \
+           or self.process_noise_model == 'params_bias':
             self.set_covariance_pnoise(p_cov)
         
         # activate whats necessary + leggo:
@@ -872,10 +873,10 @@ class MheGen(NmpcGen):
                 v_j = self.yk_key[vnj]
                 for t in range(1,self.nfe_mhe+1):
                     if self.diag_Q_R:                
-                        rtarget[t, v_i] = 1 / (cov_dict[vni, vnj]*self.measurement[t][vni] + 0.001)**2
+                        rtarget[t, v_i] = 1 / (cov_dict[vni, vnj]*self.measurement[t][vni] + 0.0001)**2
                     else:
                         # only allow for diagonal measurement covariance matrices 
-                        rtarget[t, v_i, v_j] = 1 / (cov_dict[vni, vnj]*self.measurement[t][vni] + 0.001)**2
+                        rtarget[t, v_i, v_j] = 1 / (cov_dict[vni, vnj]*self.measurement[t][vni] + 0.0001)**2
             else:
                 continue
 
@@ -898,9 +899,9 @@ class MheGen(NmpcGen):
                 xic = getattr(self.lsmhe, vni[0] + "_ic")
                 if self.diag_Q_R:
                     if vni[1] == ():
-                        qtarget[0, v_i] = 1.0 / (cov_dict[0][vni, vnj]*xic.value + 0.001)**2 # .00001
+                        qtarget[0, v_i] = 1.0 / (cov_dict[0][vni, vnj]*xic.value + 0.0001)**2 # .00001
                     else:
-                        qtarget[0, v_i] = 1.0 / (cov_dict[0][vni, vnj]*xic[vni[1]].value + 0.001)**2 # .0001
+                        qtarget[0, v_i] = 1.0 / (cov_dict[0][vni, vnj]*xic[vni[1]].value + 0.0001)**2 # .0001
                 else:
                     qtarget[0, v_i, v_j] = cov_dict[0][vni, vnj]
                      
@@ -920,7 +921,7 @@ class MheGen(NmpcGen):
                 for t in range(1,self.nfe_mhe+1):
                     if self.diag_Q_R:
                         if t != self.nfe_mhe:
-                            qtarget[t, v_i] = 1 / (cov_dict[0][vni, vnj]*self.nmpc_trajectory[t,vni] + .001)**2 # 0.00001
+                            qtarget[t, v_i] = 1 / (cov_dict[0][vni, vnj]*self.nmpc_trajectory[t,vni] + .0001)**2 # 0.00001
                             if set_bounds:
                                 if cov_dict[0][vni, vnj] != 0.0:
                                         confidence = 10*abs(cov_dict[0][vni,vnj]*self.nmpc_trajectory[t,vni])
@@ -959,11 +960,8 @@ class MheGen(NmpcGen):
                     aux_key = self.nfe_t_0 # 
                 else:
                     aux_key = (_t,1) # tailored to my code basically
-                try:
-                    utarget[_t, vni] = 1 / (cov_dict[key]*self.reference_control_trajectory[vni,aux_key] + .001)**2
-                except ZeroDivisionError:
-                    utarget[_t, vni] = 1
-                #qtarget[_t, vni] = 1 / cov_dict[key]
+                utarget[_t, vni] = 1 / (cov_dict[key]*self.reference_control_trajectory[vni,aux_key] + .0001)**2
+
     
     def set_covariance_pnoise(self, cov_dict, set_bounds=True):
         ptarget = getattr(self.lsmhe, "P_mhe")

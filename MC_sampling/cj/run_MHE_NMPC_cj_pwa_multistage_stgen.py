@@ -33,13 +33,13 @@ def run():
     #cons = ['temp_b','T_min','T_max']
     #y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
     #y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
-    y = {"Y","MY","PO",'T'}
-    y_vars = {"Y":[()],"MY":[()],"PO":[()],'T':[()]}
+    y = {"MY","Y","PO",'T'}#"m_tot"
+    y_vars = {"MY":[()],"Y":[()],"PO":[()],'T':[()]} #"m_tot":[()],,"MW":[()]}
     
-    noisy_ics = {'PO_ic':[()],'W_ic':[()],'T_ic':[()],'MY_ic':[()],'Y_ic':[()]}
-    p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.3,0.3),('kA',()):(-0.2,0.2),
-                ('PO_ic',()):(-0.02,0.02),('W_ic',()):(-0.02,0.02),('T_ic',()):(-0.01,0.01),
-                ('MY_ic',()):(-0.02,0.02),('Y_ic',()):(-0.02,0.02)}
+    noisy_ics = {'PO_ic':[()],'T_ic':[()],'MY_ic':[()],'Y_ic':[()]}
+    p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2),('kA',()):(-0.2,0.2),
+                ('PO_ic',()):(-0.01,0.01),('T_ic',()):(-0.01,0.01),
+                ('MY_ic',()):(-0.01,0.01),('Y_ic',()):(-0.01,0.01)}
     
     nfe = 24
     tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
@@ -94,12 +94,12 @@ def run():
                s_max = sr,
                noisy_inputs = False,
                noisy_params = True,
-               adapt_params = False,
+               adapt_params = True,
                update_scenario_tree = False,
+               process_noise_model = None,#'params_bias',
                confidence_threshold = alpha,
                robustness_threshold = 0.05,
                estimate_exceptance = 10000,
-    #           process_noise_model = 'params',
                obj_type='economic',
                nfe_t=nfe,
                sens=None,
@@ -166,12 +166,20 @@ def run():
         print('constraint inf: ', e.nmpc_trajectory[i,'eps'])
         print('plant: ',end='')
         print(e.plant_trajectory[i,'solstat'])
-    
+ 
     #print(e.st)
         
     e.plant_simulation(e.store_results(e.olnmpc))
+    uncertainty_realization = {}
+    for p in p_noisy:
+        pvar_r = getattr(e.plant_simulation_model, p)
+        pvar_m = getattr(e.recipe_optimization_model, p)
+        for key in p_noisy[p]:
+            pkey = None if key ==() else key
+            print('delta_p ',p,key,': ',(pvar_r[pkey].value-pvar_m[pkey].value)/pvar_m[pkey].value)
+            uncertainty_realization[(p,key)] = pvar_r[pkey].value   
     tf = e.nmpc_trajectory[k,'tf']
     if k == 24 and e.plant_trajectory[24,'solstat'] == ['ok','optimal']:
-        return tf, e.plant_simulation_model.check_feasibility(display=True), e.pc_trajectory
+        return tf, e.plant_simulation_model.check_feasibility(display=True), e.pc_trajectory, uncertainty_realization
     else:
-        return 'error', {'epc_PO_ptg': 'error', 'epc_mw': 'error', 'epc_unsat': 'error'}, 'error'
+        return 'error', {'epc_PO_ptg': 'error', 'epc_mw': 'error', 'epc_unsat': 'error'}, 'error', 'error'

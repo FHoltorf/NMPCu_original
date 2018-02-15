@@ -86,13 +86,14 @@ e = MheGen(d_mod=SemiBatchPolymerization_multistage,
            robust_horizon = nr,
            s_max = sr,
            noisy_inputs = False,
-           noisy_params = True,
-           adapt_params = True,
+           noisy_params = False,
+           adapt_params = False,
            update_scenario_tree = False,
+           process_noise_model = 'params_bias',
            confidence_threshold = alpha,
            robustness_threshold = 0.05,
            estimate_exceptance = 10000,
-           process_noise_model = None,#'params',
+
            obj_type='tracking',
            nfe_t=nfe,
            sens=None,
@@ -116,13 +117,13 @@ for i in range(1,nfe):
         e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
         e.set_measurement_prediction(e.store_results(e.recipe_optimization_model))
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
-        e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,first_call=True) 
+        e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,p_cov=pcov,first_call=True) 
         e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
         e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
         e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
-        e.cycle_mhe(previous_mhe,mcov,qcov,ucov) 
+        e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) 
         e.cycle_nmpc(e.store_results(e.olnmpc))  
     
     # here measurement becomes available

@@ -41,8 +41,8 @@ mcov[("MW",()), ("MW",())] = measurement_error
 mcov[("m_tot",()), ("m_tot",())] = 0.005
 mcov[("PO_fed",()), ("PO_fed",())] = 0.0 # measurement_error
 mcov[("heat_removal",()),("heat_removal",())] =  measurement_error
-mcov[("T",()),("T",())] = 0.01
-mcov[("T_cw",()),("T_cw",())] = 0.01
+mcov[("T",()),("T",())] = 0.001
+mcov[("T_cw",()),("T_cw",())] = 0.001
 mcov[("ByProd",()),("ByProd",())] = measurement_error
 
 # relative variance that is associated with the controls
@@ -84,9 +84,9 @@ x_measurement[("W",())] = measurement_error
 x_measurement[("MW",())] = measurement_error
 x_measurement[("m_tot",())] = 0.005
 x_measurement[("PO_fed",())] = 0.0
-x_measurement[("heat_removal",())] =  measurement_error
-x_measurement[("T",())] = 0.01
-x_measurement[("T_cw",())] = 0.01
+x_measurement[("heat_removal",())] = measurement_error
+x_measurement[("T",())] = 0.005
+x_measurement[("T_cw",())] = 0.005
 #x_measurement[("ByProd",())] = measurement_error
 
 # uncertainty in initial point

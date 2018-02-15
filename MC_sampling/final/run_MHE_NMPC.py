@@ -47,7 +47,7 @@ def run():
                noisy_inputs = False,
                noisy_params = True,
                adapt_params = True,
-               process_noise_model = None,#'params_noise',
+               process_noise_model = None,#'params_bias',
                u_bounds=u_bounds,
                tf_bounds = tf_bounds,
                diag_QR=False,

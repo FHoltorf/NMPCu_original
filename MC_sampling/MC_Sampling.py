@@ -21,6 +21,8 @@ import time
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBBM import *
+from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage_stgen import *
+
 
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBSG import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBBM import *
@@ -29,7 +31,7 @@ import time
 
 # final cooling jacket
 # nominal NMPC
-from main.MC_sampling.final.run_MHE_NMPC import *
+#from main.MC_sampling.final.run_MHE_NMPC import *
 # multistage NMPC
 #from main.MC_sampling.final.run_MHE_NMPC_multistage import *
 # SBBM
@@ -43,9 +45,9 @@ from main.MC_sampling.final.run_MHE_NMPC import *
 #################################################################
 #################################################################
 # inputs
-sample_size = 100
+sample_size = 50
 # specifiy directory where to save the resulting files
-path = 'results/final/timeinvariant/parest/nominal/' 
+path = 'results/final_pwa/timeinvariant/parest/multistage_stgen/' 
 # colors
 color = ['green','red','blue']
 tf = {}
