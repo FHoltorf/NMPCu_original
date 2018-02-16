@@ -937,14 +937,20 @@ class SemiBatchPolymerization(ConcreteModel):
             
        
     def par_to_var(self):
-        self.A['i'].setlb(self.A['i'].value*0.5)
-        self.A['i'].setub(self.A['i'].value*2.0) 
-        self.A['p'].setlb(self.A['p'].value*0.5)
-        self.A['p'].setub(self.A['p'].value*2.0)
+        self.A['i'].setlb(396400.0*0.5)
+        self.A['i'].setub(396400.0*1.5)
+  
+        self.A['p'].setlb(13504.2*0.5)
+        self.A['p'].setub(13504.2*1.5)
+        
+        self.A['t'].setlb(1.509e6*0.5)
+        self.A['t'].setub(1.509e6*1.5)
+        
         self.Hrxn_aux['p'].setlb(0.5)
-        self.Hrxn_aux['p'].setub(2.0)
-        self.kA.setlb(0.5*self.kA.value)
-        self.kA.setub(2.0*self.kA.value)
+        self.Hrxn_aux['p'].setlb(1.5)
+        
+        self.kA.setlb(0.5*2200.0/self.Hrxn['p']*60/20.0)
+        self.kA.setub(1.5*2200.0/self.Hrxn['p']*60/20.0)
         #self.Hrxn_aux['p'].unfix()
         #self.A['i'].unfix()
         #self.A['p'].unfix()

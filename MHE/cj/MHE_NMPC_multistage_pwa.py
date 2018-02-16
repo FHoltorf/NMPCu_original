@@ -86,10 +86,10 @@ e = MheGen(d_mod=SemiBatchPolymerization_multistage,
            robust_horizon = nr,
            s_max = sr,
            noisy_inputs = False,
-           noisy_params = False,
-           adapt_params = False,
-           update_scenario_tree = False,
-           process_noise_model = 'params_bias',
+           noisy_params = True,
+           adapt_params = True,
+           update_scenario_tree = True,
+           process_noise_model = None,#'params_bias',
            confidence_threshold = alpha,
            robustness_threshold = 0.05,
            estimate_exceptance = 10000,
@@ -129,7 +129,8 @@ for i in range(1,nfe):
     # here measurement becomes available
     e.load_reference_trajectories()
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-    #e.compute_confidence_ellipsoid()
+    if e.update_scenario_tree:
+        e.compute_confidence_ellipsoid()
     
     # solve the advanced step problems
     e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc

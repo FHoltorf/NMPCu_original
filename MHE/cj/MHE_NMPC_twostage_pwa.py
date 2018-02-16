@@ -30,7 +30,7 @@ x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)],"T":[()],"T_cw":[()]}
 p_noisy = {"A":[('p',),('i',)],'kA':[()]}
 u = ["u1", "u2"]
-u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
+u_bounds = {"u1": (-5.0, 5.0), "u2": (0, 3.0)} # 14.5645661157
 p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2),('kA',()):(-0.2,0.2)}
 cons = ['PO_ptg','unsat','mw','temp_b','T_min','T_max']
 
@@ -40,6 +40,9 @@ nfe = 24
 tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
 
 pc = ['Tad','T']
+
+sm = np.diag([0.2**-2,0.2**-2,0.2**-2])
+smi =  {('A', ('i',)):0,('A', ('p',)):1,('kA',()):2}
 
 # scenario_tree
 st = {} # scenario tree : {parent_node, scenario_number on current stage, base node (True/False), scenario values {'name',(index):value}}
@@ -112,8 +115,7 @@ e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_mo
 e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
 e.generate_state_index_dictionary()
 e.create_nmpc() # with tracking-type regularization
-e.load_reference_trajectories()
-e.create_mhe()
+
 
 k = 1 
 for i in range(1,nfe):
@@ -124,13 +126,16 @@ for i in range(1,nfe):
         e.set_measurement_prediction(e.store_results(e.recipe_optimization_model)) # only required for asMHE
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
         e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,p_cov=pcov, first_call=True) #adjusts the mhe problem according to new available measurements
+        #e.st_adaption(set_type='hyrec',cons=cons,par_bounds=p_bounds)
+        e.st_adaption(set_type='ellipsoid',cons=cons,shape_matrix=sm,shape_matrix_indices=smi)
         e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
         e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_noise",parameter_disturbance = v_param)
         e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)          
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE        
-        e.st_adaption(set_type='rectangle',cons=cons,par_bounds=p_bounds)
+        #e.st_adaption(set_type='hyrec',cons=cons,par_bounds=p_bounds)
+        e.st_adaption(set_type='ellipsoid',cons=cons,shape_matrix=sm,shape_matrix_indices=smi)
         e.cycle_nmpc(e.store_results(e.olnmpc))   
 
     # solve mhe problem

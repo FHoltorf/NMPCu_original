@@ -36,10 +36,10 @@ def run():
     y = {"MY","Y","PO",'T'}#"m_tot"
     y_vars = {"MY":[()],"Y":[()],"PO":[()],'T':[()]} #"m_tot":[()],,"MW":[()]}
     
-    noisy_ics = {'PO_ic':[()],'T_ic':[()],'MY_ic':[()],'Y_ic':[()]}
+    noisy_ics = {'PO_ic':[()],'T_ic':[()],'MY_ic':[()]}
     p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2),('kA',()):(-0.2,0.2),
-                ('PO_ic',()):(-0.01,0.01),('T_ic',()):(-0.01,0.01),
-                ('MY_ic',()):(-0.01,0.01),('Y_ic',()):(-0.01,0.01)}
+                ('PO_ic',()):(-0.05,0.05),('T_ic',()):(-0.005,0.005),
+                ('MY_ic',()):(-0.05,0.05)}
     
     nfe = 24
     tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
@@ -116,8 +116,7 @@ def run():
     e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
     e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
     e.generate_state_index_dictionary()
-    e.create_enmpc() # with tracking-type regularization
-    #e.load_reference_trajectories()
+    e.create_enmpc() 
     e.create_mhe()
     
     k = 1 

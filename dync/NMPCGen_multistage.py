@@ -380,6 +380,9 @@ class NmpcGen(DynGen):
         
         self.plant_simulation_model.equalize_u(direction="u_to_r") 
                  
+#        self.plant_simulation_model.A['p'] = (1-0.0613376498993) * 13504.2
+#        self.plant_simulation_model.A['i'] = (1+0.0984632133588) * 396400.0
+#        self.plant_simulation_model.kA = (1-0.0437808119933) * 0.0717017208413
         # probably redundant
         self.plant_simulation_model.clear_all_bounds()      
         
@@ -1567,6 +1570,7 @@ class NmpcGen(DynGen):
                     if nominal:
                         # only nominal scenario as base for linearization
                         m.var_order.set_value(s[index], i+1)
+                        index = index if type(index)==tuple else (index,)
                         rows[i] = ('s_'+ c,index)
                         i += 1
                         
@@ -1620,9 +1624,9 @@ class NmpcGen(DynGen):
         con_vio = {}
         for i in rows: # constraints
             con = rows[i] # ('s_name', index)
-            c_stage = con[1][0] if type(con[1])==tuple else con[1]
-            c_scen = con[1][-1] if type(con[1])==tuple else con[1]
             c_name = con[0][2:]
+            c_stage = min(self.nr+1,self.nfe_t) if c_name in epc else con[1][0]  
+            c_scen = con[1][-1]
             dsdp = sens[i][:].transpose() # gets row i in dsdp, transpose not required but makes clear what is done
             delta_p_wc_iter = {}
             vertex = {}
@@ -1652,8 +1656,9 @@ class NmpcGen(DynGen):
                     continue
             s = getattr(m, con[0])
             if crit == 'overall':
-                con_vio[con] = -s[con[1]].value + aux
-                delta_p_wc[con] = deepcopy(vertex)
+                con_index = (min(self.nr+1,self.nfe_t),) + con if c_name in epc else con
+                con_vio[con_index] = -s[con[1]].value + aux
+                delta_p_wc[con_index] = deepcopy(vertex)
             elif crit == 'con':
                 if key in con_vio:
                     if con_vio[c_name,c_stage] < -s[con[1]].value + aux:
@@ -1675,9 +1680,12 @@ class NmpcGen(DynGen):
         # i.e, if for the same constraint two scenarios result in higher first-order
         # violations than any scenario for any other constraint both are included
         print(con_vio)
+        print('')
+        print(delta_p_wc)
+        print('')
         for i in range(2,min(self.nr+2,self.nfe_t+1)):
             if crit == 'overall':
-                con_vio_copy = {con:con_vio[con] for con in con_vio if (type(con[1])==tuple and con[1][0] == i) or (con[1] == i)}
+                con_vio_copy = {con:con_vio[con] for con in con_vio if con[1][0] == i}
             elif crit == 'con':
                 con_vio_copy = {con:con_vio[con] for con in con_vio if con[1] == i}
             else:
@@ -1696,6 +1704,7 @@ class NmpcGen(DynGen):
         self.nmpc_trajectory[self.iterations, 's_max'] = self.s_used
     
         print(scenarios)
+
         # update scenario tree
         self.st = {}
         for i in range(1,self.nfe_t-1+1):
@@ -1716,294 +1725,12 @@ class NmpcGen(DynGen):
                     self.st[(i,s)] = (i-1,s,True,self.st[(i-1,s)][3])
         # save scenario_tree that is used at timestep k = self.iterations + 1 (since st is generated one step in advance)
         self.nmpc_trajectory[self.iterations+1,'st'] = deepcopy(self.st)
-    
-    def SBWCS_hyell(self):
-        """ procedure has to be called before self.cycle_nmpc! """
-        # for ellipsoidal sets:
-        # solve for all constraints (all timepoints) the optimization problem:
-        #           max ds/dp^T * delta_p
-        #    s.t. 
-        #           delta_p^T * A * delta_p <= 1
-        #
-        #
-        # solution analytically derivable:
-        #               delta_p^* = A^{-1} * ds/dp / sqrt(ds/dp^T A^{-1} ds/dp)
-        #
-        # note: - A \in \mathbb{S}^{n_p}_{++} describes ellipsoidal uncertainty set
-        #       - natural choice: A = 1/chisquare * V_p^{-1} in case normally distributed parameters 
-        #       - red_hessian^-1 approx. V_p which ultimately is required
-        #            - scaled_red_hessian \in \mathbb{S}^{n_p}_{++} obtained from KKT matrix by k_aug (efficient, backsolves basically)
-        #       - ds/dp \in \mathbb{R}^{n_p} obtained from k_aug
-
-        # Iteratively populate scenarios:
-            # include scenario that would result in maximum constraint violation in first order approximation:
-            #           - approx. violation: sqrt(ds/dp^T A^{-1} ds/dp)
-            #
-            # exclude everything that lies inside a ball neighborhood around WC-scenario parameter realization
-            #           
-            # repeat until as many scenarios as possible are included 
-        # inputs
-        bounds = kwargs.pop('par_bounds',{}) # uncertainty bounds
-        crit = kwargs.pop('crit','overall')
-        noisy_ics = kwargs.pop('noisy_ics',{})
-        m = self.olnmpc if self.iterations > 1 else self.recipe_optimization_model
-        m = kwargs.pop('m',m)        
-        # prepare sensitivity computation
-        m.eps_pc.fix()
-        m.eps.fix()
-        for u in self.u:
-            u_var = getattr(m,u)
-            u_var.fix()
-        m.tf.fix()
-        m.clear_all_bounds()
         
-        for var in m.ipopt_zL_in:
-            var.set_suffix_value(m.ipopt_zL_in, 0.0)
-                
-        for var in m.ipopt_zU_in:
-            var.set_suffix_value(m.ipopt_zU_in, 0.0)
-        
-        # deactivate nonanticipativity
-        for u in self.u:
-            non_anti = getattr(m, 'non_anticipativity_' + u)
-            non_anti.deactivate()
-        # deactivate fixed element size
-        m.fix_element_size.deactivate()
-        # deavtivate non_anticipativity for tf
-        m.non_anticipativity_tf.deactivate()
-            
-        # set suffixes
-        m.var_order = Suffix(direction=Suffix.EXPORT)
-        m.dcdp = Suffix(direction=Suffix.EXPORT)
-        
-        # cols = variables for which senstivities shall be computed
-        i = 0
-        cols ={}
-        for p in self.p_noisy:
-            for key in self.p_noisy[p]:
-                dummy = 'dummy_constraint_p_' + p + '_' + str(key[0]) if key != () else 'dummy_constraint_p_' + p
-                dummy_con = getattr(m, dummy)
-                for index in dummy_con.index_set():
-                    #index[0] = time_step \in {2, ... ,nfe+1}
-                    #index[-1] = scenario \in {1, ... , s_per_branch}
-                    #only for nominal scenario otw. very intricat to implement
-                    if index[0] > 1 and \
-                       index[0] < self.nr + 2 and \
-                       index[-1] == 1:
-                        m.dcdp.set_value(dummy_con[index], i+1)
-                        cols[i] = (p,key+index)
-                        i += 1
-         
-        for p in noisy_ics:
-            for key in noisy_ics[p]:
-                dummy = 'dummy_constraint_p_' + p + '_' + str(key[0]) if key != () else 'dummy_constraint_p_' + p
-                dummy_con = getattr(m, dummy)
-                for index in dummy_con.index_set():
-                    if index[-1] == 1 and index[0] == 2:
-                        #index[0] = time_step --> 2
-                        #index[-1] = scenrio (only nominal scenario)
-                        m.dcdp.set_value(dummy_con[index], i+1)
-                        cols[i] = (p,key+index)
-                        i += 1
-                                                 
-        # column i in sensitivity matrix corresponds to paramter p
-        cols_r = {value:key for key, value in cols.items()}
-        tot_cols = i
-        
-        i = 0
-        rows = {}
-        #sensitivities of path constraints
-        for c in pc:
-            s = getattr(m, 's_'+c)
-            for index in s.index_set():
-                if not(s[index].stale): # only take
-                    #index[0] = time_step \in {2, ... ,nfe+1}
-                    #index[1] = collocation point: all of them here  (alternatively ncp_t: consider only endpoint of interval)
-                    #index[-1] = scenario: only nominal scenario as base for linearization
-                    #index[2:-1] = additional indices: all there are
-                    if index[0] > 1 and \
-                       index[0] < self.nr + 2 and \
-                       index[-1] == 1: #
-                        m.var_order.set_value(s[index], i+1)
-                        rows[i] = ('s_'+ c,index)
-                        i += 1                
-        # endpoint constraints only in last iteration
-        # can consider epc in every stage
-        #if self.iterations == self.nfe_t_0 - 1: 
-        for c in epc:
-            s = getattr(m, 's_'+c)
-            for index in s.index_set():
-                if not(s[index].stale): # only take
-                    nominal = True if (type(index) == tuple and index[-1] == 1) or index==1 else False
-                    if nominal:
-                        # only nominal scenario as base for linearization
-                        m.var_order.set_value(s[index], i+1)
-                        rows[i] = ('s_'+ c,index)
-                        i += 1
-                        
-        # row j in sensitivity matrix corresponds to rhs of constraint x 
-        rows_r = {value:key for key, value in rows.items()}
-        tot_rows = i
-
-        # compute sensitivity matrix (ds/dp , rows = s const., cols = p const.)
-        k_aug = SolverFactory("k_aug",executable="/home/flemmingholtorf/KKT_matrix/k_aug/src/kmatrix/k_aug")
-        k_aug.options["compute_dsdp"] = ""
-        k_aug.solve(m, tee=True)
-            
-        # no idea if necessery, I am lost in the code
-        m.eps.unfix()
-        m.eps_pc.unfix()
-        for u in self.u:
-            u_var = getattr(m,u)
-            u_var.unfix()
-        m.tf.unfix()
-        m.create_bounds()
-        self.create_tf_bounds(m)
-        m.clear_aux_bounds()
-        
-        # activate non_anticipativity
-        for u in self.u:
-            non_anti = getattr(m, 'non_anticipativity_' + u)
-            non_anti.activate()
-        # activate non_anticipativity for tf
-        m.non_anticipativity_tf.activate()     
-        # unfix element size
-        m.fix_element_size.activate()    
-        
-        # read sensitivity matrix from file "dxdp_.dat"
-        # rows correspond to variables
-        # cols correspond to parameters
-        sens = np.zeros((tot_rows,tot_cols))
-        with open('dxdp_.dat') as f:
-            reader = csv.reader(f, delimiter="\t")
-            i = 1
-            for row in reader:
-                k = 1
-                for col in row[1:]:
-                    #indices start at 0
-                    #different sign since g(x) == -slack
-                    sens[i-1][k-1] = -float(col) 
-                    k += 1                       
-                i += 1
-        
-        # define shape matrix of uncertainty set
-
-
-        # compute worst-case scenarios 
-        delta_p_wc = {}
-        con_vio = {}
-        for i in rows: # constraints
-            con = rows[i] # ('s_name', index)
-            c_stage = con[1][0] if type(con[1])==tuple else con[1]
-            c_scen = con[1][-1] if type(con[1])==tuple else con[1]
-            c_name = con[0][2:]
-            delta_p_wc_iter = {}
-            aux = 0.0
-            relevant_cols = []
-            for j in cols: # parameters
-                par = cols[j] # cols[j] = ('pname', index)
-                p = par[0] 
-                key = par[1][:-2]
-                p_stage = par[1][-2]
-                p_scen = par[1][-1]
-                # identify only relevant parameters
-                # distinguish between endpoint and path constraints
-                # endpoint constraints are only considered on last stage
-                if  ([p_stage,p_scen] == [c_stage,c_scen] and c_name in pc) \
-                    or ([p_stage,p_scen] == [min(self.nr+1,self.nfe_t),c_scen] and c_name in epc):
-                    p_var = getattr(m, 'p_' + p)
-                    delta_p_wc_iter[p,key] = p_var[key+(p_stage,p_scen)].value
-                    relevant_cols.append(cols[j])
-                else:
-                    continue
-            A = np.zeros((tot_cols,tot_cols))
-            for index1 in relevant_cols:
-                key_sens1 = cols[index1]
-                key_PI1 = shape_matrix_indices[key_sens1]
-                for index2 in relevant_cols:
-                    key_sens2 = cols[index2]
-                    key_PI2 = shape_matrix_indices[key_sens2]
-                    A[index1][index2] = shape_matrix[key_PI1][key_PI2] 
-            A_inv = np.linalg.inv(A) 
-            dsdp = sens[i][relevant_cols].transpose() # gets row i in dsdp, transpose not required but makes clear what is done
-            aux = np.sqrt(np.dot(dsdp.transpose(),np.dot(A_inv,dsdp)))
-            
-            s = getattr(m, con[0])
-            if crit == 'overall':
-                con_vio[con] = -s[con[1]].value + aux
-                wc = np.dot(A_inv,dsdp)/aux
-                delta_p_wc[con] = wc
-            elif crit == 'con':
-                if key in con_vio:
-                    if con_vio[c_name,c_stage] < -s[con[1]].value + aux:
-                        con_vio[c_name,c_stage] = -s[con[1]].value + aux
-                        wc = np.dot(A_inv,dsdp)/aux
-                        delta_p_wc[c_name,c_stage] =  ac
-                else:
-                    con_vio[c_name,c_stage] = -s[con[1]].value + aux
-                    wc = np.dot(A_inv,dsdp)/aux
-                    delta_p_wc[c_name,c_stage] =  wc
-            else:
-                sys.exit('Error: Wrong specification of worst case criterion')
-
-        scenarios = {}
-        s_branch = {}
-        s_stage = {0:1}
-        # overall wc 
-        #print(delta_p_wc)
-        #if crit == 'overall':
-        # wc among all constraints
-        # i.e, if for the same constraint two scenarios result in higher first-order
-        # violations than any scenario for any other constraint both are included
-        print(con_vio)
-        for i in range(2,min(self.nr+2,self.nfe_t+1)):
-            if crit == 'overall':
-                con_vio_copy = {con:con_vio[con] for con in con_vio if (type(con[1])==tuple and con[1][0] == i) or (con[1] == i)}
-            elif crit == 'con':
-                con_vio_copy = {con:con_vio[con] for con in con_vio if con[1] == i}
-            else:
-                sys.exit('Error: Wrong specification of scenario tree generation criterion')         
-            for s in range(2,int(np.round(self.s_max**(1.0/self.nr)))+1): # scenario 1 is reserved for the nomnal sscenario
-                wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
-                scenarios[i-1,s] = delta_p_wc[wc_scenario]
-                # remove scenario from scenarios:
-                con_vio_copy = {key: value for key, value in con_vio_copy.items() if (delta_p_wc[key] != delta_p_wc[wc_scenario])}
-                if len(con_vio_copy) == 0:
-                    break
-            s_branch[i-1] = s
-            s_stage[i-1] = s*s_stage[i-2]
-
-                
-        self.s_used = s_stage[min(self.nr,self.nfe_t-1)]# nfe_t-1 since it is called before cycle_nmpc
-        self.nmpc_trajectory[self.iterations, 's_max'] = self.s_used
-    
-        print(scenarios)
-        # update scenario tree
-        self.st = {}
-        for i in range(1,self.nfe_t-1+1):
-            if i < self.nr + 1:
-                for s in range(1,s_stage[i]+1):
-                    if s%s_branch[i]==1:
-                        self.st[(i,s)] = (i-1,int(np.ceil(s/float(s_branch[i]))),True,{(p,key) : 1.0 for p in self.p_noisy for key in self.p_noisy[p]})
-                    else:
-                        scenario_key = s%s_branch[i] if s%s_branch[i] != 0 else s_branch[i]
-                        if i == 1:
-                            self.st[(i,s)] = (i-1,int(np.ceil(s/float(s_branch[i]))),False,{index: 1.0 + bounds[index][0] if scenarios[i,scenario_key][index]=='L' else 1 + bounds[index][1] \
-                                               for index in bounds})    
-                        else:
-                            self.st[(i,s)] = (i-1,int(np.ceil(s/float(s_branch[i]))),False,{(p,key): 1.0 + bounds[(p,key)][0] if scenarios[i,scenario_key][(p,key)]=='L' else 1 + bounds[(p,key)][1] \
-                                               for p in self.p_noisy for key in self.p_noisy[p]})
-            else:
-                for s in range(1,self.s_used+1):
-                    self.st[(i,s)] = (i-1,s,True,self.st[(i-1,s)][3])
-        # save scenario_tree that is used at timestep k = self.iterations + 1 (since st is generated one step in advance)
-        self.nmpc_trajectory[self.iterations+1,'st'] = deepcopy(self.st)
-    
     def st_adaption(self, set_type=None, cons = [], **kwargs):
         epsilon = kwargs.pop('epsilon',0.2)
         shape_matrix = kwargs.pop('shape_matrix',self._scaled_shape_matrix)
         shape_matrix_indices = kwargs.pop('shape_matrix_indices',self.PI_indices)
-        bounds = kwargs.pop('par_bounds')
+        bounds = kwargs.pop('par_bounds',{})
         if set_type == 'ellipsoid':  
             self.SBSG_hyell(cons=cons,
                             shape_matrix=shape_matrix,
@@ -2192,7 +1919,7 @@ class NmpcGen(DynGen):
                     self.st[(i,s)] = (i-1,s,True,self.st[(i-1,s)][3])
         #print(scenarios)
             
-    def SBSG_hyell(self, m, cons = [], **kwargs):
+    def SBSG_hyell(self, cons = [], **kwargs):
         # for ellipsoidal sets:
         # solve for all constraints (all timepoints) the optimization problem:
         #           max ds/dp^T * delta_p
@@ -2336,7 +2063,7 @@ class NmpcGen(DynGen):
                 key_sens2 = cols[index2]
                 key_PI2 = shape_matrix_indices[key_sens2]
                 A[index1][index2] = shape_matrix[key_PI1][key_PI2] 
-        
+                
         # unnecessary when using the inverse of the reduced hessian directly, ask David about k_aug 
         A_inv = np.linalg.inv(A) # in principle not required, scaled inverse reduced hessian
         
@@ -2363,10 +2090,12 @@ class NmpcGen(DynGen):
         # generate new set of worst case scenarios
         scenarios = {}
         con_vio_copy = deepcopy(con_vio)
-        for s in range(2,int(np.round(self.s_max**(1.0/self.nr)))+1): # scenario 1 is reserved for the nomnal sscenario
+        for s in range(2,int(np.round(self.s_max**(1.0/self.nr)))+1):
+            # scenario 1 is reserved for the nomnal sscenario
             wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
-            scenarios[s] = {shape_matrix_indices[i]:delta_p_wc[wc_scenario][i] for i in len(delta_p_wc[wc_scenario])}
-            # What to do if con_vio_copy is empty?
+            scenarios[s] = {(p,key):delta_p_wc[wc_scenario][cols_r[(p,key)]] for p in self.p_noisy for key in self.p_noisy[p]}
+
+            # What to do if con_vio_copy is empty? - 2 options:
             
             # a) remove all scenarios that are in epsilon-neighborhood of the just utilized scenario and decrease epsilon if set gets empty
             #while(True):
@@ -2377,7 +2106,7 @@ class NmpcGen(DynGen):
             #        con_vio_copy = deepcopy(con_vio_dummy)
             #        break
             
-            # b) drop scenarios if set gets empty
+            # b) drop excess-scenarios if set gets empty
             con_vio_copy = {key: value for key, value in con_vio_copy.items() if np.linalg.norm(delta_p_wc[key]-delta_p_wc[wc_scenario]) >= epsilon}
             if len(con_vio_copy) == 0:
                 break

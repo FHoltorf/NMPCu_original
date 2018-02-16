@@ -28,21 +28,23 @@ from main.noise_characteristics_cj import *
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)],"T":[()],"T_cw":[()]}
-p_noisy = {"A":[('p',),('i',)]}#,'kA':[()]
+p_noisy = {"A":[('p',),('i',)],'kA':[()]}
 u = ["u1", "u2"]
 u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
 
-cons = ['PO_ptg','unsat','mw','temp_b','T_max']#'T_min',
+cons = ['PO_ptg','unsat','mw','temp_b','T_max','T_min']#
 #cons = ['temp_b','T_min','T_max']
 #y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
 #y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
 y = {"Y","MY","PO",'T'}
 y_vars = {"Y":[()],"MY":[()],"PO":[()],'T':[()]}
 
-noisy_ics = {'PO_ic':[()],'W_ic':[()],'T_ic':[()],'MY_ic':[()],'Y_ic':[()]}
-p_bounds = {('A', ('i',)):(-0.3,0.3),('A', ('p',)):(-0.3,0.3),('kA',()):(-0.3,0.3),
-            ('PO_ic',()):(-0.02,0.02),('W_ic',()):(-0.02,0.02),('T_ic',()):(-0.01,0.01),
-            ('MY_ic',()):(-0.02,0.02),('Y_ic',()):(-0.02,0.02)}
+noisy_ics = {'PO_ic':[()],'T_ic':[()],'MY_ic':[()],'Y_ic':[()]}
+p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2),('kA',()):(-0.2,0.2),
+            ('T_ic',()):(-0.01,0.01),
+            ('PO_ic',()):(-0.01,0.01),
+            ('MY_ic',()):(-0.01,0.01),
+            ('Y_ic',()):(-0.01,0.01)}
 
 nfe = 24
 tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
@@ -51,8 +53,8 @@ pc = ['Tad','T']
 
 # scenario_tree
 st = {} # scenario tree : {parent_node, scenario_number on current stage, base node (True/False), scenario values {'name',(index):value}}
-s_max = 2
-nr = 3
+s_max = 3
+nr = 2
 alpha = 0.2
 for i in range(1,nfe+1):
     if i < nr + 1:
@@ -97,12 +99,12 @@ e = MheGen(d_mod=SemiBatchPolymerization_multistage,
            s_max = sr,
            noisy_inputs = False,
            noisy_params = True,
-           adapt_params = False,
+           adapt_params = True,
            update_scenario_tree = False,
+           process_noise_model = None,#'params',
            confidence_threshold = alpha,
            robustness_threshold = 0.05,
            estimate_exceptance = 10000,
-#           process_noise_model = 'params',
            obj_type='economic',
            nfe_t=nfe,
            sens=None,
