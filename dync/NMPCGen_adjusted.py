@@ -1090,6 +1090,7 @@ class NmpcGen(DynGen):
         
         k_aug = SolverFactory("k_aug",executable="/home/flemmingholtorf/KKT_matrix/k_aug/src/kmatrix/k_aug")
         k_aug.options["compute_dsdp"] = ""
+        k_aug.options["no_scale"] = ""
         iters = 0
         converged = False
         
@@ -1114,7 +1115,6 @@ class NmpcGen(DynGen):
 
         print('iterations:')
         while (iters < iterlim and not(converged)):
-            print(' '*7 + str(iters))
             # solve optimization problem
             m.create_bounds()
             self.create_tf_bounds(m)
@@ -1130,30 +1130,40 @@ class NmpcGen(DynGen):
                 slack = getattr(m, 's_'+i)
                 for index in slack.index_set():
                     slack[index].setlb(0.0)
-            nlp_results = ip.solve(m, tee=False, symbolic_solver_labels=True)
-
-            if [str(nlp_results.solver.status),str(nlp_results.solver.termination_condition)] != ['ok','optimal']:
-                m.write_nl()
-                m.troubleshooting()
-                sys.exit('Error: Iteration in olrnmpc did not converge')
             
             # check whether optimal control problem feasible
-            flag = False
-            for index in m.eps.index_set():
-                if m.eps[index].value > 1e-1:
-                    flag = True
-                    #m.eps.pprint()
-                    #sys.exit()
-            for index in m.eps_pc.index_set():
-                if m.eps_pc[index].value > 1e-1:
-                    flag = True
-                    #m.eps.pprint()
-                    #sys.exit()
-                    
-            if flag:
-                print('Restricted Problem infeasible')
-                print('Stop iterating')
-                break
+            # otw. backtrack backoff
+            flag = True
+            rho = 0.8
+            while(flag):
+                nlp_results = ip.solve(m, tee=False, symbolic_solver_labels=True)
+                flag = False
+                if [str(nlp_results.solver.status),str(nlp_results.solver.termination_condition)] != ['ok','optimal']:
+                    m.write_nl()
+                    m.troubleshooting()
+                    sys.exit('Error: Iteration in olrnmpc did not converge')
+                for index in m.eps.index_set():
+                    if m.eps[index].value > 1e-1:
+                        cname = self.olnmpc.epc_indices[index[-2]]
+                        xi = getattr(self.olnmpc, 'xi_' + cname)
+                        xi[index[-1]] = rho*xi[index[-1]].value 
+                        flag = True
+                        #m.eps.pprint()
+                        #sys.exit()
+                for index in m.eps_pc.index_set():
+                    if m.eps_pc[index].value > 1e-1:
+                        cname = self.olnmpc.pc_indices[index[-2]]
+                        xi = getattr(self.olnmpc, 'xi_' + cname)
+                        xi[index[:-2],index[-1]] = rho*xi[index[:-2],index[-1]].value 
+                        flag = True
+                        #m.eps.pprint()
+                        #sys.exit()
+                        
+                if flag:
+                    print('Restricted Problem infeasible')
+                    print('backtrack')
+                    continue
+            print('iteration ' + str(iters) + ' converged')
             
             m.eps.fix()
             m.eps_pc.fix()
@@ -1219,7 +1229,8 @@ class NmpcGen(DynGen):
                             m.var_order.set_value(s[index], i)
                             reverse_dict_cons[i] = ('s_'+ k,index)
                             i += 1
-                    
+            
+            #compute sensitivities
             k_aug.solve(m, tee=False)
             m.write_nl()
             sens = {}

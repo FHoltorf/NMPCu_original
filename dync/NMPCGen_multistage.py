@@ -1480,6 +1480,7 @@ class NmpcGen(DynGen):
         noisy_ics = kwargs.pop('noisy_ics',{})
         m = self.olnmpc if self.iterations > 1 else self.recipe_optimization_model
         m = kwargs.pop('m',m)        
+        
         # prepare sensitivity computation
         m.eps_pc.fix()
         m.eps.fix()
@@ -1581,6 +1582,7 @@ class NmpcGen(DynGen):
         # compute sensitivity matrix (ds/dp , rows = s const., cols = p const.)
         k_aug = SolverFactory("k_aug",executable="/home/flemmingholtorf/KKT_matrix/k_aug/src/kmatrix/k_aug")
         k_aug.options["compute_dsdp"] = ""
+        k_aug.options["no_scale"] = ""
         k_aug.solve(m, tee=True)
             
         # no idea if necessery, I am lost in the code
@@ -1615,6 +1617,7 @@ class NmpcGen(DynGen):
                 for col in row[1:]:
                     #indices start at 0
                     #different sign since g(x) == -slack
+                    # should be -float , bug in k_aug
                     sens[i-1][k-1] = -float(col) 
                     k += 1                       
                 i += 1

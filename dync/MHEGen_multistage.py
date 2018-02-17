@@ -505,6 +505,15 @@ class MheGen(NmpcGen):
         result = ip.solve(self.lsmhe, tee=True)
         
         if [str(result.solver.status),str(result.solver.termination_condition)] != ['ok','optimal']:
+            for p in self.p_noisy:
+                par_mhe = getattr(self.lsmhe, p)
+                par_true = getattr(self.plant_simulation_model, p)
+                for key in self.p_noisy[p]:
+                    pkey = None if key ==() else key
+                    print('estimated')
+                    par_mhe.pprint()
+                    print('true')
+                    par_true.pprint()
             self.lsmhe.clear_all_bounds()
             result = ip.solve(self.lsmhe, tee=True)
         

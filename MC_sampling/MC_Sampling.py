@@ -45,7 +45,7 @@ from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage_stgen import *
 #################################################################
 #################################################################
 # inputs
-sample_size = 50
+sample_size = 100
 # specifiy directory where to save the resulting files
 path = 'results/final_pwa/timeinvariant/parest/multistage_stgen/' 
 # colors

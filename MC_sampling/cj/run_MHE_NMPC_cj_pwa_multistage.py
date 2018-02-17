@@ -170,4 +170,4 @@ def run():
     if k == 24 and e.plant_trajectory[24,'solstat'] == ['ok','optimal']:
         return tf, e.plant_simulation_model.check_feasibility(display=True), e.pc_trajectory, uncertainty_realization
     else:
-        return 'error', {'epc_PO_ptg': 'error', 'epc_mw': 'error', 'epc_unsat': 'error'}, 'error', 'error'
+        return 'error', {'epc_PO_ptg': 'error', 'epc_mw': 'error', 'epc_unsat': 'error'}, 'error', uncertainty_realization

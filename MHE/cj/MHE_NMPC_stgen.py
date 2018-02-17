@@ -39,12 +39,11 @@ cons = ['PO_ptg','unsat','mw','temp_b','T_max','T_min']#
 y = {"Y","MY","PO",'T'}
 y_vars = {"Y":[()],"MY":[()],"PO":[()],'T':[()]}
 
-noisy_ics = {'PO_ic':[()],'T_ic':[()],'MY_ic':[()],'Y_ic':[()]}
+noisy_ics = {'PO_ic':[()],'T_ic':[()],'MY_ic':[()]}
 p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2),('kA',()):(-0.2,0.2),
-            ('T_ic',()):(-0.01,0.01),
+            ('T_ic',()):(-0.005,0.005),
             ('PO_ic',()):(-0.01,0.01),
-            ('MY_ic',()):(-0.01,0.01),
-            ('Y_ic',()):(-0.01,0.01)}
+            ('MY_ic',()):(-0.01,0.01)}
 
 nfe = 24
 tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
@@ -142,6 +141,7 @@ for i in range(1,nfe):
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)          
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE   
         e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
+        sys.exit()
         e.cycle_nmpc(e.store_results(e.olnmpc))   
 
     # solve mhe problem

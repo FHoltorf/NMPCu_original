@@ -38,8 +38,8 @@ def run():
     
     noisy_ics = {'PO_ic':[()],'T_ic':[()],'MY_ic':[()]}
     p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2),('kA',()):(-0.2,0.2),
-                ('PO_ic',()):(-0.05,0.05),('T_ic',()):(-0.005,0.005),
-                ('MY_ic',()):(-0.05,0.05)}
+                ('PO_ic',()):(-0.01,0.01),('T_ic',()):(-0.01,0.01),
+                ('MY_ic',()):(-0.01,0.01)}
     
     nfe = 24
     tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
@@ -181,4 +181,5 @@ def run():
     if k == 24 and e.plant_trajectory[24,'solstat'] == ['ok','optimal']:
         return tf, e.plant_simulation_model.check_feasibility(display=True), e.pc_trajectory, uncertainty_realization
     else:
-        return 'error', {'epc_PO_ptg': 'error', 'epc_mw': 'error', 'epc_unsat': 'error'}, 'error', 'error'
+        sys.exit()
+        return 'error', {'epc_PO_ptg': 'error', 'epc_mw': 'error', 'epc_unsat': 'error'}, 'error', uncertainty_realization

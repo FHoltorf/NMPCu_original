@@ -1027,6 +1027,9 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 if i == nfe and j == ncp:
                     #return  0.0 <= self.unreacted_PO*1e-6*self.m_tot[i,j,s]*self.m_tot_scale - self.PO[i,j,s]*self.PO_scale*self.mw_PO + self.eps
                     return  0.0 == self.unreacted_PO*1e-6*self.m_tot[i,j,s]*self.m_tot_scale - self.PO[i,j,s]*self.PO_scale*self.mw_PO + self.eps[1,s] - self.s_PO_ptg[s]
+                    # 1e6 * PO/m_tot - zahl <= 0.0 
+                    # 1e6 * PO/m_tot - zahl + s == 0, s>= 0.0
+                    # 
                 else:
                     return Constraint.Skip
             else:
@@ -1165,23 +1168,23 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         
         # dummy_constraints    
         if ('A',('p',)) in self.scenario_tree[1,1][3]:
-            self.dummy_constraint_p_A_p = Constraint(self.sg, self.s, rule = lambda self,k,s: self.p_A['p',k,s] == self.p_A_par['p',k,s] if (k,s) in self.scenario_tree else Constraint.Skip)
+            self.dummy_constraint_p_A_p = Constraint(self.sg, self.s, rule = lambda self,k,s: 0.0 == - self.p_A['p',k,s] + self.p_A_par['p',k,s]  if (k,s) in self.scenario_tree else Constraint.Skip)
         if ('A',('i',)) in self.scenario_tree[1,1][3]:
-            self.dummy_constraint_p_A_i = Constraint(self.sg, self.s, rule = lambda self,k,s: self.p_A['i',k,s] == self.p_A_par['i',k,s] if (k,s) in self.scenario_tree else Constraint.Skip)
+            self.dummy_constraint_p_A_i = Constraint(self.sg, self.s, rule = lambda self,k,s: 0.0 == - self.p_A['i',k,s] + self.p_A_par['i',k,s]  if (k,s) in self.scenario_tree else Constraint.Skip)
         if ('Hrxn_aux',('p',)) in self.scenario_tree[1,1][3]:
-            self.dummy_constraint_p_Hrxn_aux_p = Constraint(self.sg, self.s, rule = lambda self,k,s: self.p_Hrxn_aux['p',k,s] == self.p_Hrxn_aux_par['p',k,s] if (k,s) in self.scenario_tree else Constraint.Skip)
+            self.dummy_constraint_p_Hrxn_aux_p = Constraint(self.sg, self.s, rule = lambda self,k,s: 0.0 == - self.p_Hrxn_aux['p',k,s] + self.p_Hrxn_aux_par['p',k,s]  if (k,s) in self.scenario_tree else Constraint.Skip)
         if ('kA',()) in self.scenario_tree[1,1][3]:
-            self.dummy_constraint_p_kA = Constraint(self.sg, self.s, rule = lambda self,k,s: self.p_kA[k,s] == self.p_kA_par[k,s] if (k,s) in self.scenario_tree else Constraint.Skip)
+            self.dummy_constraint_p_kA = Constraint(self.sg, self.s, rule = lambda self,k,s: 0.0 == - self.p_kA[k,s] + self.p_kA_par[k,s] if (k,s) in self.scenario_tree else Constraint.Skip)
         if ('n_KOH',()) in self.scenario_tree[1,1][3]:
-            self.dummy_constraint_n_KOH = Constraint(self.sg, self.s, rule = lambda self,k,s: self.p_n_KOH[k,s] == self.p_n_KOH_par[k,s] if (k,s) in self.scenario_tree else Constraint.Skip)
+            self.dummy_constraint_n_KOH = Constraint(self.sg, self.s, rule = lambda self,k,s: 0.0 == - self.p_n_KOH[k,s] + self.p_n_KOH_par[k,s] if (k,s) in self.scenario_tree else Constraint.Skip)
 
-        self.dummy_constraint_p_W_ic = Constraint(self.sg_ic, self.s, rule = lambda self,i,s: self.p_W_ic[i,s] == self.p_W_ic_par[i,s])
-        self.dummy_constraint_p_PO_ic = Constraint(self.sg_ic, self.s, rule = lambda self,i,s: self.p_PO_ic[i,s] == self.p_PO_ic_par[i,s])
-        self.dummy_constraint_p_Y_ic = Constraint(self.sg_ic, self.s, rule = lambda self,i,s: self.p_Y_ic[i,s] == self.p_Y_ic_par[i,s])
-        self.dummy_constraint_p_MY_ic = Constraint(self.sg_ic, self.s, rule = lambda self,i,s: self.p_MY_ic[i,s] == self.p_MY_ic_par[i,s])
-        self.dummy_constraint_p_MX_ic_0 = Constraint(self.sg_ic, self.s, rule = lambda self,i,s: self.p_MX_ic[0,i,s] == self.p_MX_ic_par[0,i,s])
-        self.dummy_constraint_p_MX_ic_1 = Constraint(self.sg_ic, self.s, rule = lambda self,i,s: self.p_MX_ic[1,i,s] == self.p_MX_ic_par[1,i,s])
-        self.dummy_constraint_p_T_ic = Constraint(self.sg_ic, self.s, rule = lambda self,i,s: self.p_T_ic[i,s] == self.p_T_ic_par[i,s])
+        self.dummy_constraint_p_W_ic = Constraint(self.sg_ic, self.s, rule = lambda self,i,s: 0.0 == - self.p_W_ic[i,s] + self.p_W_ic_par[i,s])
+        self.dummy_constraint_p_PO_ic = Constraint(self.sg_ic, self.s, rule = lambda self,i,s: 0.0 == - self.p_PO_ic[i,s] + self.p_PO_ic_par[i,s])
+        self.dummy_constraint_p_Y_ic = Constraint(self.sg_ic, self.s, rule = lambda self,i,s: 0.0 == - self.p_Y_ic[i,s] + self.p_Y_ic_par[i,s])
+        self.dummy_constraint_p_MY_ic = Constraint(self.sg_ic, self.s, rule = lambda self,i,s: 0.0 == - self.p_MY_ic[i,s] + self.p_MY_ic_par[i,s])
+        self.dummy_constraint_p_MX_ic_0 = Constraint(self.sg_ic, self.s, rule = lambda self,i,s: 0.0 == - self.p_MX_ic[0,i,s] + self.p_MX_ic_par[0,i,s])
+        self.dummy_constraint_p_MX_ic_1 = Constraint(self.sg_ic, self.s, rule = lambda self,i,s: 0.0 == - self.p_MX_ic[1,i,s] + self.p_MX_ic_par[1,i,s])
+        self.dummy_constraint_p_T_ic = Constraint(self.sg_ic, self.s, rule = lambda self,i,s: 0.0 == - self.p_T_ic[i,s] + self.p_T_ic_par[i,s])
         
         # objective
         # assumes symmetric tree, i.e. every node branches into the same number of children nodes
@@ -1664,3 +1667,27 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
 #Solver.solve(m,tee=True)
 #m.Tad_ic = Var(initialize=3)
 #m.plot_profiles(var_list=['W', 'X', 'm_tot','MY','PO', 'T_cw', 'T', 'Tad'],control_list=['F'])
+#
+#
+#m.s_PO_ptg.pprint()
+#a = m.s_PO_ptg[1].value
+#m.u1.fix()
+#m.u2.fix()
+#m.tf.fix()
+#m.non_anticipativity_tf.deactivate()
+#m.non_anticipativity_u1.deactivate()
+#m.non_anticipativity_u2.deactivate()
+#m.fix_element_size.deactivate()
+#
+#m.eps.fix(0.0)
+#m.eps_pc.fix(0.0)
+#m.clear_all_bounds()
+#m.p_A_par['p',3,1] = m.p_A_par['p',3,1].value*1.001
+##e.kA = e.kA.value*1.01
+#
+#
+#res=Solver.solve(m,tee=True)
+#m.s_PO_ptg.pprint()
+#b = m.s_PO_ptg[1].value
+#
+#dsdp = (b-a)/0.001

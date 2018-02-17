@@ -1218,4 +1218,24 @@ class SemiBatchPolymerization(ConcreteModel):
 #f = open('optimal_trajectory.pckl','wb')
 #pickle.dump(h,f)
 #f.close()
+            
+            
+            
 
+#e.s_PO_ptg.pprint()
+#a = e.s_PO_ptg.value
+#e.u1.fix()
+#e.u2.fix()
+#e.tf.fix()
+#e.eps.fix(0.0)
+#e.eps_pc.fix(0.0)
+#e.clear_all_bounds()
+#e.A['p'] = e.A['p'].value*1.001
+##e.kA = e.kA.value*1.01
+#
+#
+#res=Solver.solve(e,tee=True)
+#e.s_PO_ptg.pprint()
+#b = e.s_PO_ptg.value
+#
+#dsdp = (b-a)/0.001

@@ -292,6 +292,8 @@ class SemiBatchPolymerization(ConcreteModel):
         self.xi_T_max = Param(self.fe_t, self.cp, self.s, initialize=0.0, mutable=True)
         self.xi_T_min = Param(self.fe_t, self.cp, self.s, initialize=0.0, mutable=True)   
         
+        self.epc_indices = {1:'PO_ptg',2:'unsat',3:'mw',4:'mw_ub'}
+        self.pc_indices = {1:'temp_b',2:'T_max',3:'T_min'}
         # closures
         def _total_mass_balance(self,i,j,s):
             if j > 0:
@@ -874,19 +876,19 @@ class SemiBatchPolymerization(ConcreteModel):
         self.u2_c = Constraint(self.fe_t, rule = lambda self, i: self.u2_e[i] == self.u2[i])
     
         # dummy_constraints    
-        self.dummy_constraint_r_A_p = Constraint(self.s, rule = lambda self,s: self.r_A['p',s] == self.r_A_par['p',s])
-        self.dummy_constraint_r_A_i = Constraint(self.s, rule = lambda self,s: self.r_A['i',s] == self.r_A_par['i',s])
-        self.dummy_constraint_r_Hrxn_aux_p = Constraint(self.s, rule = lambda self,s: self.r_Hrxn_aux['p',s] == self.r_Hrxn_aux_par['p',s])
-        self.dummy_constraint_r_kA = Constraint(self.s, rule=lambda self,s: self.r_kA[s] == self.r_kA_par[s])
-        self.dummy_constraint_r_n_KOH = Constraint(self.s, rule=lambda self,s: self.r_n_KOH[s] == self.r_n_KOH_par[s])
+        self.dummy_constraint_r_A_p = Constraint(self.s, rule = lambda self,s: 0.0 == - self.r_A['p',s] + self.r_A_par['p',s])
+        self.dummy_constraint_r_A_i = Constraint(self.s, rule = lambda self,s: 0.0 == - self.r_A['i',s] + self.r_A_par['i',s])
+        self.dummy_constraint_r_Hrxn_aux_p = Constraint(self.s, rule = lambda self,s: 0.0 == - self.r_Hrxn_aux['p',s] + self.r_Hrxn_aux_par['p',s])
+        self.dummy_constraint_r_kA = Constraint(self.s, rule=lambda self,s: 0.0 == - self.r_kA[s] + self.r_kA_par[s])
+        self.dummy_constraint_r_n_KOH = Constraint(self.s, rule=lambda self,s: 0.0 == - self.r_n_KOH[s] + self.r_n_KOH_par[s])
         
-        self.dummy_constraint_r_T_ic = Constraint(self.s, rule=lambda self,s: self.r_T_ic[s] == self.r_T_ic_par[s])
-        self.dummy_constraint_r_W_ic = Constraint(self.s, rule=lambda self,s: self.r_W_ic[s] == self.r_W_ic_par[s])
-        self.dummy_constraint_r_PO_ic = Constraint(self.s, rule=lambda self,s: self.r_PO_ic[s] == self.r_PO_ic_par[s])
-        self.dummy_constraint_r_Y_ic = Constraint(self.s, rule=lambda self,s: self.r_Y_ic[s] == self.r_Y_ic_par[s])
-        self.dummy_constraint_r_MY_ic = Constraint(self.s, rule=lambda self,s: self.r_MY_ic[s] == self.r_MY_ic_par[s])
-        self.dummy_constraint_r_MX_ic_0 = Constraint(self.s, rule=lambda self,s: self.r_MX_ic[0,s] == self.r_MX_ic_par[0,s])
-        self.dummy_constraint_r_MX_ic_1 = Constraint(self.s, rule=lambda self,s: self.r_MX_ic[1,s] == self.r_MX_ic_par[1,s])
+        self.dummy_constraint_r_T_ic = Constraint(self.s, rule=lambda self,s: 0.0 == - self.r_T_ic[s] + self.r_T_ic_par[s])
+        self.dummy_constraint_r_W_ic = Constraint(self.s, rule=lambda self,s: 0.0 == - self.r_W_ic[s] + self.r_W_ic_par[s])
+        self.dummy_constraint_r_PO_ic = Constraint(self.s, rule=lambda self,s: 0.0 == - self.r_PO_ic[s] + self.r_PO_ic_par[s])
+        self.dummy_constraint_r_Y_ic = Constraint(self.s, rule=lambda self,s: 0.0 == - self.r_Y_ic[s] + self.r_Y_ic_par[s])
+        self.dummy_constraint_r_MY_ic = Constraint(self.s, rule=lambda self,s: 0.0 == - self.r_MY_ic[s] + self.r_MY_ic_par[s])
+        self.dummy_constraint_r_MX_ic_0 = Constraint(self.s, rule=lambda self,s: 0.0 == - self.r_MX_ic[0,s] + self.r_MX_ic_par[0,s])
+        self.dummy_constraint_r_MX_ic_1 = Constraint(self.s, rule=lambda self,s: 0.0 == - self.r_MX_ic[1,s] + self.r_MX_ic_par[1,s])
         
         # objective
         def _eobj(self):
@@ -961,7 +963,7 @@ class SemiBatchPolymerization(ConcreteModel):
     def equalize_u(self, direction="u_to_r"):
         """set current controls to the values of their respective dummies"""
         if direction == "u_to_r":
-            for i in iterkeys(self.T):
+            for i in iterkeys(self.dT_cw_dt):
                 self.dT_cw_dt[i].set_value(value(self.u1[i]))
             for i in iterkeys(self.F):
                 self.F[i].set_value(value(self.u2[i]))
