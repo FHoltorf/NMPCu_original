@@ -52,12 +52,12 @@ e = MheGen(d_mod=SemiBatchPolymerization,
            p_noisy=p_noisy,
            u=u,
            noisy_inputs = False,
-           noisy_params = False,
-           adapt_params = False,
-           process_noise_model = 'params_bias',
+           noisy_params = True,
+           adapt_params = True,
+           process_noise_model = None,#'params_bias',
            u_bounds=u_bounds,
            tf_bounds = tf_bounds,
-           diag_QR=False,
+           diag_QR=True,
            nfe_t=nfe,
            del_ics=False,
            sens=None,
@@ -93,6 +93,7 @@ for i in range(1,nfe):
         e.cycle_nmpc(e.store_results(e.olnmpc))     
 
     # here measurement becomes available
+    #e.lsmhe.clear_all_bounds()
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
     #e.compute_confidence_ellipsoid()
     e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
@@ -116,7 +117,8 @@ for i in range(1,k):
     print('constraint inf: ', e.nmpc_trajectory[i,'eps'])
     print('plant: ',end='')
     print(e.plant_trajectory[i,'solstat'])
-
+    print('lsmhe: ', end='')
+    print(e.nmpc_trajectory[i,'solstat_mhe'],e.nmpc_trajectory[i,'obj_value_mhe'])
 e.plant_simulation(e.store_results(e.olnmpc))
 
 # Uncertainty Realization

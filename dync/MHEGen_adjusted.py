@@ -74,7 +74,8 @@ class MheGen(NmpcGen):
         self.lsmhe = self.d_mod(self.nfe_mhe, self.ncp_t, _t=self._t)
         self.lsmhe.name = "lsmhe (Least-Squares MHE)"
         self.lsmhe.create_bounds()
-        self.lsmhe.clear_aux_bounds()
+        #self.lsmhe.clear_aux_bounds_mhe()
+        self.lsmhe.clear_all_bounds()
         self.lsmhe.create_output_relations()
         self.lsmhe.e_state_relation()
         
@@ -415,16 +416,15 @@ class MheGen(NmpcGen):
         
         # Sets possibly more measured states than are loaded into the state estimation problem
         # what is specified in self.y determines which variables are considered as measured for estimation
-        noise_init = {}
         measured_state = {}
         for key in var_dict:
                 x = key[0]
-                if self.multimodel or self.linapprox:
-                    j = key[1] + (1,)
-                else:
-                    j = key[1]
-                noise_init[(x,j)] = np.random.normal(loc=0.0, scale=var_dict[key])
-                measured_state[(x,j)] = (1+noise_init[(x,j)])*results[(x,(1,3)+j)]
+                j = key[1] + (1,) if self.multimodel or self.linapprox else key[1]
+                sigma = var_dict[key]
+                rand = np.random.normal(loc=0.0, scale=sigma)
+                if abs(rand) > 2*sigma:
+                     rand = -2*sigma if rand < 0.0 else 2*sigma
+                measured_state[(x,j)] = (1+rand)*results[(x,(1,3)+j)]
         self.measurement[self.iterations] = deepcopy(measured_state)
         
         # update values in lsmhe problem
@@ -454,12 +454,8 @@ class MheGen(NmpcGen):
                         if type(key) == int:
                             var[key].value = var_nmpc[key].value
                         else:
-                            var[key].value = var_nmpc[(1,3)+key[2:]].value
-                    except KeyError:
-                        continue
-                    except AttributeError:
-                        continue
-                    except TypeError:
+                            var[key].value = var_nmpc[(1,)+key[1:]].value
+                    except:
                         continue
                         
         # adjust the time intervals via model parameter self.lsmhe.fe_dist[i]
@@ -507,7 +503,7 @@ class MheGen(NmpcGen):
             self.lsmhe.wk_mhe.fix()
     
         ip = SolverFactory("asl:ipopt")
-        ip.options["halt_on_ampl_error"] = "yes"
+        ip.options["halt_on_ampl_error"] = "no"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
@@ -515,11 +511,12 @@ class MheGen(NmpcGen):
         with open("ipopt.opt", "w") as f:
             f.write("print_info_string yes")
             f.close()
-
+            
         result = ip.solve(self.lsmhe, tee=True)        
     
         if [str(result.solver.status),str(result.solver.termination_condition)] != ['ok','optimal']:
             self.lsmhe.clear_all_bounds()
+            self.lsmhe.par_to_var()
             result = ip.solve(self.lsmhe, tee=True)
         
         # saves the results to initialize the upcoming mhe problem

@@ -383,6 +383,12 @@ class NmpcGen(DynGen):
         #        self.plant_simulation_model.A['p'] = 0.8*13504.2
         #        self.plant_simulation_model.kA = 0.8*0.07170172
         #        self.plant_simulation_model.A['i'] = 1.0108695384819*396400.0
+
+        
+#        self.plant_simulation_model.A['p'] = 11386.76#/1e4
+#        self.plant_simulation_model.kA = 0.0640803573856
+#        self.plant_simulation_model.A['i'] = 387759.706213#/1e4
+        
         self.plant_simulation_model.clear_all_bounds()
         out = ip.solve(self.plant_simulation_model, tee=True, symbolic_solver_labels=True)
         

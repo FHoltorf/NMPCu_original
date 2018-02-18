@@ -50,7 +50,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.G_scale = 1.0
         self.U_scale = 1.0e-2
         self.monomer_cooling_scale = 1.0e-2
-        self.scale = 1.0
+        self.scale = 1.0e0
         
         #these work perfectly fine too
 #        self.W_scale = 1#1
@@ -231,8 +231,8 @@ class SemiBatchPolymerization(ConcreteModel):
         
         # algebraic variables
         self.Vi = Var(self.fe_t,self.cp, bounds=(0,1e10)) # current volume (?)
-        self.G = Var(self.fe_t,self.cp) # no idea
-        self.U = Var(self.fe_t,self.cp) # heat transfer coefficient (?)
+        self.G = Var(self.fe_t,self.cp,bounds=(0.0,None)) # no idea
+        self.U = Var(self.fe_t,self.cp,bounds=(0.0,None)) # heat transfer coefficient (?)
         self.MG = Var(self.fe_t,self.cp) # no idea
         
         # thermodynamic
@@ -785,7 +785,8 @@ class SemiBatchPolymerization(ConcreteModel):
         self.ipopt_zU_out = Suffix(direction=Suffix.IMPORT)
         self.ipopt_zL_in = Suffix(direction=Suffix.EXPORT)
         self.ipopt_zU_in = Suffix(direction=Suffix.EXPORT)                  
-       
+             
+
     def e_state_relation(self):
         # uses implicit assumption of 
         self.add_component('W_e', Var(initialize=self.W[self.nfe,self.ncp].value))
@@ -816,20 +817,28 @@ class SemiBatchPolymerization(ConcreteModel):
         self.T_cw_e_c = Constraint(rule=lambda self: self.T_cw_e_expr == 0.0)
         
     def par_to_var(self):
-        self.A['i'].setlb(396400.0*0.5)
-        self.A['i'].setub(396400.0*1.5)
-  
-        self.A['p'].setlb(13504.2*0.5)
-        self.A['p'].setub(13504.2*1.5)
+        self.A['i'].setlb(396400.0*0.5/self.scale)
+        self.A['i'].setub(396400.0*1.5/self.scale)
+        #self.A['i'].value = 396400.0/self.scale
         
-        self.A['t'].setlb(1.509e6*0.5)
-        self.A['t'].setub(1.509e6*1.5)
+        self.A['p'].setlb(13504.2*0.5/self.scale)
+        self.A['p'].setub(13504.2*1.5/self.scale)
+        #self.A['p'].value = 13504.2/self.scale
+        
+        self.A['t'].setlb(1.509e6*0.5/self.scale)
+        self.A['t'].setub(1.509e6*1.5/self.scale)
+        #self.A['t'].value = 1.509e6/self.scale
         
         self.Hrxn_aux['p'].setlb(0.5)
         self.Hrxn_aux['p'].setlb(1.5)
+        #self.Hrxn_aux['p'].value = 1.0
         
         self.kA.setlb(0.5*2200.0/self.Hrxn['p']*60/20.0)
         self.kA.setub(1.5*2200.0/self.Hrxn['p']*60/20.0)
+        
+
+
+        #self.kA.value = 2200.0/self.Hrxn['p']*60/20.0
     def create_output_relations(self):
         self.add_component('MW', Var(self.fe_t,self.cp, initialize=0.0, bounds=(0,None)))
         self.add_component('MW_c', Constraint(self.fe_t, self.cp))            
@@ -878,7 +887,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 var[key].setub(None)
     
     def clear_aux_bounds(self):
-        keep_bounds = ['s_temp_b','s_T_min','s_T_max','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','eps_pc','F','u1','u2','tf','k_l','T','T_cw'] 
+        keep_bounds = ['s_temp_b','s_T_min','s_T_max','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','eps_pc','F','u1','u2','tf','k_l','T_cw','T'] 
         for var in self.component_objects(Var, active=True):
             if var.name in keep_bounds:
                 continue
@@ -886,6 +895,16 @@ class SemiBatchPolymerization(ConcreteModel):
                 for key in var.index_set():
                     var[key].setlb(None)
                     var[key].setub(None)
+    
+    def clear_aux_bounds_mhe(self):
+        keep_bounds = ['s_temp_b','s_T_min','s_T_max','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','eps_pc','F','u1','u2','tf','k_l'] 
+        for var in self.component_objects(Var, active=True):
+            if var.name in keep_bounds:
+                continue
+            else:
+                for key in var.index_set():
+                    var[key].setlb(None)
+                    var[key].setub(None)        
                            
     def create_bounds(self):
         self.tf.setlb(min(10.0,10.0*24.0/self.nfe))
@@ -902,8 +921,8 @@ class SemiBatchPolymerization(ConcreteModel):
             for j in self.cp:
                 self.T_cw[i,j].setlb(293.15/self.T_scale)
                 self.T_cw[i,j].setub((self.T_max + self.Tb)/self.T_scale)
-                self.T[i,j].setlb((25.0 + self.Tb)/self.T_scale)
-                self.T[i,j].setub((225.0 + self.Tb)/self.T_scale)
+                self.T[i,j].setlb((50.0 + self.Tb)/self.T_scale)
+                self.T[i,j].setub((200.0 + self.Tb)/self.T_scale)
                 self.int_T[i,j].setlb((1.1*(100+self.Tb) + 2.72*(100+self.Tb)**2/2000)/self.int_T_scale)
                 self.int_T[i,j].setub((1.1*(170+self.Tb) + 2.72*(170+self.Tb)**2/2000)/self.int_T_scale)
                 self.Vi[i,j].setlb(0.9/self.Vi_scale*(1e3)/((self.m_KOH + self.m_PG + self.m_PO + self.m_H2O)*(1 + 0.0007576*((170+self.Tb)-298.15))))

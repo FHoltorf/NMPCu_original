@@ -41,7 +41,7 @@ y_vars = {"Y":[()],"MY":[()],"PO":[()],'T':[()]}
 
 noisy_ics = {'PO_ic':[()],'T_ic':[()],'MY_ic':[()]}
 p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2),('kA',()):(-0.2,0.2),
-            ('T_ic',()):(-0.005,0.005),
+            ('T_ic',()):(-0.01,0.01),
             ('PO_ic',()):(-0.01,0.01),
             ('MY_ic',()):(-0.01,0.01)}
 
@@ -61,9 +61,9 @@ for i in range(1,nfe+1):
             if s%s_max == 1:
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A',('p',)):1.0,('A',('i',)):1.0,('kA',()):1.0}) 
             elif s%s_max == 2:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0+alpha,('kA',()):1.0-alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
             elif s%s_max == 3:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0+alpha,('kA',()):1.0-alpha})
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
             elif s%s_max == 4:
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
             elif s%s_max == 5:
@@ -141,13 +141,12 @@ for i in range(1,nfe):
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)          
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE   
         e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
-        sys.exit()
         e.cycle_nmpc(e.store_results(e.olnmpc))   
 
     # solve mhe problem
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
     e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
-    
+    sys.exit()
     # e.load_reference_trajectories()
     
     #e.set_regularization_weights(K_w = 0.0, Q_w = 0.0, R_w = 0.0)

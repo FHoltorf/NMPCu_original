@@ -45,12 +45,12 @@ def run():
                p_noisy=p_noisy,
                u=u,
                noisy_inputs = False,
-               noisy_params = False,
-               adapt_params = False,
-               process_noise_model = 'params_bias',
+               noisy_params = True,
+               adapt_params = True,
+               process_noise_model = None,#'params_bias',
                u_bounds=u_bounds,
                tf_bounds = tf_bounds,
-               diag_QR=False,
+               diag_QR=True,
                nfe_t=nfe,
                del_ics=False,
                sens=None,
@@ -102,6 +102,16 @@ def run():
             e.plant_trajectory[i,'solstat'] != ['ok','optimal']:
             break
     
+    for i in range(1,k):
+        print('iteration: %i' % i)
+        print('open-loop optimal control: ', end='')
+        print(e.nmpc_trajectory[i,'solstat'],e.nmpc_trajectory[i,'obj_value'])
+        print('constraint inf: ', e.nmpc_trajectory[i,'eps'])
+        print('plant: ',end='')
+        print(e.plant_trajectory[i,'solstat'])
+        print('lsmhe: ', end='')
+        print(e.nmpc_trajectory[i,'solstat_mhe'],e.nmpc_trajectory[i,'obj_value_mhe'])
+    
     e.plant_simulation(e.store_results(e.olnmpc))
     uncertainty_realization = {}
     for p in p_noisy:
@@ -116,4 +126,6 @@ def run():
     if k == 24 and e.plant_trajectory[24,'solstat'] == ['ok','optimal']:
         return tf, e.plant_simulation_model.check_feasibility(display=True), e.pc_trajectory, uncertainty_realization
     else:
-        return 'error', {'epc_PO_ptg': 'error', 'epc_mw': 'error', 'epc_unsat': 'error'}, 'error', 'error'
+        print(uncertainty_realization)
+        sys.exit()
+        return 'error', {'epc_PO_ptg': 'error', 'epc_mw': 'error', 'epc_unsat': 'error'}, 'error', uncertainty_realization

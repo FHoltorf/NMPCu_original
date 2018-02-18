@@ -383,6 +383,9 @@ class NmpcGen(DynGen):
 #        self.plant_simulation_model.A['p'] = (1-0.0613376498993) * 13504.2
 #        self.plant_simulation_model.A['i'] = (1+0.0984632133588) * 396400.0
 #        self.plant_simulation_model.kA = (1-0.0437808119933) * 0.0717017208413
+        
+     
+        
         # probably redundant
         self.plant_simulation_model.clear_all_bounds()      
         

@@ -85,10 +85,10 @@ def run():
                robust_horizon = nr,
                s_max = sr,
                noisy_inputs = False,
-               noisy_params = True,
-               adapt_params = True,
+               noisy_params = False,
+               adapt_params = False,
                update_scenario_tree = False,
-               process_noise_model = None,#'params_bias',
+               process_noise_model = 'params_bias',
                confidence_threshold = alpha,
                robustness_threshold = 0.05,
                estimate_exceptance = 10000,
@@ -127,7 +127,8 @@ def run():
         
         # here measurement becomes available
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-        #e.compute_confidence_ellipsoid()
+        if e.update_scenario_tree:  
+            e.compute_confidence_ellipsoid()
         
         # solve the advanced step problems
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc

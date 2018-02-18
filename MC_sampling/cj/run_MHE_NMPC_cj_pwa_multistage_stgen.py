@@ -57,9 +57,9 @@ def run():
                 if s%s_max == 1:
                     st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A',('p',)):1.0,('A',('i',)):1.0,('kA',()):1.0}) 
                 elif s%s_max == 2:
-                    st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0+alpha,('kA',()):1.0-alpha})
+                    st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
                 elif s%s_max == 3:
-                    st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0+alpha,('kA',()):1.0-alpha})
+                    st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
                 elif s%s_max == 4:
                     st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
                 elif s%s_max == 5:
@@ -103,7 +103,7 @@ def run():
                obj_type='economic',
                nfe_t=nfe,
                sens=None,
-               diag_QR=False,
+               diag_QR=True,
                del_ics=False,
                path_constraints=pc)
     
@@ -165,6 +165,8 @@ def run():
         print('constraint inf: ', e.nmpc_trajectory[i,'eps'])
         print('plant: ',end='')
         print(e.plant_trajectory[i,'solstat'])
+        print('lsmhe: ', end='')
+        print(e.nmpc_trajectory[i,'solstat_mhe'],e.nmpc_trajectory[i,'obj_value_mhe'])
  
     #print(e.st)
         
@@ -181,5 +183,6 @@ def run():
     if k == 24 and e.plant_trajectory[24,'solstat'] == ['ok','optimal']:
         return tf, e.plant_simulation_model.check_feasibility(display=True), e.pc_trajectory, uncertainty_realization
     else:
+        print(uncertainty_realization)
         sys.exit()
         return 'error', {'epc_PO_ptg': 'error', 'epc_mw': 'error', 'epc_unsat': 'error'}, 'error', uncertainty_realization
