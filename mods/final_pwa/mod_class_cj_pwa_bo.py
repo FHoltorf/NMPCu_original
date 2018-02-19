@@ -99,7 +99,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.eps = Var(self.epc, initialize=0.0, bounds=(0,None))
         #self.eps.fix()
         self.eps_pc = Var(self.fe_t, self.cp, self.pc, initialize=0.0, bounds=(0,None))
-        self.rho = Param(initialize=1e3, mutable=True)
+        self.rho = Param(initialize=1e6, mutable=True)
         self.gamma = Param(initialize=10.0,mutable=True)
         
         # auxilliary parameter to enable non-uniform finite element distribution
@@ -146,7 +146,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.T_min = Param(initialize=100.0)
         self.molecular_weight = Param(initialize=949.5, mutable=True) # 3027.74 # [g/mol] or [kg/kmol] target molecular weights
         self.molecular_weight_max = Param(initialize=949.5+20, mutable=True)
-        self.unsat_value = Param(initialize=0.032) #0.032 # unsaturation value
+        self.unsat_value = Param(initialize=0.032)#-0.0018) #0.032 # unsaturation value
         self.unreacted_PO = Param(initialize=120.0) #120.0 # [PPM] unreacted PO
         self.rxr_volume = Param(initialize=41.57) # [m^3] volume of the reactor
         self.rxr_pressure = Param(initialize=253) # [kPa] initial pressure
@@ -267,13 +267,164 @@ class SemiBatchPolymerization(ConcreteModel):
 
         # back-offs 
         self.xi_mw_ub = Param(initialize=0.0, mutable=True)
-        self.xi_mw = Param(initialize=0.0, mutable=True)
-        self.xi_PO_ptg = Param(initialize=0.0, mutable=True)
-        self.xi_unsat = Param(initialize=0.0, mutable=True)
-        self.xi_temp_b = Param(self.fe_t, self.cp, initialize=0.0, mutable=True)
-        self.xi_T_max = Param(self.fe_t, self.cp, initialize=0.0, mutable=True)
-        self.xi_T_min = Param(self.fe_t, self.cp, initialize=0.0, mutable=True)   
-        
+        self.xi_mw = Param(initialize=2.0, mutable=True)#4.22
+        self.xi_PO_ptg = Param(initialize=100.0, mutable=True)#26.51
+        self.xi_unsat = Param(initialize=0.0036, mutable=True)
+        self.xi_temp_b = Param(self.fe_t, self.cp, initialize=12.09, mutable=True)        
+        self.xi_T_max = Param(self.fe_t, self.cp, initialize=1.8, mutable=True)
+        self.xi_T_min = Param(self.fe_t, self.cp, initialize=2.43, mutable=True)   
+# Timevariant backoffs       
+#        T_max = {(1, 1): 0,
+#                 (1, 2): 0,
+#                 (1, 3): 0,
+#                 (2, 1): 0,
+#                 (2, 2): 0,
+#                 (2, 3): 0,
+#                 (3, 1): 0,
+#                 (3, 2): 0,
+#                 (3, 3): 0,
+#                 (4, 1): 0,
+#                 (4, 2): 0,
+#                 (4, 3): 0,
+#                 (5, 1): 0,
+#                 (5, 2): 0,
+#                 (5, 3): 0,
+#                 (6, 1): 0,
+#                 (6, 2): 0,
+#                 (6, 3): 0,
+#                 (7, 1): 0,
+#                 (7, 2): 0,
+#                 (7, 3): 0,
+#                 (8, 1): 0,
+#                 (8, 2): 0,
+#                 (8, 3): 0,
+#                 (9, 1): 0,
+#                 (9, 2): 0,
+#                 (9, 3): 0,
+#                 (10, 1): 0,
+#                 (10, 2): 0,
+#                 (10, 3): 0,
+#                 (11, 1): 0,
+#                 (11, 2): 0,
+#                 (11, 3): 0,
+#                 (12, 1): 0,
+#                 (12, 2): 0,
+#                 (12, 3): 0,
+#                 (13, 1): 0,
+#                 (13, 2): 0,
+#                 (13, 3): 0,
+#                 (14, 1): 0,
+#                 (14, 2): 0,
+#                 (14, 3): 0,
+#                 (15, 1): 0,
+#                 (15, 2): 0,
+#                 (15, 3): 0,
+#                 (16, 1): 0,
+#                 (16, 2): 0,
+#                 (16, 3): 0,
+#                 (17, 1): 0,
+#                 (17, 2): 0,
+#                 (17, 3): 0,
+#                 (18, 1): 0,
+#                 (18, 2): 0,
+#                 (18, 3): 0,
+#                 (19, 1): 0,
+#                 (19, 2): 0,
+#                 (19, 3): 0,
+#                 (20, 1): 0,
+#                 (20, 2): 0,
+#                 (20, 3): 0,
+#                 (21, 1): 0,
+#                 (21, 2): 0.00616766750154607,
+#                 (21, 3): 9.131352655078473e-05,
+#                 (22, 1): 0,
+#                 (22, 2): 0.005316256233477645,
+#                 (22, 3): 0.013007124942124193,
+#                 (23, 1): 0.006923480276820548,
+#                 (23, 2): 0.004760223984839662,
+#                 (23, 3): 0.005105139403636549,
+#                 (24, 1): 0.015742594309510416,
+#                 (24, 2): 0.0028924484361070313,
+#                 (24, 3): 0.0018376472483039308}
+#        temp_b = {(1, 1): 0,
+#                 (1, 2): 0,
+#                 (1, 3): 0.12639166910971955,
+#                 (2, 1): 0.11005682038642206,
+#                 (2, 2): 0.16842277095051283,
+#                 (2, 3): 0.14357890465889067,
+#                 (3, 1): 0.10316743256492344,
+#                 (3, 2): 0.09794373284372604,
+#                 (3, 3): 0.11743741122245943,
+#                 (4, 1): 0.04383822236713186,
+#                 (4, 2): 0.03580551195437831,
+#                 (4, 3): 0.05692359626724741,
+#                 (5, 1): 0.023749032615374865,
+#                 (5, 2): 0.1077329150724653,
+#                 (5, 3): 0.0368860709998895,
+#                 (6, 1): 0.047516666330380986,
+#                 (6, 2): 0.08469036594219936,
+#                 (6, 3): 0.10642395054805931,
+#                 (7, 1): 0.04046638306190076,
+#                 (7, 2): 0.09088029126641928,
+#                 (7, 3): 0.1403962200314206,
+#                 (8, 1): 0.03999337263346181,
+#                 (8, 2): 0.029753952994195032,
+#                 (8, 3): 0.08195989792176661,
+#                 (9, 1): 0.04959638358691265,
+#                 (9, 2): 0.042025344927346,
+#                 (9, 3): 0.08592151194604014,
+#                 (10, 1): 0.023664189529175594,
+#                 (10, 2): 0.08291209734967175,
+#                 (10, 3): 0.08765697294645314,
+#                 (11, 1): 0.03681005511694124,
+#                 (11, 2): 0.03315391074972407,
+#                 (11, 3): 0.09315721502751462,
+#                 (12, 1): 0.06572468625211769,
+#                 (12, 2): 0.05817044426935425,
+#                 (12, 3): 0.11261321449257178,
+#                 (13, 1): 0.02343088634428181,
+#                 (13, 2): 0.03413824045855218,
+#                 (13, 3): 0.08334337981434814,
+#                 (14, 1): 0.018423147076317647,
+#                 (14, 2): 0.04062045665223568,
+#                 (14, 3): 0.09981033248253812,
+#                 (15, 1): 0.024285354287908234,
+#                 (15, 2): 0.018812157652376982,
+#                 (15, 3): 0.05644185866652851,
+#                 (16, 1): 0.0159775495686878,
+#                 (16, 2): 0.027251432736714598,
+#                 (16, 3): 0.09452117955099837,
+#                 (17, 1): 0.025892562937708696,
+#                 (17, 2): 0.04404264080020681,
+#                 (17, 3): 0.08011727127101231,
+#                 (18, 1): 0.03160045776684406,
+#                 (18, 2): 0.03414910897901091,
+#                 (18, 3): 0.09753939055801553,
+#                 (19, 1): 0.021442057814157423,
+#                 (19, 2): 0.028400933319674415,
+#                 (19, 3): 0.05370105704315531,
+#                 (20, 1): 0.041302129233612206,
+#                 (20, 2): 0.03788297680734054,
+#                 (20, 3): 0.10742785067862037,
+#                 (21, 1): 0.12353793931031376,
+#                 (21, 2): 0.1624029389930577,
+#                 (21, 3): 0.18847975972634767,
+#                 (22, 1): 0.1805516578277775,
+#                 (22, 2): 0.1754556916530925,
+#                 (22, 3): 0.17945339115050274,
+#                 (23, 1): 0.15705295495157667,
+#                 (23, 2): 0.10324210048529103,
+#                 (23, 3): 0.06882792535277638,
+#                 (24, 1): 0.003194136002984571,
+#                 (24, 2): 0,
+#                 (24, 3): 0}
+#        
+#        for index in self.xi_temp_b.index_set():
+#            try:
+#                self.xi_temp_b[index] = temp_b[index]*self.T_scale
+#                self.xi_T_max[index] = T_max[index]*self.T_scale
+#            except:
+#                continue
         self.epc_indices = {1:'PO_ptg',2:'unsat',3:'mw',4:'mw_ub'}
         self.pc_indices = {1:'temp_b',2:'T_max',3:'T_min'}
         
@@ -683,7 +834,8 @@ class SemiBatchPolymerization(ConcreteModel):
         def _epc_PO_ptg(self,i,j):
             if i == nfe and j == ncp:
                 #return  0.0 <= self.unreacted_PO*1e-6*self.m_tot[i,j]*self.m_tot_scale - self.PO[i,j]*self.PO_scale*self.mw_PO + self.eps
-                return  0.0 == self.unreacted_PO*1e-6*self.m_tot[i,j]*self.m_tot_scale - self.PO[i,j]*self.PO_scale*self.mw_PO + self.eps[1] - self.s_PO_ptg - self.xi_PO_ptg
+                #return  0.0 == (self.unreacted_PO - self.xi_PO_ptg)*1e-6*self.m_tot[i,j]*self.m_tot_scale - self.PO[i,j]*self.PO_scale*self.mw_PO + self.eps[1] - self.s_PO_ptg 
+                return  0.0 == self.unreacted_PO - 1e6*self.PO[i,j]*self.PO_scale*self.mw_PO/(self.m_tot[i,j]*self.m_tot_scale) + self.eps[1] - self.s_PO_ptg - self.xi_PO_ptg
             else:
                 return Constraint.Skip
         
@@ -693,8 +845,9 @@ class SemiBatchPolymerization(ConcreteModel):
         def _epc_unsat(self,i,j):
             if i == nfe and j == ncp:
                 #return  0.0 <= self.unsat_value*self.m_tot[i,j]*self.m_tot_scale - 1000.0*(self.MY[i,j,0] + self.Y[i,j]/1e2) + self.eps
-                return  0.0 == self.unsat_value*self.m_tot[i,j]*self.m_tot_scale - 1000.0*(self.MY[i,j]*self.MY0_scale + self.Y[i,j]*self.Y_scale) + self.eps[2] - self.s_unsat - self.xi_unsat
-            else:
+                #return  0.0 == (self.unsat_value-self.xi_unsat)*self.m_tot[i,j]*self.m_tot_scale - 1000.0*(self.MY[i,j]*self.MY0_scale + self.Y[i,j]*self.Y_scale) + self.eps[2] - self.s_unsat 
+                return  0.0 == self.unsat_value - 1000.0*(self.MY[i,j]*self.MY0_scale + self.Y[i,j]*self.Y_scale)/(self.m_tot[i,j]*self.m_tot_scale) + self.eps[2] - self.s_unsat - self.xi_unsat
+            else: 
                 return Constraint.Skip
         
         self.epc_unsat = Constraint(self.fe_t, self.cp, rule=_epc_unsat)
@@ -711,7 +864,8 @@ class SemiBatchPolymerization(ConcreteModel):
         def _epc_mw(self,i,j):
             if i == nfe and j == ncp:
                 #return 0.0 <= self.MX[i,j,1]*self.MX1_scale/1e-2 - (self.molecular_weight - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[i,j,0] + self.eps
-                return 0.0 == self.MX[i,j,1]*self.MX1_scale - (self.molecular_weight - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[i,j,0]*self.MX0_scale + self.eps[3] - self.s_mw - self.xi_mw
+                #return 0.0 == self.MX[i,j,1]*self.MX1_scale - (self.molecular_weight + self.xi_mw - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[i,j,0]*self.MX0_scale + self.eps[3] - self.s_mw
+                return  0.0 == self.MX[i,j,1]*self.MX1_scale/(self.MX[i,j,0]*self.MX0_scale)*self.mw_PO*self.num_OH + self.mw_PG.value - self.molecular_weight + self.eps[3] - self.s_mw - self.xi_mw
             else:
                 return Constraint.Skip
         
@@ -1167,34 +1321,33 @@ class SemiBatchPolymerization(ConcreteModel):
 #######################            Test Run             #######################
 ###############################################################################
 #
-#Solver = SolverFactory('ipopt')
-#Solver.options["halt_on_ampl_error"] = "yes"
-#Solver.options["max_iter"] = 5000
-#Solver.options["tol"] = 1e-8
-#Solver.options["linear_solver"] = "ma57"
-#f = open("ipopt.opt", "w")
-#f.write("print_info_string yes")
-#f.close()
-#
-#e = SemiBatchPolymerization(24,3)
-#m = e.initialize_element_by_element()
-#e.create_output_relations()
-#e.create_bounds()
-#e.clear_aux_bounds()
-#
-#
-##e.T_icc.deactivate()
-##e.T_cw_icc.deactivate()
-##e.T_icc.deactivate()
-##e.T[1,0].setlb(373.15/e.T_scale)
-##e.T_cw_icc.deactivate()
-##for index in e.F.index_set():
-##    e.F[index].setlb(0)
-##    e.F[index].setub(4.0)
-#res=Solver.solve(e,tee=True)
-#e.plot_profiles([e.PO,e.W,e.Y,e.PO_fed,e.MY,e.T,e.T_cw,e.F,e.dT_cw_dt,e.Tad])
-#h = e.save_results(res)
-#f = open('optimal_trajectory.pckl','wb')
-#pickle.dump(h,f)
-#f.close()
+Solver = SolverFactory('ipopt')
+Solver.options["halt_on_ampl_error"] = "yes"
+Solver.options["max_iter"] = 5000
+Solver.options["tol"] = 1e-8
+Solver.options["linear_solver"] = "ma57"
+f = open("ipopt.opt", "w")
+f.write("print_info_string yes")
+f.close()
+
+e = SemiBatchPolymerization(24,3)
+m = e.initialize_element_by_element()
+e.create_output_relations()
+e.create_bounds()
+e.clear_aux_bounds()
+
+#e.T_icc.deactivate()
+#e.T_cw_icc.deactivate()
+#e.T_icc.deactivate()
+#e.T[1,0].setlb(373.15/e.T_scale)
+#e.T_cw_icc.deactivate()
+#for index in e.F.index_set():
+#    e.F[index].setlb(0)
+#    e.F[index].setub(4.0)
+res=Solver.solve(e,tee=True)
+e.plot_profiles([e.PO,e.W,e.Y,e.PO_fed,e.MY,e.T,e.T_cw,e.F,e.dT_cw_dt,e.Tad])
+h = e.save_results(res)
+f = open('optimal_trajectory.pckl','wb')
+pickle.dump(h,f)
+f.close()
 

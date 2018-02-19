@@ -501,7 +501,9 @@ class MheGen(NmpcGen):
         # fix process noise as degrees of freedom
         if fix_noise:
             self.lsmhe.wk_mhe.fix()
-    
+            
+        initialguess = self.store_results(self.lsmhe)
+            
         ip = SolverFactory("asl:ipopt")
         ip.options["halt_on_ampl_error"] = "no"
         ip.options["print_user_options"] = "yes"
@@ -515,7 +517,11 @@ class MheGen(NmpcGen):
         result = ip.solve(self.lsmhe, tee=True)        
     
         if [str(result.solver.status),str(result.solver.termination_condition)] != ['ok','optimal']:
-            self.lsmhe.clear_all_bounds()
+            for var in self.lsmhe.component_objects(Var):
+                for key in var.index_set():
+                    var[key].value = initialguess[var.name,key]
+            self.lsmhe.create_bounds()
+            self.lsmhe.clear_aux_bounds()
             self.lsmhe.par_to_var()
             result = ip.solve(self.lsmhe, tee=True)
         
@@ -533,7 +539,7 @@ class MheGen(NmpcGen):
                 for key in self.p_noisy[p]:
                     pkey = None if key == () else key
                     self.curr_epars[(p,key)] = p_mhe[pkey].value
-                    
+            
             self.nmpc_trajectory[self.iterations,'e_pars'] = deepcopy(self.curr_epars)
 
         # saves the predicted initial_values for the states

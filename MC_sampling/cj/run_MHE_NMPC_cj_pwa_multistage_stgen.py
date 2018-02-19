@@ -17,11 +17,17 @@ import matplotlib.pyplot as plt
 import numpy.linalg as linalg
 from scipy.stats import chi2
 from main.noise_characteristics_cj import *
+import time
 
 # redirect system output to a file:
 #sys.stdout = open('consol_output','w')
 
-def run():
+def run(**kwargs):
+    # monitor computational performance
+    CPU_t = {}
+    
+    scenario = kwargs.pop('scenario', {})
+    
     states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
     x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
     x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)],"T":[()],"T_cw":[()]}
@@ -124,14 +130,16 @@ def run():
         print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
         e.create_mhe()
         if i == 1:
-            e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call=True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+            #e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call=True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+            e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call=True,disturbance_src = "parameter_scenario",scenario = scenario)
             e.set_measurement_prediction(e.store_results(e.recipe_optimization_model)) # only required for asMHE
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
             e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,p_cov=pcov, first_call=True) #adjusts the mhe problem according to new available measurements
             e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
             e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
         else:
-            e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+            #e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+            e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_scenario",scenario=scenario)
             e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)          
             e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE   
@@ -139,13 +147,18 @@ def run():
             e.cycle_nmpc(e.store_results(e.olnmpc))   
     
         # solve mhe problem
+        t0 = time.clock()
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
+        CPU_t[i,'mhe'] = time.clock() - t0
+        
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
         
         # e.load_reference_trajectories()
         
         #e.set_regularization_weights(K_w = 0.0, Q_w = 0.0, R_w = 0.0)
+        t0 = time.clock()
         e.solve_olnmpc() # solves the olnmpc problem
+        CPU_t[i,'ocp'] = time.clock() - t0
         
         #sIpopt
         e.cycle_iterations()
@@ -181,8 +194,8 @@ def run():
             uncertainty_realization[(p,key)] = pvar_r[pkey].value   
     tf = e.nmpc_trajectory[k,'tf']
     if k == 24 and e.plant_trajectory[24,'solstat'] == ['ok','optimal']:
-        return tf, e.plant_simulation_model.check_feasibility(display=True), e.pc_trajectory, uncertainty_realization
+        return tf, e.plant_simulation_model.check_feasibility(display=True), e.pc_trajectory, uncertainty_realization, CPU_t
     else:
         print(uncertainty_realization)
         sys.exit()
-        return 'error', {'epc_PO_ptg': 'error', 'epc_mw': 'error', 'epc_unsat': 'error'}, 'error', uncertainty_realization
+        return 'error', {'epc_PO_ptg': 'error', 'epc_mw': 'error', 'epc_unsat': 'error'}, 'error', uncertainty_realization, CPU_t

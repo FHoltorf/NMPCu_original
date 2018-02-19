@@ -493,7 +493,9 @@ class MheGen(NmpcGen):
         # fix process noise as degrees of freedom
         if fix_noise:
             self.lsmhe.wk_mhe.fix()
-            
+        
+        initialguess = self.store_results(self.lsmhe)
+        
         ip = SolverFactory("asl:ipopt")
         ip.options["halt_on_ampl_error"] = "no"
         ip.options["print_user_options"] = "yes"
@@ -516,7 +518,11 @@ class MheGen(NmpcGen):
                     par_mhe.pprint()
                     print('true')
                     par_true.pprint()
-            self.lsmhe.clear_all_bounds()
+            for var in self.lsmhe.component_objects(Var):
+                for key in var.index_set():
+                    var[key].value = initialguess[var.name,key]        
+            self.lsmhe.create_bounds()
+            self.lsmhe.clear_aux_bounds()
             self.lsmhe.par_to_var()
             result = ip.solve(self.lsmhe, tee=True)
         

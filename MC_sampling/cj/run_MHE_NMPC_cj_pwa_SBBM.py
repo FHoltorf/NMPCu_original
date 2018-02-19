@@ -18,8 +18,14 @@ import itertools, sys, csv
 import numpy as np
 import matplotlib.pyplot as plt
 import numpy.linalg as linalg
+import time
 
-def run():
+def run(**kwargs):
+    # monitor CPU time
+    CPU_t = {}
+    
+    scenario = kwargs.pop('scenario', {})
+    
     states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
     x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
     x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)], "T":[()], "T_cw":[()]}
@@ -65,7 +71,7 @@ def run():
                sens=None,
                obj_type='tracking',
                path_constraints=pc)
-    delta_u = True
+    e.delta_u = True
     
     ###############################################################################
     ###                                     NMPC
@@ -82,27 +88,33 @@ def run():
         print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
         e.create_mhe()
         if i == 1:
-            e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+            #e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+            e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_scenario",scenario=scenario)
             e.set_measurement_prediction(e.store_results(e.recipe_optimization_model))
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
             e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,p_cov=pcov) #adjusts the mhe problem according to new available measurements
             e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
         else:
-            e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
+            #e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
+            e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_scenario",scenario=scenario)
             e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
             e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) 
             e.cycle_nmpc(e.store_results(e.olnmpc))     
     
         # here measurement becomes available
+        t0 = time.clock()
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
+        CPU_t[i,'mhe'] = time.clock() - t0
         # solve the advanced step problems
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
     
         e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
         e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
-        e.solve_olrnmpc(cons=cons,eps=1e-1) # solves the olnmpc problem
         
+        t0 = time.clock()
+        e.solve_olrnmpc(cons=cons,eps=1e-1) # solves the olnmpc problem
+        CPU_t[i,'ocp'] = time.clock() - t0
     
         e.cycle_iterations()
         k += 1
@@ -124,6 +136,6 @@ def run():
             
     tf = e.nmpc_trajectory[k, 'tf']
     if k == 24 and e.plant_trajectory[24,'solstat'] == ['ok','optimal']:
-        return tf, e.plant_simulation_model.check_feasibility(display=True), e.pc_trajectory, uncertainty_realization
+        return tf, e.plant_simulation_model.check_feasibility(display=True), e.pc_trajectory, uncertainty_realization, CPU_t
     else:
-        return 'error', {'epc_PO_ptg': 'error', 'epc_mw': 'error', 'epc_unsat': 'error'}, 'error', 'error'
+        return 'error', {'epc_PO_ptg': 'error', 'epc_mw': 'error', 'epc_unsat': 'error'}, 'error', 'error', CPU_t

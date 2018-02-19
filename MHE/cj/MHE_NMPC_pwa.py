@@ -80,13 +80,15 @@ for i in range(1,nfe):
     print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
     e.create_mhe()
     if i == 1:
-        e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+        #e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+        e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_scenario", scenario={('A',('p',)):-0.2,('A',('i',)):-0.2,('kA',()):-0.2})
         e.set_measurement_prediction(e.store_results(e.recipe_optimization_model))
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
         e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,p_cov=pcov) #adjusts the mhe problem according to new available measurements
         e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
-        e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
+        #e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
+        e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_scenario", scenario={('A',('p',)):-0.2,('A',('i',)):-0.2,('kA',()):-0.2})
         e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) 

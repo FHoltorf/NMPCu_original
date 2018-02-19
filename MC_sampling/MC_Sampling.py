@@ -10,32 +10,14 @@ import numpy as np
 import pickle
 import matplotlib.pyplot as plt
 import time
-# old standard model
-#from main.MC_sampling.no_cj.run_MHE_asNMPC import *
-#from main.MC_sampling.no_cj.run_MHE_asNMPC_online_estimation import *
-#from main.MC_sampling.no_cj.run_MHE_asNMPC_multistage import *
-#from main.MC_sampling.no_cj.run_MHE_asNMPC_multimodel import *
-#from main.MC_sampling.no_cj.run_MHE_asNMPC_backoff import *
 
 # model with cooling jacket 
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
+#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_bo import *
 from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBBM import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage_stgen import *
 
-
-#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBSG import *
-#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBBM import *
-#from main.MC_sampling.cj.run_MHE_asNMPC_cj_pwa import *
-#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage_stgen import *
-
-# final cooling jacket
-# nominal NMPC
-#from main.MC_sampling.final.run_MHE_NMPC import *
-# multistage NMPC
-#from main.MC_sampling.final.run_MHE_NMPC_multistage import *
-# SBBM
-#from main.MC_sampling.final.run_MHE_NMPC_SBBM import *
 
 #################################################################
 #################################################################
@@ -44,10 +26,23 @@ from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
 #################################################################
 #################################################################
 #################################################################
+# parameter realizations use grid search for worst-case:
+kA = np.array([-0.2,-0.1,0.1,0.2])#np.linspace(-0.2,0.2,num=4)
+Ap = np.array([-0.2,-0.1,0.1,0.2])#np.linspace(-0.2,0.2,num=4)
+Ai = np.array([-0.2,-0.1,0.1,0.2])#np.linspace(-0.2,0.2,num=4)
+Ap, Ai, kA = np.meshgrid(kA, Ai, Ap)
+i = 0
+scenarios = {}
+for j in range(4):
+    for k in range(4):
+        for l in range(4):
+            scenarios[i] = {('A',('p',)):Ap[j][k][l],('A',('i',)):Ai[j][k][l],('kA',()):kA[j][k][l]}
+            i += 1
+    
 # inputs
-sample_size = 100
+sample_size = 4*4*4
 # specifiy directory where to save the resulting files
-path = 'results/final_pwa/timeinvariant/standard/multistage/' 
+path = 'results/finalfinal/timeinvariant/standard/multistage/' 
 # colors
 color = ['green','red','blue']
 tf = {}
@@ -55,6 +50,7 @@ endpoint_constraints = {}
 path_constraints = {}
 runtime = {} # runtime in seconds
 uncertainty_realization = {}
+CPU_t = {}
 # run sample_size batches and save the endpoint constraint violation
 iters = 0
 for i in range(sample_size):
@@ -69,12 +65,12 @@ for i in range(sample_size):
     print('#'*20)
     try:
         t0 = time.clock()
-        tf[i],endpoint_constraints[i],path_constraints[i],uncertainty_realization[i] = run()
+        tf[i],endpoint_constraints[i],path_constraints[i],uncertainty_realization[i],CPU_t[i] = run(scenario=scenarios[i])
         runtime[i] = time.clock() - t0
     except ValueError:
-        tf[i],endpoint_constraints[i],path_constraints[i],uncertainty_realization[i] = 'error', {'epc_PO_ptg': 'error', \
+        tf[i],endpoint_constraints[i],path_constraints[i],uncertainty_realization[i],CPU_t[i] = 'error', {'epc_PO_ptg': 'error', \
                                    'epc_mw': 'error', \
-                                   'epc_unsat': 'error'}, 'error', 'error'
+                                   'epc_unsat': 'error'}, 'error', 'error','error'
         runtime[i]  = 0.0 
     
     feasible = True
@@ -158,6 +154,13 @@ f = open(path + 'runtime.pckl','wb')
 pickle.dump(runtime,f)
 f.close()
 
+f = open(path + 'CPU_t.pckl','wb')
+pickle.dump(CPU_t,f)
+f.close()
+
+f = open(path + 'scenarios','wb')
+pickle.dump(scenarios,f)
+f.close()
 # path constraints
 
 t = {}

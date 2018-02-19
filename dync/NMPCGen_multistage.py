@@ -252,6 +252,7 @@ class NmpcGen(DynGen):
         parameter_disturbance = kwargs.pop('parameter_disturbance', {})
         state_disturbance = kwargs.pop('state_disturbance', {})
         input_disturbance = kwargs.pop('input_disturbance',{})
+        parameter_scenario = kwargs.pop('scenario',{})   
         
         #  generate the disturbance lording to specified scenario
         state_noise = {}
@@ -271,25 +272,19 @@ class NmpcGen(DynGen):
                 
         elif disturbance_src == 'parameter_noise':
             for p in parameter_disturbance:
-                disturbed_parameter = getattr(self.plant_simulation_model, p[0])               
+                disturbed_parameter = getattr(self.plant_simulation_model, p[0]) 
+                pkey= None if p[1] == () else p[1]
                 if first_call:
-                    if p[1] != ():
-                        self.nominal_parameter_values[p] = disturbed_parameter[p[1]].value
-                    else:
-                        self.nominal_parameter_values[p] = disturbed_parameter.value                
+                    self.nominal_parameter_values[p] = deepcopy(disturbed_parameter[pkey].value)
+                                    
                 if (self.iterations-1)%parameter_disturbance[p][1] == 0:
                     sigma = parameter_disturbance[p][0]
                     rand = np.random.normal(loc=0.0, scale=sigma)
                     #truncation at 2 sigma
                     if abs(rand) > 2*sigma:
-                        if rand < 0.0:
-                            rand = -2.0 * sigma
-                        else:
-                            rand = 2.0 * sigma
-                    if p[1] != ():
-                        disturbed_parameter[p[1]].value = self.nominal_parameter_values[p] * (1 + rand)                 
-                    else:
-                        disturbed_parameter.value = self.nominal_parameter_values[p] * (1 + rand)
+                        rand = -2.0 * sigma if rand < 0.0 else 2.0 *sigma
+                    disturbed_parameter[pkey].value = self.nominal_parameter_values[p] * (1 + rand)                 
+            
             for x in self.states:
                 for j in self.x_vars[x]:
                     state_noise[(x,j)] = 0.0
@@ -302,6 +297,20 @@ class NmpcGen(DynGen):
                     state_noise[(x,j)] = 0.0
             for u in self.u:
                 input_noise[u] = np.random.normal(loc=0.0, scale=input_disturbance[u])
+        elif disturbance_src == 'parameter_scenario':
+            for p in parameter_scenario:
+                disturbed_parameter = getattr(self.plant_simulation_model, p[0])
+                pkey = None if p[1] == () else p[1]
+                if first_call:
+                    self.nominal_parameter_values[p] = deepcopy(disturbed_parameter[pkey].value)
+                disturbed_parameter[pkey].value = self.nominal_parameter_values[p]*(1 + parameter_scenario[p])
+                
+            for x in self.states:
+                for j in self.x_vars[x]:
+                    state_noise[(x,j)] = 0.0
+                    
+            for u in self.u:
+                input_noise[u] = 0.0        
         else:
             print('NO DISTURBANCE SCENARIO SPECIFIED, NO NOISE ADDED ANYWHERE')                     
             for x in self.states:
@@ -338,19 +347,17 @@ class NmpcGen(DynGen):
         else:                
             # initialization of simulation
             for var in self.plant_simulation_model.component_objects(Var, active=True):
+                try:
+                    var_ref = getattr(self.olnmpc, var.name)
+                except:
+                    # catch that plant simulation includes quantities (Outputs)
+                    # that are not relevant for optimal control problem (therefore removed)
+                    continue
                 for key in var.index_set():
                     if var[key].fixed:
                         break
-                    elif key == None or type(key) == int:
-                        continue
-                    elif type(key) == tuple:
-                        try:
-                            if len(key) > 2:
-                                var[key] = var[(1,self.ncp_t)+key[2:]].value 
-                            else:
-                                var[key] = var[(1,key[1])].value
-                        except KeyError:
-                            continue
+                    else:
+                        var[key].value = var_ref[key].value
             
             # initialization of state trajectories
             # adding state noise if specified            
@@ -362,12 +369,7 @@ class NmpcGen(DynGen):
                         xic.value = x_var[(1,self.ncp_t)+j+(1,)].value * (1.0 + state_noise[(x,j)])#+ noise # again tailored to RADAU nodes
                     else:
                         xic[j].value = x_var[(1,self.ncp_t)+j+(1,)].value * (1.0 + state_noise[(x,j)])# + noise # again tailored to RADAU nodes
-                    # for initialization: take constant values + leave time invariant values as is!
-                    for k in range(0,self.ncp_t+1):
-                        x_var[(1,k)+j+(1,)].value = x_var[(1,self.ncp_t)+j+(1,)].value
            
-            
-    
         # result is the previous olnmpc solution 
         #    --> therefore provides information about the sampling interval
         # 1 element model for forward simulation
@@ -384,7 +386,9 @@ class NmpcGen(DynGen):
 #        self.plant_simulation_model.A['i'] = (1+0.0984632133588) * 396400.0
 #        self.plant_simulation_model.kA = (1-0.0437808119933) * 0.0717017208413
         
-     
+#        self.plant_simulation_model.A['p'].value = 11928.339882298764
+#        self.plant_simulation_model.A['i'].value = 448058.08664717613
+#        self.plant_simulation_model.kA.value =  0.06848021034849187
         
         # probably redundant
         self.plant_simulation_model.clear_all_bounds()      
@@ -399,7 +403,8 @@ class NmpcGen(DynGen):
         out = ip.solve(self.plant_simulation_model, tee=True)
 
         if [str(out.solver.status), str(out.solver.termination_condition)] != ['ok','optimal']:
-            self.plant_simulation_model.clear_all_bounds()
+            self.plant_simulation_model.create_bounds()
+            self.plant_simulation_model.clear_aux_bounds()
             out = ip.solve(self.plant_simulation_model, tee = True)
         
         self.plant_trajectory[self.iterations,'solstat'] = [str(out.solver.status), str(out.solver.termination_condition)]
