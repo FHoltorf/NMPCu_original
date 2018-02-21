@@ -244,8 +244,8 @@ class NmpcGen(DynGen):
         initial_disturbance = kwargs.pop('initial_disturbance', {(x,j):0.0 for x in self.states for j in self.state_vars[x]})
         parameter_disturbance = kwargs.pop('parameter_disturbance', {})
         state_disturbance = kwargs.pop('state_disturbance', {})
-        input_disturbance = kwargs.pop('input_disturbance',{})
-        parameter_scenario = kwargs.pop('scenario',{})        
+        input_disturbance = kwargs.pop('input_disturbance', {})
+        parameter_scenario = kwargs.pop('scenario', {})        
         
         #  generate the disturbance according to specified scenario
         state_noise = {}
@@ -266,7 +266,7 @@ class NmpcGen(DynGen):
                 disturbed_parameter = getattr(self.plant_simulation_model, p[0])
                 pkey = None if p[1] == () else p[1]
                 if first_call:  
-                    self.nominal_parameter_values[p] = deepcopy(disturbed_parameter[p[1]].value)
+                    self.nominal_parameter_values[p] = deepcopy(disturbed_parameter[pkey].value)
                 if (self.iterations-1)%parameter_disturbance[p][1] == 0:
                     sigma = parameter_disturbance[p][0]
                     rand = np.random.normal(loc=0.0, scale=sigma)
@@ -393,9 +393,9 @@ class NmpcGen(DynGen):
         #        self.plant_simulation_model.A['i'] = 1.0108695384819*396400.0
 
         
-#        self.plant_simulation_model.A['p'] = 11386.76#/1e4
-#        self.plant_simulation_model.kA = 0.0640803573856
-#        self.plant_simulation_model.A['i'] = 387759.706213#/1e4
+#        self.plant_simulation_model.A['p'] = 0.8*13504.2
+#        self.plant_simulation_model.kA = 0.8*0.07170172
+#        self.plant_simulation_model.A['i'] = 0.8*396400.0
         
         
         self.plant_simulation_model.clear_all_bounds()
@@ -1151,7 +1151,8 @@ class NmpcGen(DynGen):
             # otw. backtrack backoff
             flag = True
             rho = 0.8
-            while(flag):
+            b = 0
+            while(flag and b < 10):
                 nlp_results = ip.solve(m, tee=False, symbolic_solver_labels=True)
                 flag = False
                 if [str(nlp_results.solver.status),str(nlp_results.solver.termination_condition)] != ['ok','optimal']:
@@ -1164,16 +1165,14 @@ class NmpcGen(DynGen):
                         xi = getattr(self.olnmpc, 'xi_' + cname)
                         xi[index[-1]] = rho*xi[index[-1]].value 
                         flag = True
-                        #m.eps.pprint()
-                        #sys.exit()
+
                 for index in m.eps_pc.index_set():
                     if m.eps_pc[index].value > 1e-1:
                         cname = self.olnmpc.pc_indices[index[-2]]
                         xi = getattr(self.olnmpc, 'xi_' + cname)
                         xi[index[:-2],index[-1]] = rho*xi[index[:-2],index[-1]].value 
                         flag = True
-                        #m.eps.pprint()
-                        #sys.exit()
+                b += 1       
                         
                 if flag:
                     print('Restricted Problem infeasible')
@@ -1265,24 +1264,31 @@ class NmpcGen(DynGen):
             if type(self.alpha) == float:
                 # case a): hypercube
                 for key in sens:
-                    sens[key] = self.alpha*sens[key]
+                    sens[key] *= self.alpha
             elif type(self.alpha) == dict:
-                # case b): hyperrectangle
+                # case b): hyperrectangle can also be adapted
                 for key in sens:
-                    sens[key] = self.alpha[key[1]]*sens[key]
+                    sens[key] *= self.alpha[key[1]]
             elif type(self.alpha) == tuple and self.alpha[1] == 'adapted':
-                # case c): weighting_matrix --> rectangle is tilted/aligned with principal components
+                # case c): weighting_matrix --> the enclosing 1-norm is tilted 
+                # it would be smarter to use the bounds obtained from the
+                # principle components of the confidence ellipsoid and just tilt
+                # it according to U in A = USV'
+                 
                 # self made matrix multiplication to ensure the rows and cols match...
+                
                 if type(self._scaled_shape_matrix) != dict:
                     for key in sens:
                         #key[1] = p # the exact same index for self.PI_indices
                         #self.PI_indices[key[1]] returns index for corresponding parameter in _PI
                         s = key[0] 
-                        m = self.PI_indices[key[1]]
-                        sens[key] = sum(sens[s,p]*self._scaled_shape_matrix[m][self.PI_indices[p]] for p in self.PI_indices)
+                        if key[1] in self.PI_indices:
+                            sens[key] = sum(sens[s,p]*self._scaled_shape_matrix[self.PI_indices[key[1]]][self.PI_indices[p]] for p in self.PI_indices)
+                        else:
+                            sens[key] *= self.alpha[0][key[1]]# in case there are additional params that are not estimated
                 else:
                     for key in sens:
-                        sens[key] = self.alpha[0][key[1]]*sens[key]
+                        sens[key] *= self.alpha[0][key[1]]
             else:
                 sys.exit('Error: Specification of uncertainty set not supported.')
             # convergence check and update    

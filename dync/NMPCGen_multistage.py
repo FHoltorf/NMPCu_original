@@ -259,7 +259,7 @@ class NmpcGen(DynGen):
         input_noise = {}
         if disturbance_src == 'process_noise':
             if state_disturbance != {}: 
-                for key in state_disturbances:
+                for key in state_disturbance:
                     state_noise[key] = np.random.normal(loc=0.0, scale=state_disturbance[key])
                     # potentially implement truncation at 2 sigma
             else:
@@ -344,7 +344,18 @@ class NmpcGen(DynGen):
                         break
                     else:
                         var[key].value = var_ref[key].value
-        else:                
+        else:       
+            # shifting initial conditions
+            # adding state noise if specified    
+            for x in self.states:
+                xic = getattr(self.plant_simulation_model,x+'_ic')
+                x_var = getattr(self.plant_simulation_model,x)
+                for j in self.x_vars[x]:
+                    if j == (): 
+                        xic.value = x_var[(1,self.ncp_t)+j+(1,)].value * (1.0 + state_noise[(x,j)])#+ noise # again tailored to RADAU nodes
+                    else:
+                        xic[j].value = x_var[(1,self.ncp_t)+j+(1,)].value * (1.0 + state_noise[(x,j)])# + noise # again tailored to RADAU nodes
+           
             # initialization of simulation
             for var in self.plant_simulation_model.component_objects(Var, active=True):
                 try:
@@ -359,17 +370,6 @@ class NmpcGen(DynGen):
                     else:
                         var[key].value = var_ref[key].value
             
-            # initialization of state trajectories
-            # adding state noise if specified            
-            for x in self.states:
-                xic = getattr(self.plant_simulation_model,x+'_ic')
-                x_var = getattr(self.plant_simulation_model,x)
-                for j in self.x_vars[x]:
-                    if j == (): 
-                        xic.value = x_var[(1,self.ncp_t)+j+(1,)].value * (1.0 + state_noise[(x,j)])#+ noise # again tailored to RADAU nodes
-                    else:
-                        xic[j].value = x_var[(1,self.ncp_t)+j+(1,)].value * (1.0 + state_noise[(x,j)])# + noise # again tailored to RADAU nodes
-           
         # result is the previous olnmpc solution 
         #    --> therefore provides information about the sampling interval
         # 1 element model for forward simulation
@@ -389,7 +389,12 @@ class NmpcGen(DynGen):
 #        self.plant_simulation_model.A['p'].value = 11928.339882298764
 #        self.plant_simulation_model.A['i'].value = 448058.08664717613
 #        self.plant_simulation_model.kA.value =  0.06848021034849187
-        
+
+
+#        self.plant_simulation_model.A['p'] = (1-0.0) * 13504.2
+#        self.plant_simulation_model.A['i'] = (1-0.0) * 396400.0
+#        self.plant_simulation_model.kA = (1-0.0) * 0.0717017208413
+
         # probably redundant
         self.plant_simulation_model.clear_all_bounds()      
         
@@ -409,7 +414,7 @@ class NmpcGen(DynGen):
         
         self.plant_trajectory[self.iterations,'solstat'] = [str(out.solver.status), str(out.solver.termination_condition)]
         self.plant_trajectory[self.iterations,'tf'] = self.plant_simulation_model.tf[1,1].value
-        
+    
         # safe results of the plant_trajectory dictionary {number of iteration, (x,j): value}
         for u in self.u:
             control = getattr(self.plant_simulation_model,u)
@@ -464,6 +469,12 @@ class NmpcGen(DynGen):
         # change tf via as as well?
         self.forward_simulation_model.tf[1,1].fix(self.olnmpc.tf[1,1].value) 
 
+        if self.adapt_params and self.iterations > 1:
+            for index in self.curr_epars:
+                p = getattr(self.forward_simulation_model, index[0])
+                key = index[1] if index[1] != () else None
+                p[key].value = self.curr_epars[index]
+                
         # general initialization
         # not super efficient but works
         for var in self.olnmpc.component_objects(Var, active=True):
@@ -496,7 +507,8 @@ class NmpcGen(DynGen):
                 # for initialization: take constant values + leave time invariant values as is!
                 for k in range(0,self.ncp_t+1):# use only 
                     xvar[(1,k)+j+(1,)].value = current_state_info[(x,j+(1,))]
-        
+                    
+
         # set and fix control as provided by olnmpc/advanced step update
         for u in self.u:
             control = getattr(self.forward_simulation_model,u)
@@ -1541,7 +1553,7 @@ class NmpcGen(DynGen):
                 dummy_con = getattr(m, dummy)
                 for index in dummy_con.index_set():
                     if index[-1] == 1 and index[0] == 2:
-                        #index[0] = time_step --> 2
+                        #index[0] = time_step --> 2 and later
                         #index[-1] = scenrio (only nominal scenario)
                         m.dcdp.set_value(dummy_con[index], i+1)
                         cols[i] = (p,key+index)

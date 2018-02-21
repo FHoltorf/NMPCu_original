@@ -8,8 +8,8 @@ Created on Fri Sep 29 21:51:51 2017
 from __future__ import print_function
 from pyomo.environ import *
 from main.dync.MHEGen_multistage import MheGen
-from main.mods.cj.mod_class_cj_pwa_multistage import *
-from main.mods.cj.mod_class_cj_pwa import *
+from main.mods.final_pwa.mod_class_cj_pwa_multistage import *
+from main.mods.final_pwa.mod_class_cj_pwa import *
 import sys
 import itertools, sys, csv
 import numpy as np
@@ -32,7 +32,9 @@ p_noisy = {"A":[('p',),('i',)],'kA':[()]}
 u = ["u1", "u2"]
 u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)} 
 
-y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
+#y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
+#y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
+y = {"PO",  'T', "MY","Y"}
 y_vars = {"Y":[()],"PO":[()],"MW":[()], "m_tot":[()],"W":[()],"MX":[(0,),(1,)],"MY":[()],'T':[()]}
 nfe = 24
 tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
@@ -88,7 +90,7 @@ e = MheGen(d_mod=SemiBatchPolymerization_multistage,
            noisy_inputs = False,
            noisy_params = True,
            adapt_params = True,
-           update_scenario_tree = True,
+           update_scenario_tree = False,
            process_noise_model = None,#'params_bias',
            confidence_threshold = alpha,
            robustness_threshold = 0.05,
@@ -97,7 +99,7 @@ e = MheGen(d_mod=SemiBatchPolymerization_multistage,
            obj_type='tracking',
            nfe_t=nfe,
            sens=None,
-           diag_QR=False,
+           diag_QR=True,
            del_ics=False,
            path_constraints=pc)
 ###############################################################################
@@ -129,12 +131,17 @@ for i in range(1,nfe):
     # here measurement becomes available
     e.load_reference_trajectories()
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
+#    if i == 2:
+#        sys.exit()
     if e.update_scenario_tree:
         e.compute_confidence_ellipsoid()
-    
+
+#    if i ==2:
+#        sys.exit()
     # solve the advanced step problems
     e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
     e.solve_olnmpc() # solves the olnmpc problem
+
     
     e.olnmpc.write_nl()
     e.cycle_iterations()

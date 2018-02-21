@@ -97,13 +97,16 @@ for i in range(1,nfe):
     # here measurement becomes available
     #e.lsmhe.clear_all_bounds()
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
+#    if i == 2:
+#        sys.exit()
+    
     #e.compute_confidence_ellipsoid()
     e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
-
+    
     e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
     e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
     e.solve_olnmpc() # solves the olnmpc problem
-
+    
     e.cycle_iterations()
     k += 1
 

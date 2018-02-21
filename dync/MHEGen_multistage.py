@@ -449,8 +449,7 @@ class MheGen(NmpcGen):
                 
             
         # adjust the time intervals via model parameter self.lsmhe.fe_dist[i]
-        self.lsmhe.tf.fixed = True
-        self.lsmhe.tf.value = self.recipe_optimization_model.tf[1,1].value # base is set via recipe_optimization_model
+        self.lsmhe.tf.fix(self.recipe_optimization_model.tf[1,1].value) # base is set via recipe_optimization_model
         for i in self.lsmhe.fe_t:
             self.lsmhe.fe_dist[i] = (self.nmpc_trajectory[i,'tf']-self.nmpc_trajectory[i-1,'tf'])/self.lsmhe.tf.value
         
@@ -505,6 +504,7 @@ class MheGen(NmpcGen):
         with open("ipopt.opt", "w") as f:
             f.write("print_info_string yes")
             f.close()
+
 
         result = ip.solve(self.lsmhe, tee=True)
         
@@ -615,14 +615,8 @@ class MheGen(NmpcGen):
                             self.curr_epars[(p,key)] = p_mhe[pkey].value
                     else:
                         pass
-                    
-
-                
-
 
             ###############################################################
-            ### DISCLAIMER:
-            ### currently tailored to two stage which is reasonable since multiple stages do not make sense
             ###############################################################
             # alternative: use the projections on the axis
             # projection x^T A x = 1
@@ -656,7 +650,12 @@ class MheGen(NmpcGen):
                 for k in self.st:
                     for index in self.st[k][3]:
                         if k[1] != 1: # 1 is nominal scenario
-                            self.st[k][3][index] =  1.0 + dev[index] if self.st[k][3][index] > 1.0 else 1.0 - dev[index]
+                            try:
+                                self.st[k][3][index] =  1.0 + dev[index] if self.st[k][3][index] > 1.0 else 1.0 - dev[index]
+                            except:
+                                # catch that not every uncertain parameter included in the scenario tree
+                                # is necessarily is measured
+                                pass
                         else:
                             continue   
             
@@ -892,10 +891,10 @@ class MheGen(NmpcGen):
                 v_j = self.yk_key[vnj]
                 for t in range(1,self.nfe_mhe+1):
                     if self.diag_Q_R:                
-                        rtarget[t, v_i] = 1 / (cov_dict[vni, vnj]*self.measurement[t][vni] + 0.001)**2
+                        rtarget[t, v_i] = 1 / max(cov_dict[vni, vnj]*self.measurement[t][vni],0.01)**2
                     else:
                         # only allow for diagonal measurement covariance matrices 
-                        rtarget[t, v_i, v_j] = 1 / (cov_dict[vni, vnj]*self.measurement[t][vni] + 0.001)**2
+                        rtarget[t, v_i, v_j] = 1 / max(cov_dict[vni, vnj]*self.measurement[t][vni],0.01)**2
             else:
                 continue
 

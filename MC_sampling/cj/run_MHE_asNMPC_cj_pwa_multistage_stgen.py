@@ -143,25 +143,41 @@ def run(**kwargs):
             e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)          
             e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE   
-            e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
             e.cycle_nmpc(e.store_results(e.olnmpc))   
     
+        # cycle ics prediction
+        e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
+
+        # solve olnmpc
+        e.set_regularization_weights(K_w = 0.1, Q_w = 0.0, R_w = 0.0)
+        t0 = time.clock()
+        e.solve_olnmpc() # solves the olnmpc problem
+        CPU_t[i,'ocp'] = time.clock() - t0
+        # compute sensitivity matrix
+        e.create_suffixes_nmpc()
+        e.sens_k_aug_nmpc()
+        # worst case scenario has to be computed right away because sens_dot will change model
+        e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
+            
+
+        
         # solve mhe problem
         t0 = time.clock()
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
         CPU_t[i,'mhe'] = time.clock() - t0
+        
         if e.update_scenario_tree:  
             e.compute_confidence_ellipsoid()
-        e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
-        
-        # e.load_reference_trajectories()
-        
-        e.set_regularization_weights(K_w = 0.0, Q_w = 0.0, R_w = 0.0)
+          
+        # fast update
         t0 = time.clock()
-        e.solve_olnmpc() # solves the olnmpc problem
-        CPU_t[i,'ocp'] = time.clock() - t0
+        e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True
+        e.compute_offset_state(src_kind="estimated")
+        e.sens_dot_nmpc()   
+        CPU_t[i,'sens_dot'] = time.clock() - t0
         
-        #sIpopt
+        # forward simulation for next iteration
+        e.forward_simulation()
         e.cycle_iterations()
         k += 1
        

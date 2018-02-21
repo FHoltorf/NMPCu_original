@@ -572,7 +572,7 @@ class MheGen(NmpcGen):
                 else:
                     xic.value = ivs[(x,j)]
 
-        if (self.adapt_params or self.update_scenario_tree or self.update_uncertainty_set) \
+        if (self.adapt_params or self.update_uncertainty_set) \
             and self.iterations > 1:
             ###################################################################
             # comute principle components of approximate 95%-confidence region 
@@ -619,98 +619,86 @@ class MheGen(NmpcGen):
             
             
             ###############################################################
-            ### DISCLAIMER:
-            ### currently tailored to single stage which is reasonable since multiple stages do not make sense
             ###############################################################
-            # can I delete?
-            if self.update_scenario_tree:
-                # idea: go through the axis of the ellipsoid (U) and include the intersections of this axis with confidence ellipsoid on both ends as scenarios (sigmapoints)
-                # only accept these scenarios if sigmapoints are inside hypercube spanned by euclidean unit vectors around nominal value  
-                l = 0
-                scenarios = {}
-                for m in range(dimension):
-                    l += 2
-                    for p in self.p_noisy:
-                        p_mhe = getattr(self.lsmhe,p)
-                        for key in self.p_noisy[p]: 
-                            pkey = None if key == () else key
-                            index = self.PI_indices[p_mhe.name,key]
-                            dev = -1e8
-                            for check in range(dimension): # little redundant but ok
-                                dev = max(dev,(abs(radii[check]*U[index][check]) + p_mhe[pkey].value)/p_mhe[pkey].value)
-                            if dev < 1 + self.confidence_threshold:# confident enough in parameter estimate --> adapt parameter in prediction and NMPC model
-                                if dev >  1 + self.robustness_threshold:# minimum robustness threshold is not reached
-                                    scenarios[(p,key),l] = (radii[m]*U[index][m] + p_mhe[pkey].value)/p_mhe[pkey].value
-                                    scenarios[(p,key),l+1] = (p_mhe[pkey].value - radii[m]*U[index][m])/p_mhe[pkey].value
-                                else:# minimum robustness threshold is reached already
-                                    if np.sign(U[index][m]) == 1:
-                                        scenarios[(p,key),l] = 1 + self.robustness_threshold
-                                        scenarios[(p,key),l+1]= 1 - self.robustness_threshold
-                                    else:
-                                        scenarios[(p,key),l] = 1 - self.robustness_threshold
-                                        scenarios[(p,key),l+1] = 1 + self.robustness_threshold
-                            else:
-                                if np.sign(U[index][m]) == 1:
-                                    scenarios[(p,key),l] = 1+self.confidence_threshold
-                                    scenarios[(p,key),l+1] = 1-self.confidence_threshold
-                                else:
-                                    scenarios[(p,key),l] = 1-self.confidence_threshold
-                                    scenarios[(p,key),l+1] = 1+self.confidence_threshold    
-                # update scenario tree
-                l = 0
-                for m in range(dimension):
-                    l += 1
-                    for p in self.p_noisy:
-                        for key in self.p_noisy[p]:
-                            try:
-                                self.st[p,key,l] = scenarios[(p,key),l]
-                            except KeyError:
-                                continue
-                            
-                            
+            # alternative: use the projections on the axis
+            # projection x^T A x = 1
+            # A_k = A with kth row and kth column with zeros and akk = 1
+            # solve A_k*D_k = Z_k 
+            # with Z_k = -a_k (kth column of A) and Z_k,k = 1.0
+            # delta_x_k = np.sqrt(a_k^T*D_k)
+            
             if self.update_uncertainty_set:
-                # tailored to hyperrectangles and linear approximation of LLP
-                # enscribe confidence_ellipsoid in hyperrectangle
-                        # started with hyperrectangle ||diag(alpha_i)^(-1)*x||_inf <= 1
-                        # replace weighting by approximate covariance matrix
-                        #           --> dual norm ||V_p^1/2 * x||_1 <= 1
-                        #           --> compute parameter covariance matrix normalized to nominal values
-                # check if all half axis endpoints lie inside hyperrectangle
-                self._scaled_shape_matrix = {}
-                flag = False
+                dev = {(p,key):self.confidence_threshold for p in self.p_noisy for key in self.p_noisy[p]}
                 for p in self.p_noisy:
                     p_mhe = getattr(self.lsmhe,p)
-                    dev = -1e8# initialize
                     for key in self.p_noisy[p]:
-                        key = None if key == () else key
-                        index = self.PI_indices[p_mhe.name,key]
-                        for m in range(dimension):
-                            dev = max(dev,(abs(radii[m]*U[index][m]) + p_mhe[pkey].value)/p_mhe[pkey].value)
-                            if dev > 1 + self.confidence_threshold:
-                                flag = True
-                                break
-                            elif dev < 1 + self.robustness_threshold:
-                                # if confidence high enough, use minimum robustness_threshold
-                                self._scaled_shape_matrix = np.diag([self.robustness_threshold,self.robustness_threshold])
-                                flag = True
-                        if flag:
-                            break
-                    if flag:
-                        break
+                        pkey = key if key != () else None
+                        k = self.PI_indices[p,key]
+                        A_k = deepcopy(A)
+                        A_k[:,k] = 0.0
+                        A_k[k,:] = 0.0
+                        A_k[k,k] = 1.0
+                        Z_k = np.zeros(dimension)
+                        Z_k[:] = -A[:,k]
+                        Z_k[k] = 1.0
+                        a_k = A[k,:]
+                        D_k = np.linalg.solve(A_k,Z_k)
+                        dev_k = np.sqrt(1/np.dot(a_k,D_k))/p_mhe[pkey].value
+                        # use new interval if robustness_threshold < dev_k < confidence_threshold
+                        dev[(p,key)] = min(self.confidence_threshold,max(self.robustness_threshold, dev_k))
+
+                # create new weighting matrix:
+                for p in self.p_noisy:
+                    for key in self.p_noisy[p]:
+                        self.alpha[(p,key)] = dev[(p,key)]
+            
+
+#  ALTERNATIVE: USE THE CONFIDENCE ELLIPSOID DIRECTLY TO COMPUTE WEIGHTING MATRIX
+#  YIELDS WEIGHTING MATRIX WITH OFF-DIAGONAL ELEMENTS --> PRINCIPLE COMPONENTS NOT 
+#  ALIGNED WITH COORDINATE AXIS
+                        
+# tailored to hyperrectangles and linear approximation of LLP
+# enscribe confidence_ellipsoid in hyperrectangle
+        # started with hyperrectangle ||diag(alpha_i)^(-1)*x||_inf <= 1
+        # replace weighting by approximate covariance matrix
+        #           --> dual norm ||V_p^1/2 * x||_1 <= 1
+        #           --> compute parameter covariance matrix normalized to nominal values
+# check if all half axis endpoints lie inside hyperrectangle
+#                self._scaled_shape_matrix = {}
+#                flag = False
+#                for p in self.p_noisy:
+#                    p_mhe = getattr(self.lsmhe,p)
+#                    dev = -1e8# initialize
+#                    for key in self.p_noisy[p]:
+#                        key = None if key == () else key
+#                        index = self.PI_indices[p_mhe.name,key]
+#                        for m in range(dimension):
+#                            dev = max(dev,(abs(radii[m]*U[index][m]) + p_mhe[pkey].value)/p_mhe[pkey].value)
+#                            if dev > 1 + self.confidence_threshold:
+#                                flag = True
+#                                break
+#                            elif dev < 1 + self.robustness_threshold:
+#                                # if confidence high enough, use minimum robustness_threshold
+#                                self._scaled_shape_matrix = np.diag([self.robustness_threshold,self.robustness_threshold])
+#                                flag = True
+#                        if flag:
+#                            break
+#                    if flag:
+#                        break
                 # if all halfaxis endpoints lie inside hyperrectangle --> continue
-                if not(flag):
-                    # create new weighting matrix:
-                    #  --> generally normalize principle components to their size
-                    scaling = np.zeros((dimension,dimension))
-                    for p in self.p_noisy:
-                        p_mhe = getattr(self.lsmhe,p)
-                        for key in self.p_noisy[p]:
-                            m = self.PI_indices[p,key]
-                            pkey = None if key == () else key
-                            scaling[m][m] = p_mhe[pkey].value
-                    self.scaled_shape_matrix = np.linalg.inv(np.dot(scaling.transpose(),np.dot(A,scaling)))
-                    self.scaled_shape_matrix = sqrtm(self._scaled_shape_matrix) # weighting matrix to find rectangle that has ellipsoid inscribed
-                                
+#                if not(flag):
+#                    # create new weighting matrix:
+#                    #  --> generally normalize principle components to their size
+#                    scaling = np.zeros((dimension,dimension))
+#                    for p in self.p_noisy:
+#                        p_mhe = getattr(self.lsmhe,p)
+#                        for key in self.p_noisy[p]:
+#                            m = self.PI_indices[p,key]
+#                            pkey = None if key == () else key
+#                            scaling[m][m] = p_mhe[pkey].value
+#                    self.scaled_shape_matrix = np.linalg.inv(np.dot(scaling.transpose(),np.dot(A,scaling)))
+#                    self.scaled_shape_matrix = sqrtm(self._scaled_shape_matrix) # weighting matrix to find rectangle that has ellipsoid inscribed
+                               
     def compute_offset_measurements(self):
         mhe_y = getattr(self.lsmhe, "yk0_mhe")
         for y in self.y:
@@ -874,10 +862,10 @@ class MheGen(NmpcGen):
                 v_j = self.yk_key[aux_key[1]]
                 for t in range(1,self.nfe_mhe+1):
                     if self.diag_Q_R:                
-                        rtarget[t, v_i] = 1 / (cov_dict[vni, vnj]*self.measurement[t][vni_m] + 0.001)**2
+                        rtarget[t, v_i] = 1.0 / (cov_dict[vni, vnj]*self.measurement[t][vni_m]+0.001)**2
                     else:
                         # only allow for diagonal measurement covariance matrices 
-                        rtarget[t, v_i, v_j] = 1 / (cov_dict[vni, vnj]*self.measurement[t][vni_m] + 0.001)**2 ## fixx
+                        rtarget[t, v_i, v_j] = 1.0 / (cov_dict[vni, vnj]*self.measurement[t][vni_m]+0.001)**2 ## fixx
             else:
                 continue
 

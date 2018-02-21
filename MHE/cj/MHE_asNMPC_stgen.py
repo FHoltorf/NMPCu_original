@@ -8,8 +8,8 @@ Created on Fri Sep 29 21:51:51 2017
 from __future__ import print_function
 from pyomo.environ import *
 from main.dync.MHEGen_multistage import MheGen
-from main.mods.cj.mod_class_stgen import *
-from main.mods.cj.mod_class_cj_pwa import *
+from main.mods.final_pwa.mod_class_stgen import *
+from main.mods.final_pwa.mod_class_cj_pwa import *
 import sys
 import itertools, sys, csv
 import numpy as np
@@ -27,7 +27,7 @@ from main.noise_characteristics_cj import *
 gamma = 0
 #while(True):
 #    gamma+=1
-print('#'*15,gamma)
+#print('#'*15,gamma)
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)],"T":[()],"T_cw":[()]}
@@ -104,7 +104,7 @@ e = MheGen(d_mod=SemiBatchPolymerization_multistage,
            noisy_params = True,
            adapt_params = True,
            update_scenario_tree = True,
-           process_noise_model = None,
+           process_noise_model = None,#'params',
            confidence_threshold = alpha,
            robustness_threshold = 0.05,
            estimate_exceptance = 10000,
@@ -124,8 +124,7 @@ e.recipe_optimization()
 e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
 e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
 e.generate_state_index_dictionary()
-e.create_enmpc() # with tracking-type regularization
-#e.load_reference_trajectories()
+e.create_enmpc()
 e.create_mhe()
 
 k = 1 
@@ -144,23 +143,33 @@ for i in range(1,nfe):
         e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)          
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE   
-        e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
         e.cycle_nmpc(e.store_results(e.olnmpc))   
 
-    if e.plant_trajectory[i,'solstat'] != ['ok','optimal']:
-        sys.exit()
+    # cycle ics prediction
+    e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
+
+    # solve olnmpc
+    e.set_regularization_weights(K_w = 0.1, Q_w = 0.0, R_w = 0.0)
+    e.solve_olnmpc() # solves the olnmpc problem
+    # compute sensitivity matrix
+    e.create_suffixes_nmpc()
+    e.sens_k_aug_nmpc()
+    # worst case scenario has to be computed right away because sens_dot will change model
+    e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
+    
     # solve mhe problem
     previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-    e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
-    if e.update_scenario_tree:
+    
+    if e.update_scenario_tree:  
         e.compute_confidence_ellipsoid()
-    #sys.exit()
-    # e.load_reference_trajectories()
+      
+    # fast update
+    e.update_state_mhe()
+    e.compute_offset_state(src_kind="estimated")
+    e.sens_dot_nmpc()   
     
-    #e.set_regularization_weights(K_w = 0.0, Q_w = 0.0, R_w = 0.0)
-    e.solve_olnmpc() # solves the olnmpc problem
-    
-    #sIpopt
+    # forward simulation for next iteration
+    e.forward_simulation()
     e.cycle_iterations()
     k += 1
    
@@ -168,7 +177,6 @@ for i in range(1,nfe):
     if  e.nmpc_trajectory[i,'solstat'] != ['ok','optimal'] or \
         e.nmpc_trajectory[i,'solstat_mhe'] != ['ok','optimal'] or \
         e.plant_trajectory[i,'solstat'] != ['ok','optimal']:
-        sys.exit()
         break
 
 # simulate the last step too

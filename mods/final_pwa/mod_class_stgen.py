@@ -135,15 +135,16 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                     p_par[key[1],k,index[1]].value = self.scenario_tree[index][3][key] 
                     p[key[1],k,index[1]].value = self.scenario_tree[index][3][key]     
                     p[key[1],k,index[1]].unfix()
-                    
-        for s in self.s:
-            self.p_T_ic_par[2,s] = 1.0 
-            self.p_PO_ic_par[2,s] = 1.0 
-            self.p_W_ic_par[2,s] = 1.0
-            self.p_MX_ic_par[0,2,s] = 1.0 
-            self.p_MX_ic_par[1,2,s] = 1.0
-            self.p_MY_ic_par[2,s] = 1.0
-            self.p_Y_ic_par[2,s] = 1.0
+
+# that is not required                    
+#        for s in self.s:
+#            self.p_T_ic_par[2,s] = 1.0 
+#            self.p_PO_ic_par[2,s] = 1.0 
+#            self.p_W_ic_par[2,s] = 1.0
+#            self.p_MX_ic_par[0,2,s] = 1.0 
+#            self.p_MX_ic_par[1,2,s] = 1.0
+#            self.p_MY_ic_par[2,s] = 1.0
+#            self.p_Y_ic_par[2,s] = 1.0
         
         
         # parameters for l1-relaxation of endpoint-constraints

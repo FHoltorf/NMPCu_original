@@ -14,9 +14,9 @@ import time
 # model with cooling jacket 
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_bo import *
-from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
+#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBBM import *
-#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage_stgen import *
+from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage_stgen import *
 
 
 #################################################################
@@ -38,11 +38,11 @@ for j in range(4):
         for l in range(4):
             scenarios[i] = {('A',('p',)):Ap[j][k][l],('A',('i',)):Ai[j][k][l],('kA',()):kA[j][k][l]}
             i += 1
-    
+#    
 # inputs
-sample_size = 4*4*4
+sample_size = 64
 # specifiy directory where to save the resulting files
-path = 'results/finalfinal/timeinvariant/standard/multistage/' 
+path = 'results/finalfinal/' 
 # colors
 color = ['green','red','blue']
 tf = {}

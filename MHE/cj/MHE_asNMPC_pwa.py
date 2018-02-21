@@ -79,7 +79,7 @@ for i in range(1,nfe):
         e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
         e.set_measurement_prediction(e.store_results(e.recipe_optimization_model))
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
-        e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov) #adjusts the mhe problem according to new available measurements
+        e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov, first_call = True) #adjusts the mhe problem according to new available measurements
         e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
         e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
