@@ -91,20 +91,8 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.p_kA = Param(self.fe_t, self.s, initialize=1.0, mutable=True)
         self.p_n_KOH = Param(self.fe_t, self.s, initialize=1.0, mutable=True)
         # set parameter values
-        for k in self.scenario_tree:
-            #k[0] finite element
-            #k[1] scenario
-            try:
-                for key in self.scenario_tree[1,1][3]:
-                    p = getattr(self, 'p_' + key[0])
-                    if type(key[1]) == tuple:
-                        aux_key = key[1] + k
-                    else:
-                        aux_key = (key[1],k[0],k[1])
-                    p[aux_key] = self.scenario_tree[k][3][key]
-            except:
-                # catch case if scenario_tree includes more scenarios than self.s does
-                continue
+        self.set_scenarios()
+        
         # parameters for l1-relaxation of endpoint-constraints
         self.eps = Var(self.epc, self.s, initialize=0, bounds=(0,None))
         self.eps.fix()
@@ -1137,7 +1125,23 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.ipopt_zU_out = Suffix(direction=Suffix.IMPORT)
         self.ipopt_zL_in = Suffix(direction=Suffix.EXPORT)
         self.ipopt_zU_in = Suffix(direction=Suffix.EXPORT)                  
-       
+     
+    def set_scenarios(self):
+        for k in self.scenario_tree:
+            #k[0] finite element
+            #k[1] scenario
+            try:
+                for key in self.scenario_tree[1,1][3]:
+                    p = getattr(self, 'p_' + key[0])
+                    if type(key[1]) == tuple:
+                        aux_key = key[1] + k
+                    else:
+                        aux_key = (key[1],k[0],k[1])
+                    p[aux_key] = self.scenario_tree[k][3][key]
+            except:
+                # catch case if scenario_tree includes more scenarios than self.s does
+                continue
+            
     def e_state_relation(self):
         pass
     

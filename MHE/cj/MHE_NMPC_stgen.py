@@ -8,8 +8,8 @@ Created on Fri Sep 29 21:51:51 2017
 from __future__ import print_function
 from pyomo.environ import *
 from main.dync.MHEGen_multistage import MheGen
-from main.mods.cj.mod_class_stgen import *
-from main.mods.cj.mod_class_cj_pwa import *
+from main.mods.final_pwa.mod_class_stgen import *
+from main.mods.final_pwa.mod_class_cj_pwa import *
 import sys
 import itertools, sys, csv
 import numpy as np
@@ -43,11 +43,10 @@ cons = ['PO_ptg','unsat','mw','temp_b','T_max','T_min']#
 y = {"Y","MY","PO",'T'}
 y_vars = {"Y":[()],"MY":[()],"PO":[()],'T':[()]}
 
-noisy_ics = {'PO_ic':[()],'T_ic':[()],'MY_ic':[()]}
+noisy_ics = {'PO_ic':[()],'T_ic':[()],'MY_ic':[()],'MX_ic':[(0,)]}
 p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2),('kA',()):(-0.2,0.2),
-            ('T_ic',()):(-0.01,0.01),
-            ('PO_ic',()):(-0.01,0.01),
-            ('MY_ic',()):(-0.01,0.01)}
+            ('PO_ic',()):(-0.005,0.005),('T_ic',()):(-0.005,0.005),
+            ('MY_ic',()):(-0.01,0.01),('MX_ic',(0,)):(-0.0005,0.0005)}
 
 nfe = 24
 tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
@@ -59,30 +58,48 @@ st = {} # scenario tree : {parent_node, scenario_number on current stage, base n
 s_max = 3
 nr = 2
 alpha = 0.2
+
+dummy ={(1, 2): {('A', ('p',)): 1-alpha, ('kA', ()): 1+alpha, ('T_ic', ()): 1+alpha, ('A', ('i',)): 1-alpha, ('MY_ic', ()): 1+alpha, ('PO_ic', ()): 1+alpha}, 
+         (1, 3): {('A', ('p',)): 1-alpha, ('kA', ()): 1+alpha, ('T_ic', ()): 1-alpha, ('A', ('i',)): 1+alpha, ('MY_ic', ()): 1-alpha, ('PO_ic', ()): 1+alpha}, 
+         (2, 3): {('A', ('p',)): 1-alpha, ('A', ('i',)): 1-alpha, ('kA', ()): 1-alpha},
+         (2, 2): {('A', ('p',)): 1-alpha, ('A', ('i',)): 1-alpha, ('kA', ()): 1+alpha}}
+
 for i in range(1,nfe+1):
     if i < nr + 1:
         for s in range(1,s_max**i+1):
             if s%s_max == 1:
                 st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A',('p',)):1.0,('A',('i',)):1.0,('kA',()):1.0}) 
-            elif s%s_max == 2:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
-            elif s%s_max == 3:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
-            elif s%s_max == 4:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
-            elif s%s_max == 5:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
-            elif s%s_max == 6:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
-            elif s%s_max == 7:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
-            elif s%s_max == 8:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
             else:
-                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
+                scen = s%s_max if s%s_max != 0 else 3
+                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,dummy[(i,scen)])
     else:
         for s in range(1,s_max**nr+1):
             st[(i,s)] = (i-1,s,True,st[(i-1,s)][3])
+            
+#for i in range(1,nfe+1):
+#    if i < nr + 1:
+#        for s in range(1,s_max**i+1):
+#            if s%s_max == 1:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),True,{('A',('p',)):1.0,('A',('i',)):1.0,('kA',()):1.0}) 
+#            elif s%s_max == 2:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
+#            elif s%s_max == 3:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
+#            elif s%s_max == 4:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
+#            elif s%s_max == 5:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0-alpha})
+#            elif s%s_max == 6:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
+#            elif s%s_max == 7:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0+alpha,('kA',()):1.0+alpha})
+#            elif s%s_max == 8:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0+alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
+#            else:
+#                st[(i,s)] = (i-1,int(ceil(s/float(s_max))),False,{('A',('p',)):1.0-alpha,('A',('i',)):1.0-alpha,('kA',()):1.0+alpha})
+#    else:
+#        for s in range(1,s_max**nr+1):
+#            st[(i,s)] = (i-1,s,True,st[(i-1,s)][3])
 
 sr = s_max**nr
 
@@ -124,7 +141,7 @@ e.recipe_optimization()
 e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
 e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
 e.generate_state_index_dictionary()
-e.create_enmpc() # with tracking-type regularization
+e.create_enmpc()
 #e.load_reference_trajectories()
 e.create_mhe()
 
@@ -133,34 +150,28 @@ for i in range(1,nfe):
     print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
     e.create_mhe()
     if i == 1:
-        e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call=True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+        #e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call=True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+        e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call=True,disturbance_src = "parameter_scenario",scenario={('A',('p',)):-0.2,('A',('i',)):-0.2,('kA',()):-0.2})
         e.set_measurement_prediction(e.store_results(e.recipe_optimization_model)) # only required for asMHE
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
         e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,p_cov=pcov, first_call=True) #adjusts the mhe problem according to new available measurements
         e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
         e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
     else:
-        e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_noise",parameter_disturbance = v_param)
-        e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
+        #e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+        e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_scenario",scenario={('A',('p',)):-0.2,('A',('i',)):-0.2,('kA',()):-0.2})
+        e.set_measurement_prediction(e.store_results(e.plant_simulation_model))
         e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)          
         e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE   
         e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
         e.cycle_nmpc(e.store_results(e.olnmpc))   
 
-    if e.plant_trajectory[i,'solstat'] != ['ok','optimal']:
-        sys.exit()
-    # solve mhe problem
-    previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-    e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
+    previous_mhe = e.solve_mhe(fix_noise=True)
     if e.update_scenario_tree:
         e.compute_confidence_ellipsoid()
-    #sys.exit()
-    # e.load_reference_trajectories()
-    
-    #e.set_regularization_weights(K_w = 0.0, Q_w = 0.0, R_w = 0.0)
-    e.solve_olnmpc() # solves the olnmpc problem
-    
-    #sIpopt
+    e.cycle_ics_mhe(nmpc_as=False,mhe_as=False)
+
+    e.solve_olnmpc() 
     e.cycle_iterations()
     k += 1
    

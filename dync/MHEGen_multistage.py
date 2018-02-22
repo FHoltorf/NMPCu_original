@@ -658,7 +658,8 @@ class MheGen(NmpcGen):
                                 pass
                         else:
                             continue   
-            
+                self.olnmpc.set_scenarios()
+                self.nmpc_trajectory[self.iterations, 'st'] = deepcopy(self.st)
 #            if self.update_scenario_tree: 
 #                # idea: go through the axis of the ellipsoid (U) and include the intersections of this axis with confidence ellipsoid on both ends as scenarios (sigmapoints)
 #                # only accept these scenarios if sigmapoints are inside hypercube spanned by initial bounds              

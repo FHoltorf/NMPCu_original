@@ -42,7 +42,7 @@ for j in range(4):
 # inputs
 sample_size = 64
 # specifiy directory where to save the resulting files
-path = 'results/finalfinal/' 
+path = 'results/finalfinal/timeinvariant/parest/multistage_stgen/' 
 # colors
 color = ['green','red','blue']
 tf = {}

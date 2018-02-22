@@ -1553,7 +1553,7 @@ class NmpcGen(DynGen):
                 dummy_con = getattr(m, dummy)
                 for index in dummy_con.index_set():
                     if index[-1] == 1 and index[0] == 2:
-                        #index[0] = time_step --> 2 and later
+                        #index[0] = time_step --> 2
                         #index[-1] = scenrio (only nominal scenario)
                         m.dcdp.set_value(dummy_con[index], i+1)
                         cols[i] = (p,key+index)
