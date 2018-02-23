@@ -1712,8 +1712,9 @@ class NmpcGen(DynGen):
             elif crit == 'con':
                 con_vio_copy = {con:con_vio[con] for con in con_vio if con[1] == i}
             else:
-                sys.exit('Error: Wrong specification of scenario tree generation criterion')         
-            for s in range(2,int(np.round(self.s_max**(1.0/self.nr)))+1): # scenario 1 is reserved for the nomnal sscenario
+                sys.exit('Error: Wrong specification of scenario-tree generation criterion')         
+            s_branch_max = int(np.round(self.s_max**(1.0/self.nr)))+1 if i != self.nfe_t + 1 else int(self.s_max/((np.round(self.s_max**((self.nfe_t-1.0)/self.nr)))))+1
+            for s in range(2,s_branch_max): # scenario 1 is reserved for the nomnal sscenario
                 wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
                 scenarios[i-1,s] = delta_p_wc[wc_scenario]
                 # remove scenario from scenarios:

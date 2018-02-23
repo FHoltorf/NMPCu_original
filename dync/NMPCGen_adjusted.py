@@ -1177,8 +1177,8 @@ class NmpcGen(DynGen):
                 b += 1       
                         
                 if flag:
-                    print('Restricted Problem infeasible')
-                    print('backtrack')
+                    #print()
+                    print('Restricted Problem infeasible --> backtrack')
                     continue
 
             print('iteration ' + str(iters) + ' converged')
@@ -1304,13 +1304,13 @@ class NmpcGen(DynGen):
                         # can be extended to computing the 2-norm --> ellipsoidal uncertainty set
                         new_backoff = sum(abs(sens[(('s_'+i,index),reverse_dict_pars[k])]) for k in range(1,n_p+1))
                         # update backoff margins 
-                        old_backoff = backoff[('s_'+i,index)]
-                        if backoff[('s_'+i,index)] - new_backoff < 0:
+                        if backoff[('s_'+i,index)] - new_backoff <= -eps:
                             backoff[('s_'+i,index)] = new_backoff
                             backoff_var[index].value = new_backoff
+                            converged = False
                             # check convergence
-                            if  old_backoff - new_backoff <= -eps:
-                                converged = False
+                            #if  old_backoff - new_backoff <= -eps:
+                            #    converged = False
                         else:
                             continue
                     except KeyError:
@@ -1325,6 +1325,8 @@ class NmpcGen(DynGen):
                 u_var = getattr(m,u)
                 u_var.unfix()
             m.tf.unfix()
+            m.eps.unfix()
+            m.eps_pc.unfix()
             
             for i in cons:
                 slack = getattr(m, 's_'+i)
