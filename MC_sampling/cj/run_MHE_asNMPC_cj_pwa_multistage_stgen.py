@@ -8,8 +8,8 @@ Created on Tue Dec 26 22:25:28 2017
 from __future__ import print_function
 from pyomo.environ import *
 from main.dync.MHEGen_multistage import MheGen
-from main.mods.cj.mod_class_stgen import *
-from main.mods.cj.mod_class_cj_pwa import *
+from main.mods.final_pwa.mod_class_stgen import *
+from main.mods.final_pwa.mod_class_cj_pwa import *
 import sys
 import itertools, sys, csv
 import numpy as np
@@ -150,31 +150,36 @@ def run(**kwargs):
 
         # solve olnmpc
         e.set_regularization_weights(K_w = 0.1, Q_w = 0.0, R_w = 0.0)
-        t0 = time.clock()
+        t0 = time.time()
         e.solve_olnmpc() # solves the olnmpc problem
-        CPU_t[i,'ocp'] = time.clock() - t0
+        CPU_t[i,'ocp'] = time.time() - t0
         # compute sensitivity matrix
+        t0 = time.time()
         e.create_suffixes_nmpc()
         e.sens_k_aug_nmpc()
-        # worst case scenario has to be computed right away because sens_dot will change model
-        e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
-            
-
+        CPU_t[i,'sens'] = time.time() - t0 
         
+        # worst case scenario has to be computed right away because sens_dot will change model
+        t0 = time.time()
+        e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
+        CPU_t[i,'stgen'] = time.time() - t0 
+                
         # solve mhe problem
-        t0 = time.clock()
+        t0 = time.time()
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-        CPU_t[i,'mhe'] = time.clock() - t0
+        CPU_t[i,'mhe'] = time.time() - t0
         
         if e.update_scenario_tree:  
+            t0 = time.time()
             e.compute_confidence_ellipsoid()
-          
+            CPU_t[i,'cr'] = time.time() - t0
+            
         # fast update
-        t0 = time.clock()
+        t0 = time.time()
         e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True
         e.compute_offset_state(src_kind="estimated")
         e.sens_dot_nmpc()   
-        CPU_t[i,'sens_dot'] = time.clock() - t0
+        CPU_t[i,'sens_dot'] = time.time() - t0
         
         # forward simulation for next iteration
         e.forward_simulation()
@@ -200,7 +205,7 @@ def run(**kwargs):
  
     #print(e.st)
         
-    e.plant_simulation(e.store_results(e.olnmpc))
+    e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_scenario",scenario=scenario)
     uncertainty_realization = {}
     for p in p_noisy:
         pvar_r = getattr(e.plant_simulation_model, p)

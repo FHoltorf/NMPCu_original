@@ -50,7 +50,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.G_scale = 1.0
         self.U_scale = 1.0e-2
         self.monomer_cooling_scale = 1.0e-2
-        self.scale = 1.0e0
+        self.scale = 1.0
         
         #these work perfectly fine too
 #        self.W_scale = 1#1

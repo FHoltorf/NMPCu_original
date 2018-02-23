@@ -796,22 +796,22 @@ class SemiBatchPolymerization(ConcreteModel):
 #        self.kA.setlb(0.5*2200.0/self.Hrxn['p']*60/20.0)
 #        self.kA.setub(1.5*2200.0/self.Hrxn['p']*60/20.0)
 #        self.kA.value =2200.0/self.Hrxn['p']*60/20.0
-        self.A['i'].setlb(self.A['i'].value*0.5/self.scale)
-        self.A['i'].setub(self.A['i'].value*1.5/self.scale)
+        self.A['i'].setlb(396400.0*0.5/self.scale)
+        self.A['i'].setub(396400.0*1.5/self.scale)
         #self.A['i'].value = 396400.0/self.scale
         
-        self.A['p'].setlb(self.A['p'].value*0.5/self.scale)
-        self.A['p'].setub(self.A['p'].value*1.5/self.scale)
+        self.A['p'].setlb(13504.2*0.5/self.scale)
+        self.A['p'].setub(13504.2*1.5/self.scale)
         #self.A['p'].value = 13504.2/self.scale
         
         self.A['t'].setlb(1.509e6*0.5/self.scale)
         self.A['t'].setub(1.509e6*1.5/self.scale)
-        self.A['t'].value = 1.509e6/self.scale
+        #self.A['t'].value = 1.509e6/self.scale
         
         self.Hrxn_aux['p'].setlb(0.5)
         self.Hrxn_aux['p'].setlb(1.5)
-        self.Hrxn_aux['p'].value = 1.0
-        #
+        #self.Hrxn_aux['p'].value = 1.0
+        
         self.kA.setlb(0.5*self.kA.value)
         self.kA.setub(1.5*self.kA.value)
         #self.kA.value =2200.0/self.Hrxn['p']*60/20.0

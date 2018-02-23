@@ -127,33 +127,37 @@ def run(**kwargs):
             e.set_measurement_prediction(e.store_results(e.recipe_optimization_model)) # only required for asMHE
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
             e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,p_cov=pcov, first_call=True) #adjusts the mhe problem according to new available measurements
+            t0 = time.time()
             e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
+            CPU_t[i,'stgen'] = time.time() - t0
             e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
         else:
             #e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_noise",parameter_disturbance = v_param)
             e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_scenario",scenario=scenario)
             e.set_measurement_prediction(e.store_results(e.plant_simulation_model))
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)          
-            e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE   
+            e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE  
+            t0 = time.time()
             e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
+            CPU_t[i,'stgen'] = time.time() - t0
             e.cycle_nmpc(e.store_results(e.olnmpc))   
     
         # solve mhe problem
-        t0 = time.clock()
+        t0 = time.time()
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-        CPU_t[i,'mhe'] = time.clock() - t0
+        CPU_t[i,'mhe'] = time.time() - t0
         if e.update_scenario_tree:  
-            t0 = time.clock()
+            t0 = time.time()
             e.compute_confidence_ellipsoid()
-            CPU_t[i,'cr'] = time.clock() - t0
+            CPU_t[i,'cr'] = time.time() - t0
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
         
         # e.load_reference_trajectories()
         
         e.set_regularization_weights(K_w = 0.0, Q_w = 0.0, R_w = 0.0)
-        t0 = time.clock()
+        t0 = time.time()
         e.solve_olnmpc() # solves the olnmpc problem
-        CPU_t[i,'ocp'] = time.clock() - t0
+        CPU_t[i,'ocp'] = time.time() - t0
         
         #sIpopt
         e.cycle_iterations()

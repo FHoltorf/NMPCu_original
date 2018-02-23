@@ -64,9 +64,9 @@ for i in range(sample_size):
     print('#'*20)
     print('#'*20)
     try:
-        t0 = time.clock()
+        t0 = time.time()
         tf[i],endpoint_constraints[i],path_constraints[i],uncertainty_realization[i],CPU_t[i] = run(scenario=scenarios[i])
-        runtime[i] = time.clock() - t0
+        runtime[i] = time.time() - t0
     except ValueError:
         tf[i],endpoint_constraints[i],path_constraints[i],uncertainty_realization[i],CPU_t[i] = 'error', {'epc_PO_ptg': 'error', \
                                    'epc_mw': 'error', \

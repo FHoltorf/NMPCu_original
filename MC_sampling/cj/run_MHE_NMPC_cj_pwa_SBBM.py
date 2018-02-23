@@ -62,6 +62,7 @@ def run(**kwargs):
                noisy_inputs = False,
                noisy_params = False,
                adapt_params = False,
+               update_uncertainty_set = False,
                process_noise_model = 'params_bias',
                u_bounds=u_bounds,
                tf_bounds = tf_bounds,
@@ -101,30 +102,34 @@ def run(**kwargs):
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
             e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) 
             e.cycle_nmpc(e.store_results(e.olnmpc))     
-    
+
         # here measurement becomes available
-        t0 = time.clock()
+        t0 = time.time()
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-        CPU_t[i,'mhe'] = time.clock() - t0
-        # solve the advanced step problems
+        CPU_t[i,'mhe'] = time.time() - t0
+        if e.update_uncertainty_set:  
+            t0 = time.time()
+            e.compute_confidence_ellipsoid()
+            CPU_t[i,'cr'] = time.time() - t0
+            
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
-    
+
         e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
         e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
-        
-        t0 = time.clock()
-        e.solve_olrnmpc(cons=cons,eps=1e-1) # solves the olnmpc problem
-        CPU_t[i,'ocp'] = time.clock() - t0
     
+        t0 = time.time()
+        e.solve_olrnmpc(cons=cons,eps=1e-1) # solves the olnmpc problem
+        CPU_t[i,'ocp'] = time.time() - t0
+
         e.cycle_iterations()
         k += 1
-    
+
         if  e.nmpc_trajectory[i,'solstat'] != ['ok','optimal'] or \
             e.nmpc_trajectory[i,'solstat_mhe'] != ['ok','optimal'] or \
             e.plant_trajectory[i,'solstat'] != ['ok','optimal']:
             break
-    
-    e.plant_simulation(e.store_results(e.olnmpc))
+
+    e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_scenario",scenario=scenario)
     uncertainty_realization = {}
     for p in p_noisy:
         pvar_r = getattr(e.plant_simulation_model, p)

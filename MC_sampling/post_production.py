@@ -12,9 +12,16 @@ from mpl_toolkits.mplot3d import Axes3D # for 3d histogram plots
 import sys
 
 #folders = ['online_estimation','multistage','backoff','standard']
-folders = ['cj/MHE/ideal/tiv-few_meas/parnoise','cj/MHE/ideal/tiv-few_meas/parest-adapt','cj/MHE/ideal/tiv-few_meas/parest-noadapt','cj/MHE/multistage/tiv-few_meas/parest-noadapt','cj/MHE/multistage/tiv-few_meas/stadapt','cj/MHE/SBBM/tiv-few_meas/parest-adapt'] # save the run specific plots here
-directory = 'results/cj/' # save overall plots here
-method = {'cj/MHE/ideal/tiv-few_meas/parnoise':'iNMPC-pn','cj/MHE/ideal/tiv-few_meas/parest-adapt':'iNMPC-adapt','cj/MHE/ideal/tiv-few_meas/parest-noadapt':'iNMPC','cj/MHE/multistage/tiv-few_meas/parest-noadapt':'msNMPC','cj/MHE/multistage/tiv-few_meas/stadapt':'msNMPC ST','cj/MHE/SBBM/tiv-few_meas/parest-adapt':'rNMPC-adapt'}
+p1 = 'finalfinal/timeinvariant/parest/'
+p2 = 'finalfinal/timeinvariant/standard/'
+folders = [p1+'nominal',p1+'SBBM',p1+'multistage',p1+'multistage_stgen']#p1+'nominal_bo',
+directory = 'results/finalfinal/' # save overall plots here
+method = {p1+'nominal':'NMPC',
+          #p1+'nominal_bo':'NMPC-bo',
+          p1+'SBBM':'NMPC-SBBM',
+          p1+'multistage':'ms-NMPC',
+          p1+'multistage_stgen':'ms-NMPC-SG'}
+#method = {'cj/MHE/ideal/tiv-few_meas/parnoise':'iNMPC-pn','cj/MHE/ideal/tiv-few_meas/parest-adapt':'iNMPC-adapt','cj/MHE/ideal/tiv-few_meas/parest-noadapt':'iNMPC','cj/MHE/multistage/tiv-few_meas/parest-noadapt':'msNMPC','cj/MHE/multistage/tiv-few_meas/stadapt':'msNMPC ST','cj/MHE/SBBM/tiv-few_meas/parest-adapt':'rNMPC-adapt'}
 comparison = {}
 for folder in folders: 
     print(folder)
@@ -35,6 +42,18 @@ for folder in folders:
     
     f = open(path + 'runtime.pckl','rb')
     runtime = pickle.load(f)
+    f.close()
+    
+    f = open(path + 'CPU_t.pckl','rb')
+    CPU_t = pickle.load(f)
+    f.close()
+    
+    f = open(path + 'scenarios','rb')
+    scenarios = pickle.load(f)
+    f.close()
+    
+    f = open(path + 'uncertainty_realization.pckl','rb')
+    uncertainty_realization = pickle.load(f)
     f.close()
     
     constraint_name = []
@@ -73,7 +92,7 @@ for folder in folders:
     xlabel = {'epc_PO_ptg' : 'Unreacted monomer [PPM]', 'epc_unsat' : r'Unsaturated by-product $[\frac{mol}{g_{PO}}]$', 'epc_mw' : r'NAMW [$\frac{g}{mol}$]'}
     #axes = {'epc_PO_ptg' : [-80.0,120.0,0.0,75.0], 'epc_unsat' : [-30.0,70.0,0.0,35.0], 'epc_mw' : [-0.5,3.0,0.0,35.0],'tf':[320.0,500.0,0.0,35.0]}
     #axes = {'epc_PO_ptg' : [0.0,240.0], 'epc_unsat' : [0.029,0.0345], 'epc_mw' : [948.8,952.5],'tf':[320.0,500.0]}
-    axes = {'epc_PO_ptg' : [0.0,450], 'epc_unsat' : [0.025,0.041], 'epc_mw' : [947.0,962.0],'tf':[230.0,580.0]}
+    axes = {'epc_PO_ptg' : [0.0,450], 'epc_unsat' : [0.025,0.041], 'epc_mw' : [947.0,970.0],'tf':[240.0,720.0]}
     set_points = {'epc_PO_ptg' : 120, 'epc_unsat' : 0.032, 'epc_mw' : 949.5} 
     feasible_region = {'epc_PO_ptg' : 'l', 'epc_unsat' : 'l', 'epc_mw' : 'r'}
     # enpoint constraints 
@@ -87,22 +106,22 @@ for folder in folders:
         # remove outliers (not in interval +-n x std)
         x = [i for i in x if i >= mu-n*std and i <= mu+n*std]
         comparison[folder,constraint_name[k]] = x
-#        plt.figure(k)
-#        fig, ax = plt.subplots()
-#        n, bins, patches = ax.hist(x, 'auto', normed=None, facecolor=color[k], edgecolor='black', alpha=1.0)
-#        length = max(n)
-#        ax.plot([set_points[constraint_name[k]],set_points[constraint_name[k]]],[0.0,1.1*length],color='red',linestyle='dashed',linewidth=2)
-#        ax.set_xlim(axes[constraint_name[k]])
-#        # add label for feasible/infeasible regions
-#        if feasible_region[constraint_name[k]] == 'l':
-#            ax.text((set_points[constraint_name[k]]+axes[constraint_name[k]][0])/2,1.05*length,'feasible', fontweight='bold', horizontalalignment='center', verticalalignment='center')
-#            ax.text((axes[constraint_name[k]][1]+set_points[constraint_name[k]])/2,1.05*length,'infeasible', fontweight='bold', horizontalalignment='center', verticalalignment='center')
-#        else:
-#            ax.text((set_points[constraint_name[k]]+axes[constraint_name[k]][0])/2,1.05*length,'infeasible', fontweight='bold', horizontalalignment='center', verticalalignment='center')
-#            ax.text((axes[constraint_name[k]][1]+set_points[constraint_name[k]])/2,1.05*length,'feasible', fontweight='bold', horizontalalignment='center', verticalalignment='center')
-#        plt.xlabel(xlabel[constraint_name[k]])
-#        plt.ylabel('Frequency [-]')
-#        fig.savefig(path + constraint_name[k] +'.pdf')
+        plt.figure(k)
+        fig, ax = plt.subplots()
+        n, bins, patches = ax.hist(x, 'auto', normed=None, facecolor=color[k], edgecolor='black', alpha=1.0)
+        length = max(n)
+        ax.plot([set_points[constraint_name[k]],set_points[constraint_name[k]]],[0.0,1.1*length],color='red',linestyle='dashed',linewidth=2)
+        ax.set_xlim(axes[constraint_name[k]])
+        # add label for feasible/infeasible regions
+        if feasible_region[constraint_name[k]] == 'l':
+            ax.text((set_points[constraint_name[k]]+axes[constraint_name[k]][0])/2,1.05*length,'feasible', fontweight='bold', horizontalalignment='center', verticalalignment='center')
+            ax.text((axes[constraint_name[k]][1]+set_points[constraint_name[k]])/2,1.05*length,'infeasible', fontweight='bold', horizontalalignment='center', verticalalignment='center')
+        else:
+            ax.text((set_points[constraint_name[k]]+axes[constraint_name[k]][0])/2,1.05*length,'infeasible', fontweight='bold', horizontalalignment='center', verticalalignment='center')
+            ax.text((axes[constraint_name[k]][1]+set_points[constraint_name[k]])/2,1.05*length,'feasible', fontweight='bold', horizontalalignment='center', verticalalignment='center')
+        plt.xlabel(xlabel[constraint_name[k]])
+        plt.ylabel('Frequency [-]')
+        fig.savefig(path + constraint_name[k] +'.pdf')
 #    
     
     # compute final time histogram
@@ -145,7 +164,8 @@ for folder in folders:
                 else:
                     t[i].append(path_constraints[i]['tf',(fe,cp)])
         
-    max_tf = max([tf[i] for i in tf if endpoint_constraints[i]['feasible'] != 'crashed'])    
+    max_tf = max([tf[i] for i in tf if endpoint_constraints[i]['feasible'] != 'crashed'])   
+    min_tf = min([tf[i] for i in tf if endpoint_constraints[i]['feasible'] != 'crashed'])
     plt.figure(5)
     fig, ax = plt.subplots()
     for i in Tad:
@@ -174,23 +194,35 @@ for folder in folders:
     fes = 0
     infes = 0
     
-#    for i in range(iters):
-#        # problem is feasible
-#        if endpoint_constraints[i]['feasible'] == True:
-#            fes += 1
-#        elif endpoint_constraints[i]['feasible'] == False:
-#            infes += 1
-#    sizes = [fes, infes, iters-fes-infes]
-#    
-#    plt.figure(7)
-#    fig, ax = plt.subplots()
-#    explode = (0.0, 0.1, 0.0) 
-#    wedges= ax.pie(sizes,explode,labels=['feasible','infeasible','crashed'], autopct='%1.1f%%',shadow=True)
-#    for w in wedges[0]:
-#        w.set_edgecolor('black')
-#    plt.axis('equal')
-#    fig.savefig(path + 'feas.pdf')
+    for i in range(iters):
+        # problem is feasible
+        if endpoint_constraints[i]['feasible'] == True:
+            fes += 1
+        elif endpoint_constraints[i]['feasible'] == False:
+            infes += 1
+    sizes = [fes, infes, iters-fes-infes]
     
+    plt.figure(7)
+    fig, ax = plt.subplots()
+    explode = (0.0, 0.1, 0.0) 
+    wedges= ax.pie(sizes,explode,labels=['feasible','infeasible','crashed'], autopct='%1.1f%%',shadow=True)
+    for w in wedges[0]:
+        w.set_edgecolor('black')
+    plt.axis('equal')
+    fig.savefig(path + 'feas.pdf')
+    
+    # average economic performance:
+    print('best performance', min_tf, '[min]')
+    print('worst_performance', max_tf, '[min]')
+    print('avg_performance',sum(tf[i] for i in tf if endpoint_constraints[i]['feasible'] != 'crashed')/sum(1 for i in tf if endpoint_constraints[i]['feasible'] != 'crashed'),'[min]')
+    
+    # computational performance
+    comparison[folder,'t_ocp'] = [CPU_t[i][k,'ocp'] for i in CPU_t for k in range(1,24)]
+    comparison[folder,'t_mhe'] = [CPU_t[i][k,'mhe'] for i in CPU_t for k in range(1,24)]
+    try:
+        comparison[folder,'t_cr'] = [CPU_t[i]['cr'] for i in CPU_t]
+    except:
+        pass
     
 # plot the comparison distribution plots
 # colors
@@ -247,4 +279,31 @@ ax.set_zlabel('Frequency [-]')
 fig.autofmt_xdate()
 ax.grid(False)
 fig.savefig(directory+'tf_cp.pdf')
+
+
+# CPU times
+# MHE
+fig = plt.figure()
+# y-axis: % of instances solved in time t
+# x-axis: % time t
+t_steps = np.linspace(1,3,30)
+for folder in folders: 
+    aux = [sum(1.0 for entry in comparison[folder,'t_mhe'] if entry < t_steps[i])/len(comparison[folder,'t_mhe']) for i in range(len(t_steps))]
+    plt.plot(t_steps,aux,label=method[folder])
+plt.legend()
+
+
+# CPU times
+# NMPC
+fig = plt.figure()
+# y-axis: % of instances solved in time t
+# x-axis: % time t
+t_steps = np.linspace(0,35,100)
+for folder in folders: 
+    aux = [sum(1.0 for entry in comparison[folder,'t_ocp'] if entry < t_steps[i])/len(comparison[folder,'t_mhe']) for i in range(len(t_steps))]
+    plt.plot(t_steps,aux,label=method[folder])
+plt.xlabel('Execution time (real time) [s]')
+plt.ylabel('Percentage of instances solved [s]')
+plt.legend()
+#NMPC
 

@@ -58,6 +58,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.G_scale = 1
         self.U_scale = 1e-2
         self.monomer_cooling_scale = 1e-2
+        self.scale = 1
         
         # collocation pts
         self.tau_t = collptsgen(ncp, 1, 0) #compute normalized lagrange interpolation polynomial values according to desired collocation scheme
@@ -193,7 +194,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         
         # polymerization kinetics
         aux = np.array([8.64e4,3.964e5,1.35042e4,1.509e6]) # [m^3/mol/s]
-        self.A = Var(self.r,initialize=({'a':aux[0],'i':aux[1],'p':aux[2],'t':aux[3]}), bounds = (1e3,1e8)) #
+        self.A = Var(self.r,initialize=({'a':aux[0]/self.scale,'i':aux[1]/self.scale,'p':aux[2]/self.scale,'t':aux[3]/self.scale}), bounds = (1e3,1e8)) #
         self.A.fix()
         self.Ea = Param(self.r,initialize=({'a':82.425,'i':77.822,'p':69.172,'t':105.018}), mutable=True) # [kJ/mol] activation engergy 
         self.Hrxn = Param(self.r, initialize=({'a':0, 'i':92048, 'p':92048,'t':0}), mutable=True)
@@ -718,7 +719,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
             if (i,s) in self.scenario_tree:
                 k = i if i < self.nr + 2 else self.nr + 1
                 if j > 0:
-                    return 0.0 == (self.T[i,j,s]*self.T_scale*log(self.p_A[r,k,s]*self.A[r]*60*1000) - self.Ea[r]/self.Rg - self.T[i,j,s]*self.T_scale*self.k_l[i,j,r,s])
+                    return 0.0 == (self.T[i,j,s]*self.T_scale*log(self.p_A[r,k,s]*self.A[r]*60*1000*self.scale) - self.Ea[r]/self.Rg - self.T[i,j,s]*self.T_scale*self.k_l[i,j,r,s])
                 else:
                     return Constraint.Skip
             else:
@@ -1098,14 +1099,14 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         
     
     def par_to_var(self):
-        self.A['i'].setlb(396400.0*0.5)
-        self.A['i'].setub(396400.0*1.5)
+        self.A['i'].setlb(396400.0*0.5/self.scale)
+        self.A['i'].setub(396400.0*1.5/self.scale)
   
-        self.A['p'].setlb(13504.2*0.5)
-        self.A['p'].setub(13504.2*1.5)
+        self.A['p'].setlb(13504.2*0.5/self.scale)
+        self.A['p'].setub(13504.2*1.5/self.scale)
         
-        self.A['t'].setlb(1.509e6*0.5)
-        self.A['t'].setub(1.509e6*1.5)
+        self.A['t'].setlb(1.509e6*0.5/self.scale)
+        self.A['t'].setub(1.509e6*1.5/self.scale)
         
         self.Hrxn_aux['p'].setlb(0.5)
         self.Hrxn_aux['p'].setlb(1.5)

@@ -134,20 +134,22 @@ def run(**kwargs):
             e.cycle_nmpc(e.store_results(e.olnmpc))  
         
         # here measurement becomes available
-        t0 = time.clock()
+        t0 = time.time()
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
-        CPU_t[i,'mhe'] = time.clock() - t0
+        CPU_t[i,'mhe'] = time.time() - t0
         if e.update_scenario_tree:  
+            t0 = time.time()
             e.compute_confidence_ellipsoid()
+            CPU_t[i,'cr'] = time.time() - t0
         
         # solve the advanced step problems
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
         
         e.load_reference_trajectories()
         e.set_regularization_weights(K_w = 0.0, Q_w = 0.0, R_w = 0.0)
-        t0 = time.clock()
+        t0 = time.time()
         e.solve_olnmpc() # solves the olnmpc problem
-        CPU_t[i,'ocp'] = time.clock() - t0
+        CPU_t[i,'ocp'] = time.time() - t0
         
         e.cycle_iterations()
         k += 1
@@ -169,7 +171,7 @@ def run(**kwargs):
     
     #print(e.st)
         
-    e.plant_simulation(e.store_results(e.olnmpc))
+    e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_scenario",scenario=scenario)
     uncertainty_realization = {}
     for p in p_noisy:
         pvar_r = getattr(e.plant_simulation_model, p)
