@@ -1164,13 +1164,15 @@ class NmpcGen(DynGen):
                         cname = self.olnmpc.epc_indices[index[-2]]
                         xi = getattr(self.olnmpc, 'xi_' + cname)
                         xi[index[-1]] = rho*xi[index[-1]].value 
+                        backoff[('s_'+cname,index[-1])] = xi[index[-1]].value
                         flag = True
 
                 for index in m.eps_pc.index_set():
                     if m.eps_pc[index].value > 1e-1:
                         cname = self.olnmpc.pc_indices[index[-2]]
                         xi = getattr(self.olnmpc, 'xi_' + cname)
-                        xi[index[:-2],index[-1]] = rho*xi[index[:-2],index[-1]].value 
+                        xi[index[:-2],index[-1]] = rho*xi[index[:-2],index[-1]].value
+                        backoff[('s_'+cname,index[:-2],index[-1])] = xi[index[:-2],index[-1]].value
                         flag = True
                 b += 1       
                         
@@ -1178,6 +1180,7 @@ class NmpcGen(DynGen):
                     print('Restricted Problem infeasible')
                     print('backtrack')
                     continue
+
             print('iteration ' + str(iters) + ' converged')
             
             m.eps.fix()
@@ -1327,11 +1330,12 @@ class NmpcGen(DynGen):
                 slack = getattr(m, 's_'+i)
                 for index in slack.index_set():
                     slack[index].setlb(0)
-            ip.solve(m,tee=True, symbolic_solver_labels=True)           
+            nlp_results = ip.solve(m,tee=True, symbolic_solver_labels=True)
             # save converged results 
-            self.nmpc_trajectory[self.iterations,'solstat'] = [str(nlp_results.solver.status),str(nlp_results.solver.termination_condition)]
+            self.nmpc_trajectory[self.iterations,'solstat'] = [str(nlp_results.solver.status),str(nlp_results.solver.termination_condition)]       
             self.nmpc_trajectory[self.iterations+1,'tf'] = self.nmpc_trajectory[self.iterations,'tf'] + m.tf.value
             self.nmpc_trajectory[self.iterations,'eps'] = [m.eps[i].value for i in m.eps.index_set()]  
+            
             if self.obj_type == 'economic':
                 self.nmpc_trajectory[self.iterations,'obj_value'] = value(m.eobj)
             else:
