@@ -146,6 +146,7 @@ class NmpcGen(DynGen):
         initial_disturbance = kwargs.pop('initial_disturbance', {(x,j):0.0 for x in self.states for j in self.state_vars[x]})
         parameter_disturbance = kwargs.pop('parameter_disturbance', {})
         input_disturbance = kwargs.pop('input_disturbance',{})
+        parameter_scenario = kwargs.pop('parameter_scenario',{})
         
         # deactivate constraints
         self.recipe_optimization_model.deactivate_epc()
@@ -163,8 +164,9 @@ class NmpcGen(DynGen):
                 else:
                     nominal_initial_point[(x,j)] = xic[j].value
                     
-        if parameter_disturbance != {}:
-            for p in parameter_disturbance:
+        if parameter_disturbance != {} or parameter_scenario != {}:
+            par_dict = parameter_disturbance if parameter_disturbance != {} else parameter_scenario[0]
+            for p in par_dict:
                 key = p[1] if p[1] != () else None
                 disturbed_parameter = getattr(self.recipe_optimization_model, p[0])
                 self.nominal_parameter_values[p] = disturbed_parameter[key].value
@@ -198,7 +200,11 @@ class NmpcGen(DynGen):
                     key = p[1] if p[1] != () else None
                     disturbed_parameter = getattr(self.recipe_optimization_model, p[0])
                     disturbed_parameter[key].value = self.nominal_parameter_values[p] * (1 + np.random.normal(loc=0.0, scale=parameter_disturbance[p][0]))    
-            
+            if parameter_scenario != {}:
+                for p in parameter_scenario[k]:
+                    key = p[1] if p[1] != () else None
+                    disturbed_parameter = getattr(self.recipe_optimization_model, p[0])
+                    disturbed_parameter[key].value = (1.0 + parameter_scenario[k][p])*self.nominal_parameter_values[p] 
             self.recipe_optimization_model.tf.fix()
             self.recipe_optimization_model.equalize_u(direction="u_to_r")
             # run the simulation

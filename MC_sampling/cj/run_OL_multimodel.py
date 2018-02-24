@@ -9,19 +9,34 @@ Created on Thu Nov  9 19:54:54 2017
 from __future__ import print_function
 from pyomo.environ import *
 from main.dync.MHEGen_multistage import MheGen
-from main.mods.cj.mod_class_cj_pwa_multistage import *
-from main.mods.cj.mod_class_cj_pwa import *
+from main.mods.final_pwa.mod_class_cj_pwa_multistage import *
+from main.mods.final_pwa.mod_class_cj_pwa import *
+from scipy.stats import chi2
+from main.noise_characteristics_cj import *
 import sys
 import itertools, sys, csv
 import numpy as np
 import matplotlib.pyplot as plt
 import numpy.linalg as linalg
-from scipy.stats import chi2
-from main.noise_characteristics_cj import *
 import pickle
 
-path = 'results/cj/OL/' 
-sample_size = 1000
+
+path = 'results/final/' 
+
+path = 'results/final/' 
+kA = np.array([-0.2,-0.1,0.0,0.1,0.2])#np.linspace(-0.2,0.2,num=4)
+Ap = np.array([-0.2,-0.1,0.0,0.1,0.2])#np.linspace(-0.2,0.2,num=4)
+Ai = np.array([-0.2,-0.1,0.0,0.1,0.2])#np.linspace(-0.2,0.2,num=4)
+Ap, Ai, kA = np.meshgrid(kA, Ai, Ap)
+i = 0
+scenarios = {}
+for j in range(len(kA)):
+    for k in range(len(Ai)):
+        for l in range(len(Ap)):
+            scenarios[i] = {('A',('p',)):Ap[j][k][l],('A',('i',)):Ai[j][k][l],('kA',()):kA[j][k][l]}
+            i += 1
+            
+sample_size = len(scenarios)
 
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
@@ -107,7 +122,7 @@ e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_mo
 e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
 e.generate_state_index_dictionary()
 
-endpoint_constraints, path_constraints = e.open_loop_simulation(sample_size=sample_size, parameter_disturbance=v_param)
+endpoint_constraints, path_constraints = e.open_loop_simulation(sample_size=sample_size, parameter_scenario=scenarios)
 
 
 for i in range(sample_size):

@@ -138,7 +138,8 @@ class NmpcGen(DynGen):
         initial_disturbance = kwargs.pop('initial_disturbance', {(x,j):0.0 for x in self.states for j in self.state_vars[x]})
         parameter_disturbance = kwargs.pop('parameter_disturbance', {})
         input_disturbance = kwargs.pop('input_disturbance',{})
-
+        parameter_scenario = kwargs.pop('parameter_scenario',{})
+        
         # deactivate constraints
         self.simulation_model = self.d_mod(self.nfe_t, self.ncp_t)
         self.simulation_model.deactivate_epc()
@@ -161,8 +162,9 @@ class NmpcGen(DynGen):
                 key = j[1:] if j != (1,) else None
                 nominal_initial_point[(x,j)] = xic[key].value
                     
-        if parameter_disturbance != {}:
-            for p in parameter_disturbance:
+        if parameter_disturbance != {} or parameter_scenario != {}:
+            par_dict = parameter_disturbance if parameter_disturbance != {} else parameter_scenario[0]
+            for p in par_dict:
                 key = p[1] if p[1] != () else None
                 disturbed_parameter = getattr(self.recipe_optimization_model, p[0])
                 self.nominal_parameter_values[p] = disturbed_parameter[key].value
@@ -204,7 +206,11 @@ class NmpcGen(DynGen):
                            disturbed_parameter[key].value = self.nominal_parameter_values[p] * (1 - 2*sigma)
                         else:
                             disturbed_parameter[key].value = self.nominal_parameter_values[p] * (1 + 2*sigma)
-                           
+            if parameter_scenario != {}:
+                for p in parameter_scenario[k]:
+                    key = p[1] if p[1] != () else None
+                    disturbed_parameter = getattr(self.simulation_model, p[0])
+                    disturbed_parameter[key].value = (1 + parameter_scenario[k][p])*self.nominal_parameter_values[p] 
                         
             
             self.simulation_model.tf.fix()
@@ -554,9 +560,8 @@ class NmpcGen(DynGen):
         self.recipe_optimization_model.initialize_element_by_element()       
         self.recipe_optimization_model.create_output_relations()
         self.recipe_optimization_model.create_bounds()
-        self.create_tf_bounds(self.recipe_optimization_model)
         self.recipe_optimization_model.clear_aux_bounds()
-        
+        self.create_tf_bounds(self.recipe_optimization_model)   
         
         if multimodel:
             self.recipe_optimization_model.multimodel()
@@ -1712,8 +1717,13 @@ class NmpcGen(DynGen):
             elif crit == 'con':
                 con_vio_copy = {con:con_vio[con] for con in con_vio if con[1] == i}
             else:
-                sys.exit('Error: Wrong specification of scenario-tree generation criterion')         
-            s_branch_max = int(np.round(self.s_max**(1.0/self.nr)))+1 if i != self.nfe_t + 1 else int(self.s_max/((np.round(self.s_max**((self.nfe_t-1.0)/self.nr)))))+1
+                sys.exit('Error: Wrong specification of scenario-tree generation criterion')       
+            if i != self.nfe_t:
+                s_branch_max = int(np.round(self.s_max**(1.0/self.nr)))+1 #if i != self.nfe_t else int(self.s_max/((np.round(self.s_max**((self.nfe_t-1.0)/self.nr)))))+1
+            elif i == 1:
+                s_branch_max = self.s_max
+            else:
+                s_branch_max = int(self.s_max/s_stage[i-2]) # int always floors
             for s in range(2,s_branch_max): # scenario 1 is reserved for the nomnal sscenario
                 wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
                 scenarios[i-1,s] = delta_p_wc[wc_scenario]

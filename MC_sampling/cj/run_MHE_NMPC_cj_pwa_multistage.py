@@ -94,7 +94,7 @@ def run(**kwargs):
                noisy_params = True,
                adapt_params = True,
                update_scenario_tree = True,
-               process_noise_model = None,#'params',
+               process_noise_model = None,#'params_bias',
                confidence_threshold = alpha,
                robustness_threshold = 0.05,
                estimate_exceptance = 10000,
@@ -119,16 +119,16 @@ def run(**kwargs):
         print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
         e.create_mhe()
         if i == 1:
-            e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
-            #e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_scenario", scenario=scenario)
+            #e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+            e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_scenario", scenario=scenario)
             e.set_measurement_prediction(e.store_results(e.recipe_optimization_model))
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
             e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,p_cov=pcov,first_call=True) 
             e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
         else:
-            e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
-            #e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_scenario",scenario=scenario)
-            e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
+            #e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
+            e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_scenario",scenario=scenario)
+            e.set_measurement_prediction(e.store_results(e.plant_simulation_model))
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
             e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) 
             e.cycle_nmpc(e.store_results(e.olnmpc))  
@@ -146,7 +146,7 @@ def run(**kwargs):
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
         
         e.load_reference_trajectories()
-        e.set_regularization_weights(K_w = 0.0, Q_w = 0.0, R_w = 0.0)
+        e.set_regularization_weights(K_w = 1.0, Q_w = 0.0, R_w = 0.0)
         t0 = time.time()
         e.solve_olnmpc() # solves the olnmpc problem
         CPU_t[i,'ocp'] = time.time() - t0

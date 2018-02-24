@@ -51,9 +51,9 @@ def run(**kwargs):
                p_noisy=p_noisy,
                u=u,
                noisy_inputs = False,
-               noisy_params = False,
-               adapt_params = False,
-               process_noise_model = 'params',
+               noisy_params = True,
+               adapt_params = True,
+               process_noise_model = None,#'params_bias',
                u_bounds=u_bounds,
                tf_bounds = tf_bounds,
                diag_QR=True,
@@ -87,7 +87,7 @@ def run(**kwargs):
         else:
             #e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
             e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_scenario",scenario=scenario)
-            e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
+            e.set_measurement_prediction(e.store_results(e.plant_simulation_model))
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
             e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) 
             e.cycle_nmpc(e.store_results(e.olnmpc))     
@@ -101,7 +101,7 @@ def run(**kwargs):
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
     
         e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
-        e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
+        e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=1.0) # R_w controls, Q_w states, K_w = control steps
         t0 = time.time()
         e.solve_olnmpc() # solves the olnmpc problem
         CPU_t[i,'ocp'] = time.time() - t0

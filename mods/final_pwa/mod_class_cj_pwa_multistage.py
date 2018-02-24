@@ -1166,26 +1166,28 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                 else:
                     var[index].setlb(None)
                     var[index].setub(None)
-       
-        for s in self.s:
-            self.eps[3,s].fix(0.0)
-       
-        self.theta = Var(initialize=1e3, bounds=(0.0,None))
-        self.epi = ConstraintList()        
-        self.epc_mw.deactivate()
-        for index in self.MW.index_set():
-            i = index[0]
-            j = index[1]
-            s = 1
-            if j != 0 and (i,s) in self.scenario_tree:
-                self.MW[index].value = (self.MX[i,j,1,s].value*self.MX1_scale/(self.MX[i,j,0,s].value*self.MX0_scale)*self.mw_PO.value*self.num_OH.value + self.mw_PG.value)/self.MW_scale
-            
-        for s in self.s:
-            self.epi.add(sum(self.tf[i,s] for i in self.fe_t) \
-                         + self.rho*(sum(self.eps[k,s] for k in self.epc) \
-                         + sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t)for k in self.pc) for j in self.cp if j > 0))\
-                         + 10*(self.MW[self.nfe,self.ncp,s]*self.MW_scale-self.molecular_weight)**2.0 <= self.theta)
-        self.eobj.expr = self.theta 
+        
+        # use epigraph form if not only endtime is minimized
+        if not(self.epc_mw_ub.active):
+            for s in self.s:
+                self.eps[3,s].fix(0.0)
+                
+            self.theta = Var(initialize=1e3, bounds=(0.0,None))
+            self.epi = ConstraintList()        
+            self.epc_mw.deactivate()
+            for index in self.MW.index_set():
+                i = index[0]
+                j = index[1]
+                s = 1
+                if j != 0 and (i,s) in self.scenario_tree:
+                    self.MW[index].value = (self.MX[i,j,1,s].value*self.MX1_scale/(self.MX[i,j,0,s].value*self.MX0_scale)*self.mw_PO.value*self.num_OH.value + self.mw_PG.value)/self.MW_scale
+                
+            for s in self.s:
+                self.epi.add(sum(self.tf[i,s] for i in self.fe_t) \
+                             + self.rho*(sum(self.eps[k,s] for k in self.epc) \
+                             + sum(sum(sum(self.eps_pc[i,j,k,s] for i in self.fe_t)for k in self.pc) for j in self.cp if j > 0))\
+                             + 10*(self.MW[self.nfe,self.ncp,s]*self.MW_scale-self.molecular_weight)**2.0 <= self.theta)
+            self.eobj.expr = self.theta 
                 
     def par_to_var(self):
         self.A['i'].setlb(396400.0*0.5/self.scale)

@@ -45,10 +45,8 @@ def run(**kwargs):
     pc = ['Tad','T']
     p_noisy = {"A":[('p',),('i',)],'kA':[()]}
     alpha = {('A',('p',)):0.2,('A',('i',)):0.2,('kA',()):0.2,
-              ('T_ic',()):0.01,
-              ('PO_ic',()):0.01,
-              ('Y_ic',()):0.01,
-              ('MY_ic',()):0.01}
+             ('PO_ic',()):0.02,('T_ic',()):0.005,
+             ('MY_ic',()):0.01,('MX_ic',(1,)):0.005}
     e = MheGen(d_mod=SemiBatchPolymerization,
                linapprox = True,
                alpha = alpha,
@@ -77,7 +75,7 @@ def run(**kwargs):
     ###############################################################################
     ###                                     NMPC
     ###############################################################################
-    e.recipe_optimization(cons=cons,eps=1e-1)
+    e.recipe_optimization(cons=cons,eps=1e-4)
     e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
     e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
     e.generate_state_index_dictionary()
@@ -98,7 +96,7 @@ def run(**kwargs):
         else:
             #e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
             e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_scenario",scenario=scenario)
-            e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
+            e.set_measurement_prediction(e.store_results(e.plant_simulation_model))
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
             e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) 
             e.cycle_nmpc(e.store_results(e.olnmpc))     
@@ -115,10 +113,10 @@ def run(**kwargs):
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
 
         e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
-        e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=0.0) # R_w controls, Q_w states, K_w = control steps
+        e.set_regularization_weights(K_w=1.0,R_w=0.0,Q_w=0.0) # R_w controls, Q_w states, K_w = control steps
     
         t0 = time.time()
-        e.solve_olrnmpc(cons=cons,eps=1e-1) # solves the olnmpc problem
+        e.solve_olrnmpc(cons=cons,eps=1e-4) # solves the olnmpc problem
         CPU_t[i,'ocp'] = time.time() - t0
 
         e.cycle_iterations()

@@ -33,7 +33,7 @@ x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy
 x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)],"T":[()],"T_cw":[()]}
 p_noisy = {"A":[('p',),('i',)],'kA':[()]}
 u = ["u1", "u2"]
-u_bounds = {"u1": (373.15/1e2, 443.15/1e2), "u2": (0, 3.0)} # 14.5645661157
+u_bounds = {"u1": (-5.0, 5.0), "u2": (0, 3.0)} # 14.5645661157
 
 
 cons = ['PO_ptg','unsat','mw','temp_b','T_max','T_min']#
@@ -43,10 +43,10 @@ cons = ['PO_ptg','unsat','mw','temp_b','T_max','T_min']#
 y = {"Y","MY","PO",'T'}
 y_vars = {"Y":[()],"MY":[()],"PO":[()],'T':[()]}
 
-noisy_ics = {'PO_ic':[()],'T_ic':[()],'MY_ic':[()],'MX_ic':[(0,)]}
+noisy_ics = {'PO_ic':[()],'T_ic':[()],'MY_ic':[()],'MX_ic':[(1,)]}
 p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2),('kA',()):(-0.2,0.2),
-            ('PO_ic',()):(-0.005,0.005),('T_ic',()):(-0.005,0.005),
-            ('MY_ic',()):(-0.01,0.01),('MX_ic',(0,)):(-0.0005,0.0005)}
+            ('PO_ic',()):(-0.02,0.02),('T_ic',()):(-0.005,0.005),
+            ('MY_ic',()):(-0.01,0.01),('MX_ic',(1,)):(-0.005,0.005)}
 
 nfe = 24
 tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
@@ -118,10 +118,10 @@ e = MheGen(d_mod=SemiBatchPolymerization_multistage,
            robust_horizon = nr,
            s_max = sr,
            noisy_inputs = False,
-           noisy_params = True,
-           adapt_params = True,
-           update_scenario_tree = True,
-           process_noise_model = None,
+           noisy_params = False,
+           adapt_params = False,
+           update_scenario_tree = False,
+           process_noise_model = 'params_bias',
            confidence_threshold = alpha,
            robustness_threshold = 0.05,
            estimate_exceptance = 10000,

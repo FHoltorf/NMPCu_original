@@ -42,10 +42,10 @@ def run(**kwargs):
     y = {"MY","Y","PO",'T'}#"m_tot"
     y_vars = {"MY":[()],"Y":[()],"PO":[()],'T':[()]} #"m_tot":[()],,"MW":[()]}
     
-    noisy_ics = {'PO_ic':[()],'T_ic':[()],'MY_ic':[()],'MX_ic':[(0,)]}
+    noisy_ics = {'PO_ic':[()],'T_ic':[()],'MY_ic':[()],'MX_ic':[(1,)]}
     p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2),('kA',()):(-0.2,0.2),
-                ('PO_ic',()):(-0.005,0.005),('T_ic',()):(-0.005,0.005),
-                ('MY_ic',()):(-0.01,0.01),('MX_ic',(0,)):(-0.0005,0.0005)}
+                ('PO_ic',()):(-0.02,0.02),('T_ic',()):(-0.005,0.005),
+                ('MY_ic',()):(-0.01,0.01),('MX_ic',(1,)):(-0.005,0.005)}
     
     nfe = 24
     tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
@@ -154,7 +154,7 @@ def run(**kwargs):
         
         # e.load_reference_trajectories()
         
-        e.set_regularization_weights(K_w = 0.0, Q_w = 0.0, R_w = 0.0)
+        e.set_regularization_weights(K_w = 1.0, Q_w = 0.0, R_w = 0.0)
         t0 = time.time()
         e.solve_olnmpc() # solves the olnmpc problem
         CPU_t[i,'ocp'] = time.time() - t0
@@ -182,7 +182,7 @@ def run(**kwargs):
  
     #print(e.st)
         
-    e.plant_simulation(e.store_results(e.olnmpc))
+    e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_scenario",scenario=scenario)
     uncertainty_realization = {}
     for p in p_noisy:
         pvar_r = getattr(e.plant_simulation_model, p)

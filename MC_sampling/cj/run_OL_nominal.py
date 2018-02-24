@@ -11,7 +11,7 @@ from pyomo.environ import *
 from scipy.stats import chi2
 from copy import deepcopy
 from main.dync.MHEGen_adjusted import MheGen
-from main.mods.cj.mod_class_cj_pwa import *
+from main.mods.final_pwa.mod_class_cj_pwa import *
 from main.noise_characteristics_cj import * 
 import itertools, sys, csv
 import numpy as np
@@ -19,8 +19,20 @@ import matplotlib.pyplot as plt
 import numpy.linalg as linalg
 
 
-path = 'results/cj/OL/nominal/150/' 
-sample_size = 1000
+path = 'results/final/' 
+kA = np.array([-0.2,-0.1,0.0,0.1,0.2])#np.linspace(-0.2,0.2,num=4)
+Ap = np.array([-0.2,-0.1,0.0,0.1,0.2])#np.linspace(-0.2,0.2,num=4)
+Ai = np.array([-0.2,-0.1,0.0,0.1,0.2])#np.linspace(-0.2,0.2,num=4)
+Ap, Ai, kA = np.meshgrid(kA, Ai, Ap)
+i = 0
+scenarios = {}
+for j in range(len(kA)):
+    for k in range(len(Ai)):
+        for l in range(len(Ap)):
+            scenarios[i] = {('A',('p',)):Ap[j][k][l],('A',('i',)):Ai[j][k][l],('kA',()):kA[j][k][l]}
+            i += 1
+            
+sample_size = len(scenarios)
 
 states = ["PO","MX","MY","Y","W","PO_fed","T","T_cw"] # ask about PO_fed ... not really a relevant state, only in mathematical sense
 x_noisy = ["PO","MX","MY","Y","W","PO_fed","T"] # all the states are noisy  
@@ -30,7 +42,7 @@ u = ["u1", "u2"]
 u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)} 
 
 nfe = 24
-tf_bounds = (10.0*24.0/nfe, 20.0*24.0/nfe)
+tf_bounds = (10.0*24.0/nfe, 30.0*24.0/nfe)
 
 pc = ['Tad','T']
 e = MheGen(d_mod=SemiBatchPolymerization,
@@ -59,7 +71,7 @@ e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_mo
 e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
 e.generate_state_index_dictionary()
 
-endpoint_constraints, path_constraints = e.open_loop_simulation(sample_size=sample_size, parameter_disturbance=v_param)
+endpoint_constraints, path_constraints = e.open_loop_simulation(sample_size=sample_size, parameter_scenario=scenarios)
 
 
 for i in range(sample_size):
