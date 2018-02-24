@@ -16,11 +16,11 @@ p1 = 'finalfinal/timeinvariant/parest/'
 p2 = 'finalfinal/timeinvariant/standard/'
 folders = [p1+'nominal',p1+'SBBM',p1+'multistage',p1+'multistage_stgen']#p1+'nominal_bo',
 directory = 'results/finalfinal/' # save overall plots here
-method = {p1+'nominal':'NMPC',
+method = {p1+'nominal':'nominal',
           #p1+'nominal_bo':'NMPC-bo',
-          p1+'SBBM':'NMPC-SBBM',
-          p1+'multistage':'ms-NMPC',
-          p1+'multistage_stgen':'ms-NMPC-SG'}
+          p1+'SBBM':'SBBM',
+          p1+'multistage':'ms',
+          p1+'multistage_stgen':'ms-SBSG'}
 #method = {'cj/MHE/ideal/tiv-few_meas/parnoise':'iNMPC-pn','cj/MHE/ideal/tiv-few_meas/parest-adapt':'iNMPC-adapt','cj/MHE/ideal/tiv-few_meas/parest-noadapt':'iNMPC','cj/MHE/multistage/tiv-few_meas/parest-noadapt':'msNMPC','cj/MHE/multistage/tiv-few_meas/stadapt':'msNMPC ST','cj/MHE/SBBM/tiv-few_meas/parest-adapt':'rNMPC-adapt'}
 comparison = {}
 for folder in folders: 

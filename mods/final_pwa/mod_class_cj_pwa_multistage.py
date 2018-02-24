@@ -1082,20 +1082,46 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.non_anticipativity_tf = Constraint(self.fe_t, self.s, rule=_non_anticipativity_tf)
         
         # fix size of finite elements after robust horizon is reached 
+#        def _fix_element_size(self,i,s):
+#            if (i,s) in self.scenario_tree:
+#                parent_node = self.scenario_tree[(i,s)][0:2]
+#                if i > self.nr+1:
+#                    return 0 == self.tf[i,s] - self.tf[parent_node]
+#                elif s == 1 and i != 1: #nominal scenario
+#                    return 0 == self.tf[i,s] - self.tf[parent_node]
+#                else:
+#                    return Constraint.Skip
+#            else:
+#                return Constraint.Skip
+#            
+#        self.fix_element_size = Constraint(self.fe_t, self.s, rule = _fix_element_size)
+               
+        
         def _fix_element_size(self,i,s):
             if (i,s) in self.scenario_tree:
                 parent_node = self.scenario_tree[(i,s)][0:2]
                 if i > self.nr+1:
                     return 0 == self.tf[i,s] - self.tf[parent_node]
-                elif s == 1 and i != 1: #nominal scenario
-                    return 0 == self.tf[i,s] - self.tf[parent_node]
+                #elif s == 1 and i != 1: #nominal scenario
+                #    return 0 == self.tf[i,s] - self.tf[parent_node]
+                #elif s == 1 and i != 1: #nominal scenario
+                #    return 0 == self.tf[i,s] - self.theta
                 else:
                     return Constraint.Skip
             else:
                 return Constraint.Skip
             
         self.fix_element_size = Constraint(self.fe_t, self.s, rule = _fix_element_size)
-               
+        
+        self.s_wc = Var(self.fe_t, self.s, initialize=0.0, bounds=(0,None))
+        
+        def _wcc(self,i,s):
+            if (i,s) in self.scenario_tree and i > self.nr+1 and s != 1:
+                return 0.0 == self.tf[1,1] - self.tf[i,s] - self.s_wc[i,s]
+            else:
+                return Constraint.Skip
+        
+        self.wcc = Constraint(self.fe_t, self.s, rule=_wcc)
         # objective
         # assumes symmetric tree, i.e. every node branches into the same number of children nodes
         # weights for obj. function:
@@ -1237,7 +1263,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.pc_T_max.deactivate()
     
     def clear_aux_bounds(self):
-        keep_bounds = ['s_temp_b','s_T_min','s_T_max','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','eps_pc','u1','u2','tf','T_cw','k_l'] 
+        keep_bounds = ['s_wc','s_temp_b','s_T_min','s_T_max','s_mw','s_PO_ptg','s_unsat','s_mw','s_mw_ub','s_PO_fed','eps','eps_pc','u1','u2','tf','T_cw','k_l'] 
         for var in self.component_objects(Var, active=True):
             if var.name in keep_bounds:
                 continue
