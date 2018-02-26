@@ -267,12 +267,12 @@ class SemiBatchPolymerization(ConcreteModel):
 
         # back-offs 
         self.xi_mw_ub = Param(initialize=0.0, mutable=True)
-        self.xi_mw = Param(initialize=2.0, mutable=True)#4.22
-        self.xi_PO_ptg = Param(initialize=100.0, mutable=True)#26.51
-        self.xi_unsat = Param(initialize=0.0036, mutable=True)
-        self.xi_temp_b = Param(self.fe_t, self.cp, initialize=12.09, mutable=True)        
-        self.xi_T_max = Param(self.fe_t, self.cp, initialize=1.8, mutable=True)
-        self.xi_T_min = Param(self.fe_t, self.cp, initialize=2.43, mutable=True)   
+        self.xi_mw = Param(initialize=0.18, mutable=True)#4.22 # 2.0 used for standard results
+        self.xi_PO_ptg = Param(initialize=80.0, mutable=True)#26.51 #100.0 used for standard results
+        self.xi_unsat = Param(initialize=0.0024, mutable=True)#0.0036 used for standard results
+        self.xi_temp_b = Param(self.fe_t, self.cp, initialize=9.09, mutable=True)      #12.09  
+        self.xi_T_max = Param(self.fe_t, self.cp, initialize=0.6, mutable=True)#1.8
+        self.xi_T_min = Param(self.fe_t, self.cp, initialize=1.2, mutable=True)#2.43   
 # Timevariant backoffs       
 #        T_max = {(1, 1): 0,
 #                 (1, 2): 0,
@@ -1321,33 +1321,33 @@ class SemiBatchPolymerization(ConcreteModel):
 #######################            Test Run             #######################
 ###############################################################################
 #
-Solver = SolverFactory('ipopt')
-Solver.options["halt_on_ampl_error"] = "yes"
-Solver.options["max_iter"] = 5000
-Solver.options["tol"] = 1e-8
-Solver.options["linear_solver"] = "ma57"
-f = open("ipopt.opt", "w")
-f.write("print_info_string yes")
-f.close()
-
-e = SemiBatchPolymerization(24,3)
-m = e.initialize_element_by_element()
-e.create_output_relations()
-e.create_bounds()
-e.clear_aux_bounds()
-
-#e.T_icc.deactivate()
-#e.T_cw_icc.deactivate()
-#e.T_icc.deactivate()
-#e.T[1,0].setlb(373.15/e.T_scale)
-#e.T_cw_icc.deactivate()
-#for index in e.F.index_set():
-#    e.F[index].setlb(0)
-#    e.F[index].setub(4.0)
-res=Solver.solve(e,tee=True)
-e.plot_profiles([e.PO,e.W,e.Y,e.PO_fed,e.MY,e.T,e.T_cw,e.F,e.dT_cw_dt,e.Tad])
-h = e.save_results(res)
-f = open('optimal_trajectory.pckl','wb')
-pickle.dump(h,f)
-f.close()
+#Solver = SolverFactory('ipopt')
+#Solver.options["halt_on_ampl_error"] = "yes"
+#Solver.options["max_iter"] = 5000
+#Solver.options["tol"] = 1e-8
+#Solver.options["linear_solver"] = "ma57"
+#f = open("ipopt.opt", "w")
+#f.write("print_info_string yes")
+#f.close()
+#
+#e = SemiBatchPolymerization(24,3)
+#m = e.initialize_element_by_element()
+#e.create_output_relations()
+#e.create_bounds()
+#e.clear_aux_bounds()
+#
+##e.T_icc.deactivate()
+##e.T_cw_icc.deactivate()
+##e.T_icc.deactivate()
+##e.T[1,0].setlb(373.15/e.T_scale)
+##e.T_cw_icc.deactivate()
+##for index in e.F.index_set():
+##    e.F[index].setlb(0)
+##    e.F[index].setub(4.0)
+#res=Solver.solve(e,tee=True)
+#e.plot_profiles([e.PO,e.W,e.Y,e.PO_fed,e.MY,e.T,e.T_cw,e.F,e.dT_cw_dt,e.Tad])
+#h = e.save_results(res)
+#f = open('optimal_trajectory.pckl','wb')
+#pickle.dump(h,f)
+#f.close()
 

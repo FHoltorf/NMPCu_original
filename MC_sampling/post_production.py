@@ -14,10 +14,10 @@ import sys
 #folders = ['online_estimation','multistage','backoff','standard']
 p1 = 'finalfinal/timeinvariant/parest/'
 p2 = 'finalfinal/timeinvariant/standard/'
-folders = [p1+'nominal',p1+'SBBM',p1+'multistage',p1+'multistage_stgen']#p1+'nominal_bo',
+folders = [p1+'nominal',p1+'nominal_bo',p1+'SBBM',p1+'multistage',p1+'multistage_stgen']
 directory = 'results/finalfinal/' # save overall plots here
 method = {p1+'nominal':'nominal',
-          #p1+'nominal_bo':'NMPC-bo',
+          p1+'nominal_bo':'NMPC-bo',
           p1+'SBBM':'SBBM',
           p1+'multistage':'ms',
           p1+'multistage_stgen':'ms-SBSG'}
@@ -87,7 +87,7 @@ for folder in folders:
             endpoint_constraints[i]['epc_mw'] = 949.5 + endpoint_constraints[i]['epc_mw'] 
         except TypeError:
             continue
-        
+       
     #unit = {'epc_PO_ptg' : ' [PPM]', 'epc_unsat' : ' [mol/g PO]', 'epc_mw' : ' [g/mol]'}
     xlabel = {'epc_PO_ptg' : 'Unreacted monomer [PPM]', 'epc_unsat' : r'Unsaturated by-product $[\frac{mol}{g_{PO}}]$', 'epc_mw' : r'NAMW [$\frac{g}{mol}$]'}
     #axes = {'epc_PO_ptg' : [-80.0,120.0,0.0,75.0], 'epc_unsat' : [-30.0,70.0,0.0,35.0], 'epc_mw' : [-0.5,3.0,0.0,35.0],'tf':[320.0,500.0,0.0,35.0]}
@@ -99,10 +99,11 @@ for folder in folders:
     for k in range(3):
         color[k]
         x = [endpoint_constraints[i][constraint_name[k]] for i in range(iters) if endpoint_constraints[i][constraint_name[k]] != 'error']
+        print('wc error ', constraint_name[k], min(x))
         # compute standard deviation
         std = np.std(x) 
         mu = np.mean(x)
-        n = 5
+        n = 100
         # remove outliers (not in interval +-n x std)
         x = [i for i in x if i >= mu-n*std and i <= mu+n*std]
         comparison[folder,constraint_name[k]] = x
@@ -286,24 +287,51 @@ fig.savefig(directory+'tf_cp.pdf')
 fig = plt.figure()
 # y-axis: % of instances solved in time t
 # x-axis: % time t
-t_steps = np.linspace(1,3,30)
-for folder in folders: 
-    aux = [sum(1.0 for entry in comparison[folder,'t_mhe'] if entry < t_steps[i])/len(comparison[folder,'t_mhe']) for i in range(len(t_steps))]
-    plt.plot(t_steps,aux,label=method[folder])
-plt.legend()
+style =   [('solid',               (0, ())),
+           ('dotted',              (0, (1, 5))),
+           ('dashed',              (0, (5, 5))),
+           ('dashdotted',          (0, (3, 5, 1, 5))),
+           ('densely dashdotdotted', (0, (3, 1, 1, 1, 1, 1))),
+           ('dashdotdotted',         (0, (3, 5, 1, 5, 1, 5))),
 
+             ('loosely dashed',      (0, (5, 10))),
+             
+             ('densely dashed',      (0, (5, 1))),
+        
+             ('loosely dashdotted',  (0, (3, 10, 1, 10))),
+             
+             ('densely dashdotted',  (0, (3, 1, 1, 1))),
+        
+             ('loosely dashdotdotted', (0, (3, 10, 1, 10, 1, 10))),
+             
+             
+             ('loosely dotted',      (0, (1, 10))),
+             
+             ('densely dotted',      (0, (1, 1))),]
+k = 0
+t_steps = np.linspace(0,4,50)
+for folder in folders: 
+    aux = [100*sum(1.0 for entry in comparison[folder,'t_mhe'] if entry < t_steps[i])/len(comparison[folder,'t_mhe']) for i in range(len(t_steps))]
+    plt.plot(t_steps,aux,linestyle=style[k][1],color='k',label=method[folder])
+    k+=1
+plt.legend()
+plt.xlabel('Execution time (real time) [s]')
+plt.ylabel('Percentage of instances solved [%]')
 
 # CPU times
 # NMPC
 fig = plt.figure()
 # y-axis: % of instances solved in time t
 # x-axis: % time t
-t_steps = np.linspace(0,35,100)
+t_steps = np.linspace(0,30,100)
+
+k = 0
 for folder in folders: 
-    aux = [sum(1.0 for entry in comparison[folder,'t_ocp'] if entry < t_steps[i])/len(comparison[folder,'t_mhe']) for i in range(len(t_steps))]
-    plt.plot(t_steps,aux,label=method[folder])
+    aux = [100*sum(1.0 for entry in comparison[folder,'t_ocp'] if entry < t_steps[i])/len(comparison[folder,'t_mhe']) for i in range(len(t_steps))]
+    plt.plot(t_steps,aux,linestyle=style[k][1],color='k',label=method[folder])
+    k += 1
 plt.xlabel('Execution time (real time) [s]')
-plt.ylabel('Percentage of instances solved [s]')
+plt.ylabel('Percentage of instances solved [%]')
 plt.legend()
 #NMPC
 

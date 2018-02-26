@@ -52,9 +52,9 @@ ucov[("u2",())] = disturbance_error_2
 
 # relative variance that is associated with the parameters (only diagonal)
 pcov = {}
-pcov[('A',('i',)),('A',('i',))] = 0.1
-pcov[('A',('p',)),('A',('p',))] = 0.1
-pcov[('kA',()),('kA',())] = 0.1
+pcov[('A',('i',)),('A',('i',))] = 0.01
+pcov[('A',('p',)),('A',('p',))] = 0.01
+pcov[('kA',()),('kA',())] = 0.01
 
 # process disturbances
 v_disturbances = {}

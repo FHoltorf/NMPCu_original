@@ -993,32 +993,34 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         self.non_anticipativity_u1 = Constraint(self.fe_t, self.s, rule=_non_anticipativity_u1)
         
         def _non_anticipativity_tf(self,i,s):
-            if (i,s) in self.scenario_tree:
-                parent_node = self.scenario_tree[(i,s)][0:2]
-                reference_node = self.scenario_tree[(i,s)][2]
-                if reference_node:
-                    return Constraint.Skip
-                else:
-                    for k in self.scenario_tree:
-                        if self.scenario_tree[k][0:2] == parent_node and self.scenario_tree[k][2]:
-                            aux = k
-                            break
-                    return self.tf[i,s] - self.tf[aux] == 0.0
-            else:
-                return Constraint.Skip     
-        
+#            if (i,s) in self.scenario_tree:
+#                parent_node = self.scenario_tree[(i,s)][0:2]
+#                reference_node = self.scenario_tree[(i,s)][2]
+#                if reference_node:
+#                    return Constraint.Skip
+#                else:
+#                    for k in self.scenario_tree:
+#                        if self.scenario_tree[k][0:2] == parent_node and self.scenario_tree[k][2]:
+#                            aux = k
+#                            break
+#                    return self.tf[i,s] - self.tf[aux] == 0.0
+#            else:
+#                return Constraint.Skip     
+            return Constraint.Skip
         self.non_anticipativity_tf = Constraint(self.fe_t, self.s, rule=_non_anticipativity_tf)
         
         # fix size of finite elements after robust horizon is reached 
         def _fix_element_size(self,i,s):
-            if (i,s) in self.scenario_tree:
-                parent_node = self.scenario_tree[(i,s)][0:2]
-                if i > self.nr+1:
-                    return 0 == self.tf[i,s] - self.tf[parent_node]
-                #elif s == 1 and i != 1: #nominal scenario
-                #    return 0 == self.tf[i,s] - self.tf[parent_node]
-                #elif s == 1 and i != 1: #nominal scenario
-                #    return 0 == self.tf[i,s] - self.theta
+#            if (i,s) in self.scenario_tree:
+#                parent_node = self.scenario_tree[(i,s)][0:2]
+#                if i > self.nr+1:
+#                    return 0 == self.tf[i,s] - self.tf[parent_node]
+#                elif s == 1 and i != 1: #nominal scenario
+#                    return 0 == self.tf[i,s] - self.tf[parent_node]
+#                else:
+#                    return Constraint.Skip
+                if (i,s) != (1,1):
+                    return 0 == self.tf[1,1] - self.tf[i,s]
                 else:
                     return Constraint.Skip
             else:
@@ -1026,15 +1028,15 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
             
         self.fix_element_size = Constraint(self.fe_t, self.s, rule = _fix_element_size)
         
-        self.s_wc = Var(self.fe_t, self.s, initialize=0.0, bounds=(0,None))
-
-        def _wcc(self,i,s):
-            if (i,s) in self.scenario_tree and i > self.nr+1 and s != 1:
-                return 0.0 == self.tf[1,1] - self.tf[i,s] - self.s_wc[i,s]
-            else:
-                return Constraint.Skip
+#        self.s_wc = Var(self.fe_t, self.s, initialize=0.0, bounds=(0,None))
+#
+#        def _wcc(self,i,s):
+#            if (i,s) in self.scenario_tree and i > self.nr+1 and s != 1:
+#                return 0.0 == self.tf[1,1] - self.tf[i,s] - self.s_wc[i,s]
+#            else:
+#                return Constraint.Skip
         
-        self.wcc = Constraint(self.fe_t, self.s, rule=_wcc)
+#        self.wcc = Constraint(self.fe_t, self.s, rule=_wcc)
         
         # dummy_constraints    
         if ('A',('p',)) in self.scenario_tree[1,1][3]:
@@ -1175,10 +1177,13 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
                     var[key].setlb(None)
                     var[key].setub(None)
                 # tf[nr+1,s] yields the degree of freedom in this optimization problem
-                #if var.name == 'tf' and ((key[1] == 1 and key[0] > 1) or (key[0] > self.nr + 1)):
-                #    var[key].setlb(None)
-                #    var[key].setub(None)
-
+#                if var.name == 'tf' and ((key[1] == 1 and key[0] > 1) or (key[0] > self.nr + 1)):
+#                    var[key].setlb(None)
+#                    var[key].setub(None)
+                if var.name == 'tf' and (key[1] != 1 or key[0] != 1):
+                    var[key].setlb(None)
+                    var[key].setub(None)
+                    
     def clear_all_bounds(self):
         for var in self.component_objects(Var):
             for key in var.index_set():

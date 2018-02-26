@@ -14,10 +14,9 @@ import time
 # model with cooling jacket 
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_bo import *
-from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBBM import *
+from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage_stgen import *
-#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multimodel import *
 #from main.MC_sampling.cj.run_MHE_asNMPC_cj_pwa_multistage_stgen import *
 
 #################################################################
@@ -43,7 +42,7 @@ for j in range(4):
 # inputs
 sample_size = 64
 # specifiy directory where to save the resulting files
-path = 'results/final/timeinvariant/standard/multistage_stuff/' 
+path = '' 
 # colors
 color = ['green','red','blue']
 tf = {}

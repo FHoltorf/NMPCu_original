@@ -1718,12 +1718,12 @@ class NmpcGen(DynGen):
                 con_vio_copy = {con:con_vio[con] for con in con_vio if con[1] == i}
             else:
                 sys.exit('Error: Wrong specification of scenario-tree generation criterion')       
+            
             if i != self.nfe_t:
                 s_branch_max = int(np.round(self.s_max**(1.0/self.nr)))+1 #if i != self.nfe_t else int(self.s_max/((np.round(self.s_max**((self.nfe_t-1.0)/self.nr)))))+1
-            elif i == 1:
-                s_branch_max = self.s_max
             else:
-                s_branch_max = int(self.s_max/s_stage[i-2]) # int always floors
+                s_branch_max = int(self.s_max/s_stage[i-2]) + 1 # int always floors
+            
             for s in range(2,s_branch_max): # scenario 1 is reserved for the nomnal sscenario
                 wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
                 scenarios[i-1,s] = delta_p_wc[wc_scenario]

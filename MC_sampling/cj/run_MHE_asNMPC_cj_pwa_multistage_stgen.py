@@ -99,10 +99,10 @@ def run(**kwargs):
                robust_horizon = nr,
                s_max = sr,
                noisy_inputs = False,
-               noisy_params = True,
-               adapt_params = True,
-               update_scenario_tree = True,
-               process_noise_model = None,#'params_bias',
+               noisy_params = False,
+               adapt_params = False,
+               update_scenario_tree = False,
+               process_noise_model = 'params_bias',
                confidence_threshold = alpha,
                robustness_threshold = 0.02,
                estimate_exceptance = 10000,
@@ -149,7 +149,7 @@ def run(**kwargs):
         e.cycle_ics_mhe(nmpc_as=True,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
 
         # solve olnmpc
-        e.set_regularization_weights(K_w = 0.1, Q_w = 0.0, R_w = 0.0)
+        e.set_regularization_weights(K_w = 1.0, Q_w = 0.0, R_w = 0.0)
         t0 = time.time()
         e.solve_olnmpc() # solves the olnmpc problem
         CPU_t[i,'ocp'] = time.time() - t0

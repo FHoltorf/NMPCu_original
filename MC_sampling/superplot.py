@@ -15,14 +15,14 @@ import sys
 #folders = ['online_estimation','multistage','backoff','standard']
 p1 = 'finalfinal/timeinvariant/parest/'
 p2 = 'finalfinal/timeinvariant/standard/'
-folders = [p1+'nominal',p1+'SBBM',p1+'multistage',p1+'multistage_stgen']#p1+'nominal_bo',
+folders = [p1+'nominal',p1+'nominal_bo',p1+'multistage',p1+'multistage_stgen',p1+'SBBM']
 directory = 'results/finalfinal/' # save overall plots here
 method = {p1+'nominal':'nominal',
-          #p1+'nominal_bo':'NMPC-bo',
+          p1+'nominal_bo':'NMPC-bo',
           p1+'SBBM':'SBBM',
           p1+'multistage':'ms',
           p1+'multistage_stgen':'ms-SBSG'}
-scaling = {'epc_mw':1e0, 'epc_PO_ptg':1e1,'epc_unsat':1e-3}
+scaling = {'epc_mw':1e0, 'epc_PO_ptg':1e2,'epc_unsat':1e-3}
 comparison = {}
 for folder in folders: 
     print(folder)
@@ -107,19 +107,20 @@ for folder in folders:
 
 fig, ax1 = plt.subplots()
 ind = np.arange(len(folders))
-width = 1.0/6.0 - 0.05*0.0
+width = 1.0/8.0
 bars = {}
 xticks = [method[f] for f in folders]
-xspacing = ind + 0.5
+xspacing = [(ind[i] + ind[i+1])/2.0 for i in range(len(ind)-1)]
+xspacing.append((2*ind[-1]+1)/2.0)
 i = 0.0
 
-labels = {'T_max':r'$T^{max} \, [K]$','Tad_max':r'$T^{max}_{ad} \, [K]$','T_min':r'$T^{min} \, [K]$','epc_mw':r'$NAMW \, [\frac{g}{mol}]$', 'epc_PO_ptg':r'$unreac \, [10^{2} \cdot PPM]$','epc_unsat':r'$unsat \, [10^{3} \cdot \frac{mol}{g_{PO}}]$','max_tf':r'$t_f^{max}$','avg_tf':r'$t_f^{avg}$','min_tf':r'$t_f^{min}$'}
+labels = {'T_max':r'$T^{max} \, [K]$','Tad_max':r'$T^{max}_{ad} \, [K]$','T_min':r'$T^{min} \, [K]$','epc_mw':r'$NAMW \, [\frac{g}{mol}]$', 'epc_PO_ptg':r'$unreac \, [10^{2} \cdot PPM]$','epc_unsat':r'$unsat \, [10^{-3} \cdot \frac{mol}{g_{PO}}]$','max_tf':r'$t_f^{max}$','avg_tf':r'$t_f^{avg}$','min_tf':r'$t_f^{min}$'}
 for con in constraint_name:
     vals = []
     for folder in folders:
         vals.append(comparison[folder,con])
     vals = np.array(vals)#/max(abs(min(vals)),max(vals))*100
-    bars[con] = ax1.bar(ind+width*i, vals,width,label=labels[con])
+    bars[con] = ax1.bar(ind+width*i, vals,width,align='center',label=labels[con])
     i += 1
 for con in ['T_max','Tad_max','T_min']:
     vals = []
@@ -131,7 +132,7 @@ for con in ['T_max','Tad_max','T_min']:
 ax1.set_xticks(xspacing)
 ax1.set_xticklabels(xticks) #can hold text
 ax1.set_ylabel('maximum constraint violation')
-ax1.legend(loc ='lower center', ncol=3, fancybox=True, bbox_to_anchor=(0.5,-0.3))
+lgd = ax1.legend(loc ='lower center', ncol=3, fancybox=True, bbox_to_anchor=(0.5,-0.3))
 ax2 = ax1.twinx()
 color = ['r','k','g']
 k = 0
@@ -146,3 +147,5 @@ ax2.set_ylabel('final batch time [min]')
 ax2.legend(loc='upper right')
 fig.tight_layout()
 plt.show()
+
+fig.savefig('results/sp.pdf',bbox_extra_artists=(lgd,), bbox_inches='tight')
