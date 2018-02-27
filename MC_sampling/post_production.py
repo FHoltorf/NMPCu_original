@@ -218,8 +218,8 @@ for folder in folders:
     print('avg_performance',sum(tf[i] for i in tf if endpoint_constraints[i]['feasible'] != 'crashed')/sum(1 for i in tf if endpoint_constraints[i]['feasible'] != 'crashed'),'[min]')
     
     # computational performance
-    comparison[folder,'t_ocp'] = [CPU_t[i][k,'ocp'] for i in CPU_t for k in range(1,24)]
-    comparison[folder,'t_mhe'] = [CPU_t[i][k,'mhe'] for i in CPU_t for k in range(1,24)]
+    comparison[folder,'t_ocp'] = [CPU_t[i][k,'ocp'] for i in CPU_t for k in range(1,24) if CPU_t[i] != 'error']
+    comparison[folder,'t_mhe'] = [CPU_t[i][k,'mhe'] for i in CPU_t for k in range(1,24) if CPU_t[i] != 'error' ]
     try:
         comparison[folder,'t_cr'] = [CPU_t[i]['cr'] for i in CPU_t]
     except:
@@ -317,13 +317,14 @@ for folder in folders:
 plt.legend()
 plt.xlabel('Execution time (real time) [s]')
 plt.ylabel('Percentage of instances solved [%]')
+fig.savefig(path+'comp_times_mhe.pdf')
 
 # CPU times
 # NMPC
 fig = plt.figure()
 # y-axis: % of instances solved in time t
 # x-axis: % time t
-t_steps = np.linspace(0,30,100)
+t_steps = np.linspace(0,60,100)
 
 k = 0
 for folder in folders: 
@@ -333,5 +334,6 @@ for folder in folders:
 plt.xlabel('Execution time (real time) [s]')
 plt.ylabel('Percentage of instances solved [%]')
 plt.legend()
+fig.savefig(path+'comp_times_ocp.pdf')
 #NMPC
 
