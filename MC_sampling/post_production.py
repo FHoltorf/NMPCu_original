@@ -99,7 +99,7 @@ for folder in folders:
     for k in range(3):
         color[k]
         x = [endpoint_constraints[i][constraint_name[k]] for i in range(iters) if endpoint_constraints[i][constraint_name[k]] != 'error']
-        print('wc error ', constraint_name[k], min(x))
+        print('wc error ', constraint_name[k], max(x))
         # compute standard deviation
         std = np.std(x) 
         mu = np.mean(x)
