@@ -18,6 +18,7 @@ import numpy.linalg as linalg
 from scipy.stats import chi2
 from main.noise_characteristics_cj import *
 import time
+import resource
 
 # redirect system output to a file:
 #sys.stdout = open('consol_output','w')
@@ -151,36 +152,50 @@ def run(**kwargs):
         # solve olnmpc
         e.set_regularization_weights(K_w = 1.0, Q_w = 0.0, R_w = 0.0)
         t0 = time.time()
+        t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         e.solve_olnmpc() # solves the olnmpc problem
+        tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         CPU_t[i,'ocp'] = time.time() - t0
+        CPU_t[i,'ocp','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
         # compute sensitivity matrix
         t0 = time.time()
+        t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         e.create_suffixes_nmpc()
         e.sens_k_aug_nmpc()
+        tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         CPU_t[i,'sens'] = time.time() - t0 
-        
+        CPU_t[i,'sens','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
         # worst case scenario has to be computed right away because sens_dot will change model
         t0 = time.time()
+        t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
+        tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         CPU_t[i,'stgen'] = time.time() - t0 
-                
+        CPU_t[i,'stgen','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
         # solve mhe problem
         t0 = time.time()
+        t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
+        tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         CPU_t[i,'mhe'] = time.time() - t0
-        
+        CPU_t[i,'mhe','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
         if e.update_scenario_tree:  
             t0 = time.time()
+            t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)    
             e.compute_confidence_ellipsoid()
+            tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
             CPU_t[i,'cr'] = time.time() - t0
+            CPU_t[i,'cr','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
             
         # fast update
         t0 = time.time()
+        t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         e.update_state_mhe() # can compute offset within this function by setting as_nmpc_mhe_strategy = True
         e.compute_offset_state(src_kind="estimated")
         e.sens_dot_nmpc()   
+        tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         CPU_t[i,'sens_dot'] = time.time() - t0
-        
+        CPU_t[i, 'sens_dot','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
         # forward simulation for next iteration
         e.forward_simulation()
         e.cycle_iterations()

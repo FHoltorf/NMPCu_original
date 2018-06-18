@@ -21,8 +21,9 @@ from copy import deepcopy
 from scipy.stats import chi2
 from pyomo import *
 
-__author__ = "David M Thierry @dthierry"
-"""Not yet. Our people, they don't understand."""
+
+__author__ = "@FHoltorf"
+
 
 class MheGen(NmpcGen):
     def __init__(self, **kwargs):
@@ -45,7 +46,6 @@ class MheGen(NmpcGen):
 ###############################################################################
 ###############################################################################
 ###############################################################################
-        #self.nfe_t_total = kwargs('nfe_t_total',5)
         self.measurement = {}
         self.noisy_inputs = kwargs.pop('noisy_inputs', False)
         self.p_noisy = kwargs.pop('p_noisy', {})
@@ -59,9 +59,9 @@ class MheGen(NmpcGen):
         self.lsmhe = self.d_mod_mhe(self.nfe_mhe, self.ncp_t, _t=self._t)
         self.lsmhe.name = "lsmhe (Least-Squares MHE)"
         self.lsmhe.create_bounds()
+        #self.lsmhe.clear_aux_bounds()
         self.lsmhe.clear_all_bounds()
         self.lsmhe.create_output_relations()
-        #self.lsmhe.e_state_relation()
         
         #: Create list of noisy-states vars
         self.xkN_l = []
@@ -82,11 +82,6 @@ class MheGen(NmpcGen):
             else Param(range(0, self.nfe_mhe), self.lsmhe.xkNk_mhe, self.lsmhe.xkNk_mhe,
                              initialize=lambda m, t, i, ii: 1.0 if i == ii else 0.0, mutable=True)  #: Disturbance-weight
         
-#        self.lsmhe.wk_mhe = Var(range(0,self.nfe_mhe+1), self.lsmhe.xkNk_mhe, initialize=0.0)
-#        self.lsmhe.Q_mhe = Param(range(0, self.nfe_mhe+1), self.lsmhe.xkNk_mhe, initialize=1.0, mutable=True) if self.diag_Q_R \
-#            else Param(range(0, self.nfe_mhe+1), self.lsmhe.xkNk_mhe, self.lsmhe.xkNk_mhe,
-#                             initialize=lambda m, t, i, ii: 1.0 if i == ii else 0.0, mutable=True)  #: Disturbance-weight
-
         # deactivates the continuity constraints in collocation scheme
         for i in self.x_noisy:
             cp_con = getattr(self.lsmhe, "cp_" + i)
@@ -109,13 +104,6 @@ class MheGen(NmpcGen):
             for y in self.y:
                 m_v = getattr(self.lsmhe, y)  #: Measured "state"
                 for jth in self.y_vars[y]:  #: the jth variable
-#                    if (t == self.nfe_mhe) and (y in self.x_noisy):
-#                        m_v = getattr(self.lsmhe, y + "_e")
-#                        if jth == ():
-#                            self.yk_l[t].append(m_v)
-#                        else:    
-#                            self.yk_l[t].append(m_v[jth])
-#                    else:
                     self.yk_l[t].append(m_v[(t, self.ncp_t) + jth])
 
         self.lsmhe.ykk_mhe = Set(initialize=[i for i in range(0, len(self.yk_l[1]))])  #: Create set of measured_vars
@@ -189,17 +177,6 @@ class MheGen(NmpcGen):
                     self.lsmhe.noisy_cont.add(cp_exp[t, key] == self.lsmhe.wk_mhe[t, j])
                 j += 1
          
-#        for x in self.x_noisy:
-#            e_state_expr = getattr(self.lsmhe, x + "_e_expr")
-#            e_state_constr = getattr(self.lsmhe, x + "_e_c")
-#            e_state_constr.deactivate()
-#            for key in self.x_vars[x]:
-#                j = self.xkN_key[(x,key)]
-#                if key != ():
-#                    self.lsmhe.noisy_cont.add(e_state_expr[key] == self.lsmhe.wk_mhe[self.nfe_mhe,j])
-#                else:
-#                    self.lsmhe.noisy_cont.add(e_state_expr == self.lsmhe.wk_mhe[self.nfe_mhe,j])
-        
         self.lsmhe.noisy_cont.deactivate()
        
         self.lsmhe.Q_e_mhe = Expression(
@@ -280,7 +257,7 @@ class MheGen(NmpcGen):
                     k += 1
     
             self.lsmhe.pkNk_mhe = Set(initialize=[i for i in range(0, len(self.pkN_l))])  #: Create set of noisy_states
-            self.lsmhe.dk_mhe = Var(self.lsmhe.fe_t, self.lsmhe.pkNk_mhe, initialize=0.0, bounds=(-0.99,1.0))
+            self.lsmhe.dk_mhe = Var(self.lsmhe.fe_t, self.lsmhe.pkNk_mhe, initialize=0.0, bounds=(-0.5,0.5))
             self.lsmhe.P_mhe = Param(self.lsmhe.pkNk_mhe, initialize=1.0, mutable=True)
             self.lsmhe.noisy_pars = ConstraintList()
             
@@ -494,13 +471,16 @@ class MheGen(NmpcGen):
             self.lsmhe.wk_mhe.fix()
         
         initialguess = self.store_results(self.lsmhe)
-        
+        #for var in self.lsmhe.component_objects(Var):
+        #        for key in var.index_set():
+        #            var[key].value = initialguess[var.name,key]   
+                    
         ip = SolverFactory("asl:ipopt")
         ip.options["halt_on_ampl_error"] = "no"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
-        ip.options["max_iter"] = 3000
+        ip.options["max_iter"] = 500
         with open("ipopt.opt", "w") as f:
             f.write("print_info_string yes")
             f.close()
@@ -544,42 +524,20 @@ class MheGen(NmpcGen):
         for x in self.states:
             for j in self.x_vars[x]:
                 self.initial_values[(x,j+(1,))] = output[(x,(self.nfe_mhe,3)+j)]
-#                if j == ():
-#                    key = None
-#                elif len(j) == 1:
-#                    key = j[0]
-#                else:
-#                    key = j
-#                self.initial_values[(x,j+(1,))] = output[(x+"_e",key)]
                 
         # load solution status in self.nmpc_trajectory
         self.nmpc_trajectory[self.iterations,'solstat_mhe'] = [str(result.solver.status),str(result.solver.termination_condition)]
         self.nmpc_trajectory[self.iterations,'obj_value_mhe'] = value(self.lsmhe.obfun_mhe)
         return output   
         
-    def cycle_ics_mhe(self, nmpc_as = False, mhe_as = False):
-        if nmpc_as and mhe_as: # both nmpc and mhe use advanced step schme
-            ivs = self.initial_values
-        elif nmpc_as and not(mhe_as): # only nmpc uses advanced step scheme
-            ivs = self.curr_pstate
-        else: # nothing uses advanced step scheme/no measurement noise
-            ivs = self.initial_values
-            
-        for x in self.states:
-            xic = getattr(self.olnmpc, x+'_ic')
-            for j in self.x_vars[x]:
-                if not(j == ()):
-                    xic[j].value = ivs[(x,j+(1,))]
-                else:
-                    xic.value = ivs[(x,j+(1,))]
-                    
+    def cycle_ics_mhe(self, nmpc_as = False, mhe_as = False, alpha=0.95):
         if self.noisy_params and self.iterations > 1:
             ##################################################################
             # comute principle components of approximate 95%-confidence region
             ##################################################################
             try: # adapt parameters iff estimates are confident enough
                 dimension = int(np.round(np.sqrt(len(self.mhe_confidence_ellipsoids[1]))))
-                confidence = chi2.isf(1-0.95,dimension)
+                confidence = chi2.isf(1-alpha,dimension)
                 A_dict = self.mhe_confidence_ellipsoids[self.iterations-1]
                 # assemble dimension x dimension array
                 rows = {}
@@ -601,18 +559,21 @@ class MheGen(NmpcGen):
                                  dev = max(dev,(abs(radii[m]*U[index][m]) + p_mhe[pkey].value)/p_mhe[pkey].value)
                             if dev < 1 + self.estimate_acceptance:
                                 self.curr_epars[(p,key)] = p_mhe[pkey].value
+                                p_nom[pkey].value = p_mhe[pkey].value
                             else:
                                 self.curr_epars[(p,key)] = p_nom[pkey].value
-                    
+                            
                     
                                 
             except KeyError: # adapt parameters blindly
                 if self.adapt_params:
                     for p in self.p_noisy:
+                        p_nom = getattr(self.olnmpc)
                         p_mhe = getattr(self.lsmhe,p)
                         for key in self.p_noisy[p]:
                             pkey = key if key != () else None 
                             self.curr_epars[(p,key)] = p_mhe[pkey].value
+                            p_nom[pkey].value = p_mhe[pkey].value
                     else:
                         pass
 
@@ -644,96 +605,48 @@ class MheGen(NmpcGen):
                         D_k = np.linalg.solve(A_k,Z_k)
                         dev_k = np.sqrt(1/np.dot(a_k,D_k))/p_mhe[pkey].value
                         # use new interval if robustness_threshold < dev_k < confidence_threshold
-                        dev[(p,key)] = min(self.confidence_threshold,max(self.robustness_threshold, dev_k))
+                        dev[(p,key)] = min(self.confidence_threshold,max(self.robustness_threshold, dev_k*p_mhe[pkey].value/self.nominal_parameter_values[(p,key)])) \
+                                        * self.nominal_parameter_values[(p,key)]/p_mhe[pkey].value
                                                 
                 # update scenario_tree
                 for k in self.st:
                     for index in self.st[k][3]:
                         if k[1] != 1: # 1 is nominal scenario
                             try:
-                                self.st[k][3][index] =  1.0 + dev[index] if self.st[k][3][index] > 1.0 else 1.0 - dev[index]
+                                if self.uncertainty_set == {}:
+                                    self.st[k][3][index] =  1.0 + dev[index] if self.st[k][3][index] > 1.0 else 1.0 - dev[index]
+                                else:
+                                    p_nom = self.nominal_parameter_values[index]
+                                    p_mhe = self.curr_epars[index]
+                                    lb = min(max((1.0 - dev[index])*p_mhe,(1.0 + self.uncertainty_set[index][0])*p_nom)/p_mhe,1.0-1e-12)
+                                    ub = max(min((1.0 + dev[index])*p_mhe,(1.0 + self.uncertainty_set[index][1])*p_nom)/p_mhe,1.0+1e-12)
+                                    self.st[k][3][index] = ub if self.st[k][3][index] > 1.0 else lb
                             except:
                                 # catch that not every uncertain parameter included in the scenario tree
-                                # is necessarily is measured
+                                # is necessarily estimated
                                 pass
                         else:
                             continue   
                 self.olnmpc.set_scenarios()
                 self.nmpc_trajectory[self.iterations, 'st'] = deepcopy(self.st)
-#            if self.update_scenario_tree: 
-#                # idea: go through the axis of the ellipsoid (U) and include the intersections of this axis with confidence ellipsoid on both ends as scenarios (sigmapoints)
-#                # only accept these scenarios if sigmapoints are inside hypercube spanned by initial bounds              
-#                #1: check if all semiaxis lie inside hyperrectangle
-#                shrink = True
-#                dev = {(p,key):-1e9 for p in self.p_noisy for key in self.p_noisy[p]}
-#                for m in range(dimension):
-#                    for p in self.p_noisy:
-#                        p_mhe = getattr(self.lsmhe,p)
-#                        for key in self.p_noisy[p]:
-#                            pkey = key if key != () else None
-#                            index = self.PI_indices[p,key]
-#                            dev[p,key] = max(dev[p,key], abs(radii[m]*U[index][m]/p_mhe[pkey].value), self.robustness_threshold)
-#                            if dev[p,key] > self.confidence_threshold:
-#                                shrink = False
-#                            if not(shrink):
-#                                break
-#                        if not(shrink):
-#                            break
-#                    if not(shrink):
-#                        break
-#                    
-#                # shrink hyperrectangle according to max semi-axis size 
-#                if shrink:
-#                    for k in self.st:
-#                        for index in self.st[k][3]:
-#                            if k[1] != 1:
-#                                self.st[k][3][index] =  1.0 + dev[index] if self.st[k][3][index] > 1.0 else 1.0 - dev[index]
-#                            else:
-#                                continue
-                
-
-# old semi-axis version                    
-#                scenarios = {}
-#                for m in range(dimension):
-#                    l += 2
-#                    for p in self.p_noisy:
-#                        p_mhe = getattr(self.lsmhe,p)
-#                        for key in self.p_noisy[p]:    
-#                            pkey = key if key != () else None 
-#                            index = self.PI_indices[p,key]
-#                            dev = -1e8
-#                            for check in range(dimension): # little redundant but ok
-#                                dev = max(dev,(abs(radii[check]*U[index][check]) + p_mhe[pkey].value)/p_mhe[pkey].value)
-#                            if dev < 1 + self.confidence_threshold:# confident enough in parameter estimate --> adapt parameter in prediction and NMPC model
-#                                if dev > 1 + self.robustness_threshold:# minimum robustness threshold is not reached
-#                                    # scenario tree : {(i,s):parent_node i, parent_node s, base node (True/False), scenario values {'name',(index):value}}
-#                                    scenarios[(p,key),l] = (radii[m]*U[index][m] + p_mhe[pkey].value)/p_mhe[pkey].value
-#                                    scenarios[(p,key),l+1] = (p_mhe[pkey].value - radii[m]*U[index][m])/p_mhe[pkey].value
-#                                else:# minimum robustness threshold is reached already
-#                                    if np.sign(U[index][m]) == 1:
-#                                        scenarios[(p,key),l] = 1+self.robustness_threshold
-#                                        scenarios[(p,key),l+1] = 1-self.robustness_threshold
-#                                    else:
-#                                        scenarios[(p,key),l] = 1-self.robustness_threshold
-#                                        scenarios[(p,key),l+1] = 1+self.robustness_threshold
-#                            else:
-#                                if np.sign(U[index][m]) == 1:
-#                                    scenarios[(p,key),l] = 1+self.confidence_threshold
-#                                    scenarios[(p,key),l+1] = 1-self.confidence_threshold
-#                                else:
-#                                    scenarios[(p,key),l] = 1-self.confidence_threshold
-#                                    scenarios[(p,key),l+1] = 1+self.confidence_threshold
-#                
-#                # update scenario tree
-#                for k in self.st:
-#                    for index in self.st[k][3]:
-#                        p = index[0]
-#                        key = index[1]
-#                        try:
-#                            self.st[k][3][index] = scenarios[(p,key),k[1]]
-#                        except KeyError:
-#                            continue
-
+        
+        
+        # cycle estimates for initial condition
+        if nmpc_as and mhe_as: # both nmpc and mhe use advanced step schme
+            ivs = self.initial_values
+        elif nmpc_as and not(mhe_as): # only nmpc uses advanced step scheme
+            ivs = self.curr_pstate
+        else: # nothing uses advanced step scheme/no measurement noise
+            ivs = self.initial_values
+            
+        for x in self.states:
+            xic = getattr(self.olnmpc, x+'_ic')
+            for j in self.x_vars[x]:
+                if not(j == ()):
+                    xic[j].value = ivs[(x,j+(1,))]
+                else:
+                    xic.value = ivs[(x,j+(1,))]
+                    
 
     def compute_offset_measurements(self):
         mhe_y = getattr(self.lsmhe, "yk0_mhe")
@@ -892,10 +805,10 @@ class MheGen(NmpcGen):
                 v_j = self.yk_key[vnj]
                 for t in range(1,self.nfe_mhe+1):
                     if self.diag_Q_R:                
-                        rtarget[t, v_i] = 1 / max(abs(cov_dict[vni, vnj]*self.measurement[t][vni]),1e-6)**2
+                        rtarget[t, v_i] = 1 / max(abs(cov_dict[vni, vnj]*self.measurement[t][vni]),1e-4)**2
                     else:
                         # only allow for diagonal measurement covariance matrices 
-                        rtarget[t, v_i, v_j] = 1 / max(abs(cov_dict[vni, vnj]*self.measurement[t][vni]),1e-6)**2
+                        rtarget[t, v_i, v_j] = 1 / max(abs(cov_dict[vni, vnj]*self.measurement[t][vni]),1e-4)**2
             else:
                 continue
 
@@ -918,9 +831,9 @@ class MheGen(NmpcGen):
                 xic = getattr(self.lsmhe, vni[0] + "_ic")
                 if self.diag_Q_R:
                     if vni[1] == ():
-                        qtarget[0, v_i] = 1.0 / (max(abs(cov_dict[0][vni, vnj]*xic.value),1e-6))**2 # .00001
+                        qtarget[0, v_i] = 1.0 / (max(abs(cov_dict[0][vni, vnj]*xic.value),1e-4))**2 # .00001
                     else:
-                        qtarget[0, v_i] = 1.0 / (max(abs(cov_dict[0][vni, vnj]*xic[vni[1]].value),1e-6))**2 # .0001
+                        qtarget[0, v_i] = 1.0 / (max(abs(cov_dict[0][vni, vnj]*xic[vni[1]].value),1e-4))**2 # .0001
                 else:
                     qtarget[0, v_i, v_j] = cov_dict[0][vni, vnj]
                      
@@ -936,31 +849,26 @@ class MheGen(NmpcGen):
                             w[0,v_i].fix(0.0)
                     else:
                         w[0,v_i].fix(0.0)
-                    # t > 1 is systematic:
                 for t in range(1,self.nfe_mhe):
                     if self.diag_Q_R:
-#                        if t != self.nfe_mhe:
-                        qtarget[t, v_i] = 1 / (max(abs(cov_dict[0][vni, vnj]*self.nmpc_trajectory[t,vni]),1e-6))**2 # 0.00001
+                        qtarget[t, v_i] = 1 / (max(abs(cov_dict[0][vni, vnj]*self.nmpc_trajectory[t,vni]),1e-4))**2 # 0.00001
                         if set_bounds:
                             if cov_dict[0][vni, vnj] != 0.0:
                                     confidence = 10*abs(cov_dict[0][vni,vnj]*self.nmpc_trajectory[t,vni])
                             else:
-                                confidence = 0.0 # fix controls if 0.0
+                                confidence = 0.0 
                             w[t,v_i].setlb(-confidence)
                             w[t,v_i].setub(confidence)
                             if abs(w[t,v_i].lb - w[t,v_i].ub) < 1e-3:
                                 w[t,v_i].fix()
-#                        else:
-#                            w[t,v_i].fix(0.0)
+
                     else:
                         if (vni,vnj) in cov_dict[t]:
                             qtarget[t, v_i, v_j] = cov_dict[t][vni, vnj]
                         else:
+                            print('no weight for element : \n',vni,'\n',vnj,'\n specified')
                             qtarget[t, v_i, v_j] = 1e8
-#                        if set_bounds:
-#                            if t > 1 and t < self.nfe_mhe:
-#                                w[t,v_i].setlb(-0.5*self.nmpc_trajectory[t,vni])
-#                                w[t,v_i].setub(0.5*self.nmpc_trajectory[t,vni])
+
             else:
                 print(key[0], ' is not a noisy state variable')
 
@@ -979,7 +887,7 @@ class MheGen(NmpcGen):
                     aux_key = self.nfe_t_0 # 
                 else:
                     aux_key = (_t,1) # tailored to my code basically
-                utarget[_t, vni] = 1 / (max(abs(cov_dict[key]*self.reference_control_trajectory[vni,aux_key]),1e-6))**2
+                utarget[_t, vni] = 1 / (max(abs(cov_dict[key]*self.reference_control_trajectory[vni,aux_key]),1e-4))**2
 
     
     def set_covariance_pnoise(self, cov_dict, set_bounds=True):

@@ -51,28 +51,7 @@ class SemiBatchPolymerization(ConcreteModel):
         self.U_scale = 1.0e-2
         self.monomer_cooling_scale = 1.0e-2
         self.scale = 1.0
-        
-        #these work perfectly fine too
-#        self.W_scale = 1#1
-#        self.Y_scale = 1#1e-2
-#        self.PO_scale = 1#1e1
-#        self.MY0_scale = 1#1e-1
-#        self.MX0_scale = 1#1e1
-#        self.MX1_scale = 1#1e2
-#        self.MW_scale = 1#1e2
-#        self.X_scale = 1
-#        self.m_tot_scale = 1#1e4
-#        self.T_scale = 1#1e2
-#        self.Tad_scale = 1#1e2
-#        self.Vi_scale = 1#1e-2
-#        self.PO_fed_scale = 1#1e2
-#        self.int_T_scale = 1#1e2
-#        self.int_Tad_scale = 1#1e2
-#        self.G_scale = 1
-#        self.U_scale = 1#1e-2
-#        self.monomer_cooling_scale = 1#1e-2
-#        self.scale = 1
-
+    
         # collocation pts
         self.nfe = nfe
         self.ncp = ncp
@@ -266,13 +245,28 @@ class SemiBatchPolymerization(ConcreteModel):
         self.s_mw_ub = Var(initialize=0, bounds=(0,None))
 
         # back-offs 
+#standard
         self.xi_mw_ub = Param(initialize=0.0, mutable=True)
-        self.xi_mw = Param(initialize=0.18, mutable=True)#4.22 # 2.0 used for standard results
-        self.xi_PO_ptg = Param(initialize=80.0, mutable=True)#26.51 #100.0 used for standard results
-        self.xi_unsat = Param(initialize=0.0024, mutable=True)#0.0036 used for standard results
-        self.xi_temp_b = Param(self.fe_t, self.cp, initialize=9.09, mutable=True)      #12.09  
-        self.xi_T_max = Param(self.fe_t, self.cp, initialize=0.6, mutable=True)#1.8
-        self.xi_T_min = Param(self.fe_t, self.cp, initialize=1.2, mutable=True)#2.43   
+        self.xi_mw = Param(initialize=3.0, mutable=True)#Param(initialize=0.18, mutable=True)#4.22 # 2.0 used for standard results
+        self.xi_PO_ptg = Param(initialize=100.0, mutable=True)#Param(initialize=80.0, mutable=True)#26.51 #100.0 used for standard results
+        self.xi_unsat = Param(initialize=0.008, mutable=True)# 0.00767363086751089 Param(initialize=0.0024, mutable=True)#0.0036 used for standard results
+        self.xi_temp_b = Param(self.fe_t, self.cp, initialize=14.35, mutable=True) #Param(self.fe_t, self.cp, initialize=9.09, mutable=True)      #12.09  
+        self.xi_T_max = Param(self.fe_t, self.cp, initialize = 0.4143011526048568, mutable=True) #Param(self.fe_t, self.cp, initialize=0.6, mutable=True)#1.8
+        self.xi_T_min = Param(self.fe_t, self.cp, initialize=2.1042304467330464, mutable=True) #Param(self.fe_t, self.cp, initialize=1.2, mutable=True)#2.43   
+        
+# parest
+#        self.xi_mw = Param(initialize=0.22521972429763082, mutable=True)#Param(initialize=0.18, mutable=True)#4.22 # 2.0 used for standard results
+#        self.xi_PO_ptg = Param(initialize=12.641101169335228, mutable=True)#Param(initialize=80.0, mutable=True)#26.51 #100.0 used for standard results
+#        self.xi_unsat = Param(initialize=0.0008310864215993127, mutable=True)#Param(initialize=0.0024, mutable=True)#0.0036 used for standard results
+#        self.xi_temp_b = Param(self.fe_t, self.cp, initialize=43.0, mutable=True) #Param(self.fe_t, self.cp, initialize=9.09, mutable=True)      #12.09  
+#        self.xi_T_max = Param(self.fe_t, self.cp, initialize=0.1896770567539896, mutable=True) #Param(self.fe_t, self.cp, initialize=0.6, mutable=True)#1.8
+#        self.xi_T_min = Param(self.fe_t, self.cp, initialize=0.2086151746567566, mutable=True) #Param(self.fe_t, self.cp, initialize=1.2, mutable=True)#2.43   
+        
+        # parest
+        #{'epc_PO_ptg': 1785.0314081810382, ('T_min', 'overall'): 2.1042304467330464, 'epc_unsat': 0.00767363086751089, 'epc_mw': 2.998595592181914, ('Tad_min', 'overall'): 2.0095330891277463, ('T', 'overall'): 0.4143011526048568, ('Tad', 'overall'): 21.97470682500695}
+        
+        # standard
+        #{('T', 'overall'): 0.4143011526048568, 'epc_mw': 2.998595592181914, 'epc_unsat': 0.00767363086751089, 'epc_PO_ptg': 1785.0314081810382, ('Tad', 'overall'): 21.97470682500695}
 # Timevariant backoffs       
 #        T_max = {(1, 1): 0,
 #                 (1, 2): 0,

@@ -16,9 +16,9 @@ import numpy as np
 import sys, os, time, csv
 from six import iterkeys
 from copy import deepcopy
-__author__ = "David M Thierry @dthierry"
 
-"""Not quite."""
+
+__author__ = "@FHoltorf"
 
 
 class NmpcGen(DynGen):
@@ -213,7 +213,7 @@ class NmpcGen(DynGen):
             ip.options["print_user_options"] = "yes"
             ip.options["linear_solver"] = "ma57"
             ip.options["tol"] = 1e-8
-            ip.options["max_iter"] = 3000
+            ip.options["max_iter"] = 1000
 
             out = ip.solve(self.recipe_optimization_model, tee=True, symbolic_solver_labels=True)
             if  [str(out.solver.status), str(out.solver.termination_condition)] == ['ok','optimal']:
@@ -230,8 +230,7 @@ class NmpcGen(DynGen):
                             pc_trajectory[k][(pc_name,(fe,(cp,)))] = pc_var[fe,cp].value
                             pc_trajectory[k][('tf',(fe,cp))] = self.recipe_optimization_model.tau_i_t[cp]*self.recipe_optimization_model.tf.value
             else:
-                self.recipe_optimization_model.troubleshooting()
-                sys.exit()
+                sys.exit('Error: Simulation not converged!')
                 endpoint_constraints[k] = 'error'
         
         return endpoint_constraints, pc_trajectory
@@ -368,8 +367,6 @@ class NmpcGen(DynGen):
             control[1].fix(result[u,1]*(1.0+input_noise[u]))
         
         self.plant_simulation_model.equalize_u(direction="u_to_r")
-        # probably redundant
-        #self.plant_simulation_model.clear_all_bounds()
         self.plant_simulation_model.clear_aux_bounds()
 
         # solve statement
@@ -377,31 +374,7 @@ class NmpcGen(DynGen):
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
-        ip.options["max_iter"] = 3000
-
-        #ip.options["halt_on_ampl_error"] = "yes"
-        #self.plant_simulation_model.A['p'] = 11000.0 #12112.9911944# 14267.7530887 # 13288.0471352
-        #self.plant_simulation_model.A['i'] = 300000.0  #337678.098021# 302423.866195 # 426854.024419
-        #self.plant_simulation_model.kA =   0.06  # 0.057361376673# 0.0562482825565 # 0.0539566959
-
-        #        self.plant_simulation_model.A['p'].value =  (1-0.125464176253)*13504.2
-        #        self.plant_simulation_model.A['i'].value = (1-0.00108591113283)*396400.0
-        #        self.plant_simulation_model.kA.value =  (1+0.173065139955)*0.07170172
-
-        
-        #        self.plant_simulation_model.A['p'] = 0.8*13504.2
-        #        self.plant_simulation_model.kA = 0.8*0.07170172
-        #        self.plant_simulation_model.A['i'] = 0.8*396400.0        
-        # really nice example for not nicely working OLNMPC
-        # adapt, 
-        #        self.plant_simulation_model.A['p'] = 0.8*13504.2
-        #        self.plant_simulation_model.kA = 0.8*0.07170172
-        #        self.plant_simulation_model.A['i'] = 1.0108695384819*396400.0
-
-        
-#        self.plant_simulation_model.A['p'] = 0.8*13504.2
-#        self.plant_simulation_model.kA = 0.8*0.07170172
-#        self.plant_simulation_model.A['i'] = 0.8*396400.0
+        ip.options["max_iter"] = 1000
         
         
         self.plant_simulation_model.clear_all_bounds()
@@ -524,7 +497,7 @@ class NmpcGen(DynGen):
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
-        ip.options["max_iter"] = 3000
+        ip.options["max_iter"] = 1000
         
         self.forward_simulation_model.clear_all_bounds()
         out = ip.solve(self.forward_simulation_model, tee=True, symbolic_solver_labels=True)
@@ -532,9 +505,6 @@ class NmpcGen(DynGen):
         
         if [str(out.solver.status), str(out.solver.termination_condition)] != ['ok','optimal']:
             self.forward_simulation_model.clear_all_bounds()
-            #for index in self.forward_simulation_model.T_cw.index_set():
-            #    self.forward_simulation_model.T_cw[index].setlb(None)
-            #    self.forward_simulation_model.T_cw[index].setub(None)
             out = ip.solve(self.forward_simulation_model, tee = True, symbolic_solver_labels=True)
             
         self.simulation_trajectory[self.iterations,'solstat'] = [str(out.solver.status), str(out.solver.termination_condition)]
@@ -558,7 +528,7 @@ class NmpcGen(DynGen):
         self.recipe_optimization_model.initialize_element_by_element()
         self.recipe_optimization_model.create_bounds()
         self.recipe_optimization_model.clear_aux_bounds()
-        self.recipe_optimization_model.create_output_relations()
+        #self.recipe_optimization_model.create_output_relations()
         self.create_tf_bounds(self.recipe_optimization_model)
 
         if self.linapprox:
@@ -651,6 +621,22 @@ class NmpcGen(DynGen):
         self.olnmpc.create_bounds()
         self.create_tf_bounds(self.olnmpc)
         self.olnmpc.clear_aux_bounds()
+        self.olnmpc.enmpc()
+        
+        self.olnmpc.K_w_nmpc = Param(self.olnmpc.fe_t, initialize=0.0, mutable=True)
+        expression = 0.0
+        if self.delta_u:
+            for u in self.u:    
+                control = getattr(self.olnmpc, u)
+                for key in control.index_set():
+                    if key > 1:
+                        expression += self.olnmpc.K_w_nmpc[key]*(control[key-1] - control[key])**2.0
+                    else:
+                        expression += self.olnmpc.K_w_nmpc[1]*(self.nmpc_trajectory[self.iterations,u] - control[1])**2.0
+        
+        # generate the expressions for the objective function
+        self.olnmpc.uK_expr_nmpc = Expression(expr = expression)
+        self.olnmpc.eobj.expr += self.olnmpc.uK_expr_nmpc
         
     def create_nmpc(self):
         if self.multimodel:
@@ -751,11 +737,15 @@ class NmpcGen(DynGen):
 
         
     def set_regularization_weights(self, Q_w = 1.0, R_w = 1.0, K_w = 1.0):
-        for i in self.olnmpc.fe_t:
-            self.olnmpc.Q_w_nmpc[i] = Q_w
-            self.olnmpc.R_w_nmpc[i] = R_w
-            self.olnmpc.K_w_nmpc[i] = K_w
-            
+        if self.obj_type == 'economic':
+            for i in self.olnmpc.fe_t:
+                self.olnmpc.K_w_nmpc[i] = K_w
+        else:
+            for i in self.olnmpc.fe_t:
+                self.olnmpc.Q_w_nmpc[i] = Q_w
+                self.olnmpc.R_w_nmpc[i] = R_w
+                self.olnmpc.K_w_nmpc[i] = K_w
+                
         
     def load_reference_trajectories(self):
         # assign values of the reference trajectory to parameters 
@@ -771,28 +761,21 @@ class NmpcGen(DynGen):
                 for fe in range(1, self.nfe_t+1):
                     try:
                         self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j]
-                        self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j] + 0.01)**2
-                        #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
+                        self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(max(abs(self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j]), 1e-3))**2
                     except KeyError:
                         self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j]
-                        self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j] + 0.01)**2
-                        #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
-                            
+                        self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(max(abs(self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j]), 1e-3))**2
+
         
         for u in self.u:
-            #control = getattr(self.olnmpc, u)
             for fe in range(1, self.nfe_t+1):
                 try:
                     self.olnmpc.umpc_ref_nmpc[fe,self.umpc_key[u]] = self.reference_control_trajectory[u,fe+self.iterations]
-                    #self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(self.reference_control_trajectory[u,fe+self.iterations] + 0.01)**2
-                    #self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(control[1].ub-control[1].lb)**2
-                    self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0
+                    self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(max(abs(self.reference_control_trajectory[u,fe+self.iterations]),1e-3))**2
                 except KeyError:
                     self.olnmpc.umpc_ref_nmpc[fe,self.umpc_key[u]] = self.reference_control_trajectory[u,self.nfe_t_0]
-                    #self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(self.reference_control_trajectory[u,self.nfe_t_0] + 0.01)**2
-                    #self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(control[1].ub-control[1].lb)**2
-                    self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0
-        
+                    self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(max(abs(self.reference_control_trajectory[u,self.nfe_t_0]),1e-3))**2
+                    
         
     def store_results(self,m):
         # store the results of an entire optimization problem into one dictionary
@@ -1041,7 +1024,7 @@ class NmpcGen(DynGen):
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
-        ip.options["max_iter"] = 3000
+        ip.options["max_iter"] = 1000
         with open("ipopt.opt", "w") as f:
             f.write("print_info_string yes")
         f.close()
@@ -1102,6 +1085,7 @@ class NmpcGen(DynGen):
     
         # set algorithmic options
         iterlim = kwargs.pop('iterlim',10)  
+        bt_iterlim = kwargs.pop('bt_iterlim',10)
         eps = kwargs.pop('eps',0.0)
         
         ip = SolverFactory('asl:ipopt')
@@ -1154,16 +1138,15 @@ class NmpcGen(DynGen):
                     slack[index].setlb(0.0)
             
             # check whether optimal control problem feasible
-            # otw. backtrack backoff
-            flag = True
+            # otw. backtrack back-off margin
             rho = 0.8
             b = 0
-            while(flag and b < 10):
+            infeas = True
+            while(infeas and b < bt_iterlim):
                 nlp_results = ip.solve(m, tee=False, symbolic_solver_labels=True)
-                flag = False
+                infeas = False
                 if [str(nlp_results.solver.status),str(nlp_results.solver.termination_condition)] != ['ok','optimal']:
                     m.write_nl()
-                    m.troubleshooting()
                     sys.exit('Error: Iteration in olrnmpc did not converge')
                 for index in m.eps.index_set():
                     if m.eps[index].value > 1e-1:
@@ -1171,7 +1154,7 @@ class NmpcGen(DynGen):
                         xi = getattr(self.olnmpc, 'xi_' + cname)
                         xi[index[-1]] = rho*xi[index[-1]].value 
                         backoff[('s_'+cname,index[-1])] = xi[index[-1]].value
-                        flag = True
+                        infeas = True
 
                 for index in m.eps_pc.index_set():
                     if m.eps_pc[index].value > 1e-1:
@@ -1179,14 +1162,18 @@ class NmpcGen(DynGen):
                         xi = getattr(self.olnmpc, 'xi_' + cname)
                         xi[index[:-2],index[-1]] = rho*xi[index[:-2],index[-1]].value
                         backoff[('s_'+cname,index[:-2],index[-1])] = xi[index[:-2],index[-1]].value
-                        flag = True
+                        infeas = True
                 b += 1       
                         
-                if flag:
-                    #print()
+                if infeas and b < bt_iterlim:
                     print('Restricted Problem infeasible --> backtrack')
                     continue
-
+            
+            # break if OCP is infeasbile after the max number of backtracking 
+            # iterations is reached
+            if infeas and b == bt_iterlim:
+                break
+            
             print('iteration ' + str(iters) + ' converged')
             
             m.eps.fix()
@@ -1253,7 +1240,7 @@ class NmpcGen(DynGen):
                             m.var_order.set_value(s[index], i)
                             reverse_dict_cons[i] = ('s_'+ k,index)
                             i += 1
-            
+                
             #compute sensitivities
             k_aug.solve(m, tee=False)
             m.write_nl()
@@ -1300,7 +1287,7 @@ class NmpcGen(DynGen):
                         sens[key] *= self.alpha[0][key[1]]
             else:
                 sys.exit('Error: Specification of uncertainty set not supported.')
-            # convergence check and update    
+            # convergence check and update  
             converged = True
             for i in cons:
                 backoff_var = getattr(m,'xi_'+i)
@@ -1309,7 +1296,8 @@ class NmpcGen(DynGen):
                         # computes the 1-norm of the respective part of the sensitivity matrix
                         # can be extended to computing the 2-norm --> ellipsoidal uncertainty set
                         new_backoff = sum(abs(sens[(('s_'+i,index),reverse_dict_pars[k])]) for k in range(1,n_p+1))
-                        # update backoff margins 
+                        # update backoff margins
+                        print(backoff['s_mw',1])
                         if backoff[('s_'+i,index)] - new_backoff <= -eps:
                             backoff[('s_'+i,index)] = new_backoff
                             backoff_var[index].value = new_backoff
@@ -1322,6 +1310,7 @@ class NmpcGen(DynGen):
                     except KeyError:
                         # catches all the stale/redundant slacks
                         continue
+            #print(backoff['s_mw',1])
             iters += 1
         if m == self.olnmpc:    
             m.create_bounds()

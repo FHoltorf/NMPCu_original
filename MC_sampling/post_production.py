@@ -12,15 +12,16 @@ from mpl_toolkits.mplot3d import Axes3D # for 3d histogram plots
 import sys
 
 #folders = ['online_estimation','multistage','backoff','standard']
-p1 = 'finalfinal/timeinvariant/parest/'
-p2 = 'finalfinal/timeinvariant/standard/'
-folders = [p1+'nominal',p1+'nominal_bo',p1+'SBBM',p1+'multistage',p1+'multistage_stgen']
-directory = 'results/finalfinal/' # save overall plots here
-method = {p1+'nominal':'nominal',
-          p1+'nominal_bo':'NMPC-bo',
-          p1+'SBBM':'SBBM',
-          p1+'multistage':'ms',
-          p1+'multistage_stgen':'ms-SBSG'}
+p1 = '125grid/presentation/timeinvariant/standard/'
+#p2 = 'finalfinal/timeinvariant/standard/'
+folders = [p1+'nominal',p1+'SBBM',p1+'ms',p1+'SBSG',p1+'nominal_bo']#,p1+'SBSG1stage']
+directory = 'results/125grid/' # save overall plots here
+method = {p1+'nominal':'NMPC',
+          p1+'nominal_bo':'NMPC-BO',
+          p1+'SBBM':'NMPC-SBBM',
+          p1+'ms':'msNMPC',
+          p1+'SBSG':'msNMPC-SBSG'}
+          #p1+'SBSG1stage':'ms-SBSG2'}
 #method = {'cj/MHE/ideal/tiv-few_meas/parnoise':'iNMPC-pn','cj/MHE/ideal/tiv-few_meas/parest-adapt':'iNMPC-adapt','cj/MHE/ideal/tiv-few_meas/parest-noadapt':'iNMPC','cj/MHE/multistage/tiv-few_meas/parest-noadapt':'msNMPC','cj/MHE/multistage/tiv-few_meas/stadapt':'msNMPC ST','cj/MHE/SBBM/tiv-few_meas/parest-adapt':'rNMPC-adapt'}
 comparison = {}
 for folder in folders: 
@@ -48,7 +49,7 @@ for folder in folders:
     CPU_t = pickle.load(f)
     f.close()
     
-    f = open(path + 'scenarios','rb')
+    f = open(path + 'scenarios.pckl','rb')
     scenarios = pickle.load(f)
     f.close()
     
@@ -99,7 +100,7 @@ for folder in folders:
     for k in range(3):
         color[k]
         x = [endpoint_constraints[i][constraint_name[k]] for i in range(iters) if endpoint_constraints[i][constraint_name[k]] != 'error']
-        print('wc error ', constraint_name[k], min(x))
+        print('wc error ', constraint_name[k], max(x))
         # compute standard deviation
         std = np.std(x) 
         mu = np.mean(x)
@@ -147,6 +148,11 @@ for folder in folders:
     T={}
     t = {}
     Tad = {}
+    T_l = {}
+    Tad_l = {}
+    t_l = {}
+    lagrange_poly = {}
+    tau_i_t = {0: 0.0, 1: 0.15505102572168217, 2: 0.6449489742783178, 3: 1.0}
     for i in path_constraints: # loop over all runs
         if path_constraints[i] =='error':
             continue
@@ -164,17 +170,37 @@ for folder in folders:
                     t[i].append(t[i][-cp]+path_constraints[i]['tf',(fe,cp)])
                 else:
                     t[i].append(path_constraints[i]['tf',(fe,cp)])
-        
+     
+        t_l[i] = [] 
+        T_l[i] = []
+        Tad_l[i] = []
+        for fe in range(1,25):
+            t_offset = t_l[i][-1] if fe > 1 else 0
+            for cp in np.linspace(0,1,1000/20):
+                lagrange_poly[0] = (cp-tau_i_t[1])*(cp-tau_i_t[2])*(cp-tau_i_t[3])/(tau_i_t[0]-tau_i_t[1])/(tau_i_t[0]-tau_i_t[2])/(tau_i_t[0]-tau_i_t[3])
+                lagrange_poly[1] = (cp-tau_i_t[0])*(cp-tau_i_t[2])*(cp-tau_i_t[3])/(tau_i_t[1]-tau_i_t[0])/(tau_i_t[1]-tau_i_t[2])/(tau_i_t[1]-tau_i_t[3])
+                lagrange_poly[2] = (cp-tau_i_t[0])*(cp-tau_i_t[1])*(cp-tau_i_t[3])/(tau_i_t[2]-tau_i_t[0])/(tau_i_t[2]-tau_i_t[1])/(tau_i_t[2]-tau_i_t[3])
+                lagrange_poly[3] = (cp-tau_i_t[0])*(cp-tau_i_t[1])*(cp-tau_i_t[2])/(tau_i_t[3]-tau_i_t[0])/(tau_i_t[3]-tau_i_t[1])/(tau_i_t[3]-tau_i_t[2])
+                T_l[i].append((lagrange_poly[0]*path_constraints[i]['T',(fe,(0,))]+lagrange_poly[1]*path_constraints[i]['T',(fe,(1,))]+lagrange_poly[2]*path_constraints[i]['T',(fe,(2,))]+lagrange_poly[3]*path_constraints[i]['T',(fe,(3,))])*100)
+                if fe > 1:
+                    Tad_l[i].append((lagrange_poly[0]*path_constraints[i]['Tad',(fe-1,(3,))]+lagrange_poly[1]*path_constraints[i]['Tad',(fe,(1,))]+lagrange_poly[2]*path_constraints[i]['Tad',(fe,(2,))]+lagrange_poly[3]*path_constraints[i]['Tad',(fe,(3,))])*100)
+                else:
+                    Tad_l[i].append((lagrange_poly[0]*path_constraints[i]['T',(1,(0,))]+lagrange_poly[1]*path_constraints[i]['Tad',(fe,(1,))]+lagrange_poly[2]*path_constraints[i]['Tad',(fe,(2,))]+lagrange_poly[3]*path_constraints[i]['Tad',(fe,(3,))])*100)
+                t_l[i].append(t_offset+cp*path_constraints[i]['tf',(fe,3)])
+                
     max_tf = max([tf[i] for i in tf if endpoint_constraints[i]['feasible'] != 'crashed'])   
     min_tf = min([tf[i] for i in tf if endpoint_constraints[i]['feasible'] != 'crashed'])
     plt.figure(5)
     fig, ax = plt.subplots()
     for i in Tad:
-        ax.plot(t[i],Tad[i], color='grey')
+        ax.plot(t_l[i],Tad_l[i], color='grey')
     ax.plot([0,max_tf],[4.4315e2,4.4315e2], color='red', linestyle='dashed')
-    plt.xlabel('t [min]')
+    ax.tick_params(axis='both',direction='in')
+    plt.ylim(ymin=370 if plt.ylim()[0] > 370 else plt.ylim()[0])
+    plt.xlabel(r'$t$ [min]')
     plt.ylabel(r'$T_{ad}$ [K]')
     fig.savefig(path+'Tad.pdf')
+    fig.savefig(path+'Tad.svg')
     
     # plot the enclosing hull
     # much much more difficult than i thought!
@@ -182,13 +208,15 @@ for folder in folders:
     fig, ax = plt.subplots()
     for i in Tad:
         #ax.plot(t[i],heat_removal[i], color='grey')
-        ax.plot(t[i],T[i], color='grey')
+        ax.plot(t_l[i],T_l[i], color='grey')
     #ax.plot([0,max_tf],[2200,2200], color='red', linestyle='dashed') #1.43403,1.43403
     ax.plot([0,max_tf],[423.15,423.15], color='red', linestyle='dashed') #1.43403,1.43403
     ax.plot([0,max_tf],[373.15,373.15], color='red', linestyle='dashed') #1.43403,1.43403
-    plt.xlabel('t [min]')
-    plt.ylabel('T [K]')
+    ax.tick_params(axis='both',direction='in')
+    plt.xlabel(r'$t$ [min]')
+    plt.ylabel(r'$T$ [K]')
     fig.savefig(path+'T.pdf')
+    fig.savefig(path+'T.svg')
     #plt.ylabel('Q [kW]')
     #fig.savefig(path+'heat_removal.pdf')
 
@@ -218,8 +246,8 @@ for folder in folders:
     print('avg_performance',sum(tf[i] for i in tf if endpoint_constraints[i]['feasible'] != 'crashed')/sum(1 for i in tf if endpoint_constraints[i]['feasible'] != 'crashed'),'[min]')
     
     # computational performance
-    comparison[folder,'t_ocp'] = [CPU_t[i][k,'ocp'] for i in CPU_t for k in range(1,24) if CPU_t[i] != 'error']
-    comparison[folder,'t_mhe'] = [CPU_t[i][k,'mhe'] for i in CPU_t for k in range(1,24) if CPU_t[i] != 'error' ]
+    comparison[folder,'t_ocp'] = [CPU_t[i][k,'ocp','cpu'] for i in CPU_t for k in range(1,24) if CPU_t[i] != 'error']
+    comparison[folder,'t_mhe'] = [CPU_t[i][k,'mhe','cpu'] for i in CPU_t for k in range(1,24) if CPU_t[i] != 'error' ]
     try:
         comparison[folder,'t_cr'] = [CPU_t[i]['cr'] for i in CPU_t]
     except:
@@ -281,7 +309,7 @@ fig.autofmt_xdate()
 ax.grid(False)
 fig.savefig(directory+'tf_cp.pdf')
 
-
+"""
 # CPU times
 # MHE
 fig = plt.figure()
@@ -336,4 +364,5 @@ plt.ylabel('Percentage of instances solved [%]')
 plt.legend()
 fig.savefig(path+'comp_times_ocp.pdf')
 #NMPC
+"""
 

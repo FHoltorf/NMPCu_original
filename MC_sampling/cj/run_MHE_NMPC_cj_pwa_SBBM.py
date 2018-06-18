@@ -19,6 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import numpy.linalg as linalg
 import time
+import resource
 
 def run(**kwargs):
     # monitor CPU time
@@ -39,7 +40,7 @@ def run(**kwargs):
     y_vars = {"MY":[()],"Y":[()],"PO":[()],'T':[()]} #"m_tot":[()],,"MW":[()]}
     
     nfe = 24
-    tf_bounds = [10.0*24.0/nfe, 30.1*24.0/nfe]
+    tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
 
     cons = ['mw','mw_ub','PO_ptg','unsat','temp_b','T_min','T_max']
     pc = ['Tad','T']
@@ -58,10 +59,10 @@ def run(**kwargs):
                p_noisy=p_noisy,
                u=u,
                noisy_inputs = False,
-               noisy_params = False,
-               adapt_params = False,
-               update_uncertainty_set = False,
-               process_noise_model = 'params_bias',
+               noisy_params = True,
+               adapt_params = True,
+               update_uncertainty_set = True,
+               process_noise_model = None,#'params_bias',
                u_bounds=u_bounds,
                tf_bounds = tf_bounds,
                diag_QR=False,
@@ -103,12 +104,18 @@ def run(**kwargs):
 
         # here measurement becomes available
         t0 = time.time()
+        t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
+        tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         CPU_t[i,'mhe'] = time.time() - t0
+        CPU_t[i,'mhe','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
         if e.update_uncertainty_set:  
             t0 = time.time()
+            t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
             e.compute_confidence_ellipsoid()
+            tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
             CPU_t[i,'cr'] = time.time() - t0
+            CPU_t[i,'cr','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
             
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
 
@@ -116,9 +123,12 @@ def run(**kwargs):
         e.set_regularization_weights(K_w=1.0,R_w=0.0,Q_w=0.0) # R_w controls, Q_w states, K_w = control steps
     
         t0 = time.time()
+        t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         e.solve_olrnmpc(cons=cons,eps=1e-4) # solves the olnmpc problem
+        tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         CPU_t[i,'ocp'] = time.time() - t0
-
+        CPU_t[i,'ocp','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
+        
         e.cycle_iterations()
         k += 1
 

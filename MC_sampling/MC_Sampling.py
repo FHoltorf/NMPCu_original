@@ -15,9 +15,11 @@ import time
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_bo import *
 #from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_SBBM import *
-from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
-#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage_stgen import *
+#from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
+from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage_stgen import *
 #from main.MC_sampling.cj.run_MHE_asNMPC_cj_pwa_multistage_stgen import *
+#from main.MC_sampling.test.runtest import *
+#from main.MC_sampling.test.run_MHE_NMPC_stgen_onestage import *
 
 #################################################################
 #################################################################
@@ -27,22 +29,51 @@ from main.MC_sampling.cj.run_MHE_NMPC_cj_pwa_multistage import *
 #################################################################
 #################################################################
 # parameter realizations use grid search for worst-case:
-kA = np.array([-0.2,-0.1,0.1,0.2])#np.linspace(-0.2,0.2,num=4)
-Ap = np.array([-0.2,-0.1,0.1,0.2])#np.linspace(-0.2,0.2,num=4)
-Ai = np.array([-0.2,-0.1,0.1,0.2])#np.linspace(-0.2,0.2,num=4)
-Ap, Ai, kA = np.meshgrid(kA, Ai, Ap)
+grid = [-0.2,-0.1,0.0,0.1,0.2]
+kA = np.array(grid)#np.linspace(-0.2,0.2,num=4)
+Ap = np.array(grid)#np.linspace(-0.2,0.2,num=4)
+Ai = np.array(grid)#np.linspace(-0.2,0.2,num=4)
+Ap, Ai, kA = np.meshgrid(kA, Ap, Ai)
 i = 0
 scenarios = {}
-for j in range(4):
-    for k in range(4):
-        for l in range(4):
+n = len(grid)
+for j in range(n):
+    for k in range(n):
+        for l in range(n):
             scenarios[i] = {('A',('p',)):Ap[j][k][l],('A',('i',)):Ai[j][k][l],('kA',()):kA[j][k][l]}
             i += 1
-#    
+            
+            
+#scenarios_wc = {0: {('A', ('i',)): -0.2, ('A', ('p',)): -0.2, ('kA', ()): -0.2},
+# 1: {('A', ('i',)): -0.2, ('A', ('p',)): -0.2, ('kA', ()): -0.1},
+# 2: {('A', ('i',)): -0.2, ('A', ('p',)): -0.2, ('kA', ()): 0.0},
+# 3: {('A', ('i',)): -0.2, ('A', ('p',)): -0.2, ('kA', ()): 0.1},
+# 4: {('A', ('i',)): -0.2, ('A', ('p',)): -0.2, ('kA', ()): 0.2},
+# 5: {('A', ('i',)): -0.1, ('A', ('p',)): -0.2, ('kA', ()): -0.2},
+# 6: {('A', ('i',)): -0.1, ('A', ('p',)): -0.2, ('kA', ()): -0.1},
+# 7: {('A', ('i',)): -0.1, ('A', ('p',)): -0.2, ('kA', ()): 0.0},
+# 8: {('A', ('i',)): -0.1, ('A', ('p',)): -0.2, ('kA', ()): 0.1},
+# 9: {('A', ('i',)): -0.1, ('A', ('p',)): -0.2, ('kA', ()): 0.2},
+# 10: {('A', ('i',)): 0.0, ('A', ('p',)): -0.2, ('kA', ()): -0.2},
+# 11: {('A', ('i',)): 0.0, ('A', ('p',)): -0.2, ('kA', ()): -0.1},
+# 12: {('A', ('i',)): 0.0, ('A', ('p',)): -0.2, ('kA', ()): 0.0},
+# 13: {('A', ('i',)): 0.0, ('A', ('p',)): -0.2, ('kA', ()): 0.1},
+# 14: {('A', ('i',)): 0.0, ('A', ('p',)): -0.2, ('kA', ()): 0.2},
+# 15: {('A', ('i',)): 0.1, ('A', ('p',)): -0.2, ('kA', ()): -0.2},
+# 16: {('A', ('i',)): 0.1, ('A', ('p',)): -0.2, ('kA', ()): -0.1},
+# 17: {('A', ('i',)): 0.1, ('A', ('p',)): -0.2, ('kA', ()): 0.0},
+# 18: {('A', ('i',)): 0.1, ('A', ('p',)): -0.2, ('kA', ()): 0.1},
+# 19: {('A', ('i',)): 0.1, ('A', ('p',)): -0.2, ('kA', ()): 0.2},
+# 20: {('A', ('i',)): 0.2, ('A', ('p',)): -0.2, ('kA', ()): -0.2},
+# 21: {('A', ('i',)): 0.2, ('A', ('p',)): -0.2, ('kA', ()): -0.1},
+# 22: {('A', ('i',)): 0.2, ('A', ('p',)): -0.2, ('kA', ()): 0.0},
+# 23: {('A', ('i',)): 0.2, ('A', ('p',)): -0.2, ('kA', ()): 0.1},
+# 24: {('A', ('i',)): 0.2, ('A', ('p',)): -0.2, ('kA', ()): 0.2}}            
+#scenarios = scenarios_wc
 # inputs
-sample_size = 64
+sample_size = n**3
 # specifiy directory where to save the resulting files
-path = '' 
+path = 'temp/' 
 # colors
 color = ['green','red','blue']
 tf = {}
@@ -53,6 +84,7 @@ uncertainty_realization = {}
 CPU_t = {}
 # run sample_size batches and save the endpoint constraint violation
 iters = 0
+runs = []
 for i in range(sample_size):
     print('#'*20)
     print('#'*20)
@@ -82,11 +114,13 @@ for i in range(sample_size):
             break
     endpoint_constraints[i]['feasible'] = feasible
     iters += 1
-
+    runs.append(i)
+#    if i == 4:
+#       letsgo = input('letsgo')
    
 constraint_name = []
 
-for constraint in endpoint_constraints[0]:
+for constraint in endpoint_constraints[runs[0]]:
     if constraint == 'feasible':
         continue
     constraint_name.append(constraint)
@@ -96,16 +130,16 @@ unit = {'epc_PO_ptg' : ' [PPM]', 'epc_unsat' : ' [mol/g PO]', 'epc_mw' : ' [g/mo
 # enpoint constraints 
 for k in range(3):
     color[k]
-    x = [endpoint_constraints[i][constraint_name[k]] for i in range(iters) if endpoint_constraints[i][constraint_name[k]] != 'error']
+    x = [endpoint_constraints[i][constraint_name[k]] for i in runs if endpoint_constraints[i][constraint_name[k]] != 'error']
     plt.figure(k)
-    plt.hist(x,int(ceil(iters**0.5)), normed=None, facecolor=color[k], edgecolor='black', alpha=1.0) 
+    plt.hist(x,int(np.ceil(iters**0.5)), normed=None, facecolor=color[k], edgecolor='black', alpha=1.0) 
     plt.xlabel(constraint_name[k] + unit[constraint_name[k]])
     plt.ylabel('relative frequency')
     plt.figure(k).savefig(path + constraint_name[k] +'.pdf')
 fes = 0
 infes = 0
 
-for i in range(iters):
+for i in runs:
     # problem is feasible
     if endpoint_constraints[i]['feasible'] == True:
         fes += 1
@@ -124,14 +158,14 @@ plt.figure(3).savefig(path + 'feas.pdf')
 
 # compute final time histogram
 plt.figure(4)
-x = [tf[i] for i in range(iters) if endpoint_constraints[i]['feasible'] != 'crashed']
-plt.hist(x,int(ceil(iters**0.5)), normed=None, facecolor='purple', edgecolor='black', alpha=1.0) 
+x = [tf[i] for i in runs if endpoint_constraints[i]['feasible'] != 'crashed']
+plt.hist(x,int(np.ceil(iters**0.5)), normed=None, facecolor='purple', edgecolor='black', alpha=1.0) 
 plt.xlabel('tf [min]')
 plt.ylabel('relative frequency')
 plt.figure(4).savefig(path + 'tf.pdf')
 
 # compute average tf
-tf_bar = sum(tf[i] for i in range(iters) if endpoint_constraints[i]['feasible'] != 'crashed')/sum(1 for i in range(iters) if endpoint_constraints[i]['feasible'] != 'crashed')
+tf_bar = sum(tf[i] for i in runs if endpoint_constraints[i]['feasible'] != 'crashed')/sum(1 for i in runs if endpoint_constraints[i]['feasible'] != 'crashed')
 endpoint_constraints['tf_avg'] = tf_bar
 
 f = open(path + 'epc.pckl','wb')
@@ -158,7 +192,7 @@ f = open(path + 'CPU_t.pckl','wb')
 pickle.dump(CPU_t,f)
 f.close()
 
-f = open(path + 'scenarios','wb')
+f = open(path + 'scenarios.pckl','wb')
 pickle.dump(scenarios,f)
 f.close()
 # path constraints
@@ -172,6 +206,7 @@ for i in path_constraints: # loop over all runs
     T[i] = []
     t[i] = []
     Tad[i] = []
+    #T[i].append(path_constraints[i]['T',(1,(0,))])
     for fe in range(1,25):
         for cp in range(1,4):        
             T[i].append(path_constraints[i]['T',(fe,(cp,))])
@@ -194,6 +229,9 @@ plt.ylabel('Tad')
     
 plt.figure(6)
 for i in Tad:
+    #tt = [0]
+    #for k in t[i]:
+    #    tt.append(k)
     plt.plot(t[i],T[i], color='grey')
 #plt.plot([0,max_tf],[1.43403,1.43403], color='red', linestyle='dashed')
 plt.plot([0,max_tf],[4.2315,4.2315], color='red', linestyle='dashed')
@@ -201,7 +239,6 @@ plt.plot([0,max_tf],[3.7315,3.7315], color='red', linestyle='dashed')
 plt.xlabel('t [min]')
 plt.ylabel('T')
 plt.figure(6).savefig(path+'T.pdf')
-
 
 # load results into file using pickle
 #f = open('sampling_results.pckl', 'rb')

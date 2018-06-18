@@ -22,8 +22,9 @@ from scipy.stats import chi2
 from scipy.linalg import sqrtm
 from pyomo import *
 
-__author__ = "David M Thierry @dthierry"
-"""Not yet. Our people, they don't understand."""
+
+__author__ = "@FHoltorf"
+
 
 class MheGen(NmpcGen):
     def __init__(self, **kwargs):
@@ -74,10 +75,9 @@ class MheGen(NmpcGen):
         self.lsmhe = self.d_mod(self.nfe_mhe, self.ncp_t, _t=self._t)
         self.lsmhe.name = "lsmhe (Least-Squares MHE)"
         self.lsmhe.create_bounds()
-        #self.lsmhe.clear_aux_bounds_mhe()
         self.lsmhe.clear_all_bounds()
         self.lsmhe.create_output_relations()
-        self.lsmhe.e_state_relation()
+
         
         #: Create list of noisy-states vars
         self.xkN_l = []
@@ -93,14 +93,9 @@ class MheGen(NmpcGen):
                 k += 1
 
         self.lsmhe.xkNk_mhe = Set(initialize=[i for i in range(0, len(self.xkN_l))])  #: Create set of noisy_states
-        #self.lsmhe.wk_mhe = Var(range(0,self.nfe_mhe), self.lsmhe.xkNk_mhe, initialize=0.0)
-        #self.lsmhe.Q_mhe = Param(range(0, self.nfe_mhe), self.lsmhe.xkNk_mhe, initialize=1.0, mutable=True) if self.diag_Q_R \
-        #    else Param(range(0, self.nfe_mhe), self.lsmhe.xkNk_mhe, self.lsmhe.xkNk_mhe,
-        #                     initialize=lambda m, t, i, ii: 1.0 if i == ii else 0.0, mutable=True)  #: Disturbance-weight
-
-        self.lsmhe.wk_mhe = Var(range(0,self.nfe_mhe+1), self.lsmhe.xkNk_mhe, initialize=0.0)
-        self.lsmhe.Q_mhe = Param(range(0, self.nfe_mhe+1), self.lsmhe.xkNk_mhe, initialize=1.0, mutable=True) if self.diag_Q_R \
-            else Param(range(0, self.nfe_mhe+1), self.lsmhe.xkNk_mhe, self.lsmhe.xkNk_mhe,
+        self.lsmhe.wk_mhe = Var(range(0,self.nfe_mhe), self.lsmhe.xkNk_mhe, initialize=0.0)
+        self.lsmhe.Q_mhe = Param(range(0, self.nfe_mhe), self.lsmhe.xkNk_mhe, initialize=1.0, mutable=True) if self.diag_Q_R \
+            else Param(range(0, self.nfe_mhe), self.lsmhe.xkNk_mhe, self.lsmhe.xkNk_mhe,
                              initialize=lambda m, t, i, ii: 1.0 if i == ii else 0.0, mutable=True)  #: Disturbance-weight
 
         # deactivates the continuity constraints in collocation scheme
@@ -125,14 +120,7 @@ class MheGen(NmpcGen):
             for y in self.y:
                 m_v = getattr(self.lsmhe, y)  #: Measured "state"
                 for jth in self.y_vars[y]:  #: the jth variable
-                    if (t == self.nfe_mhe) and (y in self.x_noisy):
-                        m_v = getattr(self.lsmhe, y + "_e")
-                        if jth == ():
-                            self.yk_l[t].append(m_v)
-                        else:    
-                            self.yk_l[t].append(m_v[jth])
-                    else:
-                        self.yk_l[t].append(m_v[(t, self.ncp_t) + jth])
+                    self.yk_l[t].append(m_v[(t, self.ncp_t) + jth])
 
         self.lsmhe.ykk_mhe = Set(initialize=[i for i in range(0, len(self.yk_l[1]))])  #: Create set of measured_vars
         self.lsmhe.nuk_mhe = Var(self.lsmhe.fe_t, self.lsmhe.ykk_mhe, initialize=0.0)   #: Measurement noise
@@ -171,7 +159,7 @@ class MheGen(NmpcGen):
                 
                 con_w = getattr(self.lsmhe, "w_" + u + "c_mhe")  #: Get the constraint-noisy
                 wu = getattr(self.lsmhe, "w_" + u + "_mhe")  #: Get the constraint-noisy
-                ce = getattr(self.lsmhe, u + "_e")  #: Get the expression
+                ce = getattr(self.lsmhe, u + "_e")  #: Get the expressions
                 cp = getattr(self.lsmhe, u)  #: Get the param
     
                 con_w.rule = lambda m, i: cp[i] == ce[i] + wu[i]
@@ -215,22 +203,6 @@ class MheGen(NmpcGen):
                 for t in range(1, self.nfe_mhe):
                     self.lsmhe.noisy_cont.add(cp_exp[t, key] == self.lsmhe.wk_mhe[t, j])
                 j += 1
-                
-        #introduce variable for estimated state at current time point
-        #removes conflict between using wk_mhe[k-1] to fit the state at [k-1] 
-        #and fit state at [k] 
-        #Should I remove this because it creates all sorts of trouble that
-        #has to be resolved in dirty ways in the end (see set_cov_meas)
-        for x in self.x_noisy:
-            e_state_expr = getattr(self.lsmhe, x + "_e_expr")
-            e_state_constr = getattr(self.lsmhe, x + "_e_c")
-            e_state_constr.deactivate()
-            for key in self.x_vars[x]:
-                j = self.xkN_key[(x,key)]
-                if key != ():
-                    self.lsmhe.noisy_cont.add(e_state_expr[key] == self.lsmhe.wk_mhe[self.nfe_mhe,j])
-                else:
-                    self.lsmhe.noisy_cont.add(e_state_expr == self.lsmhe.wk_mhe[self.nfe_mhe,j])
             
         self.lsmhe.noisy_cont.deactivate()    
         
@@ -238,10 +210,10 @@ class MheGen(NmpcGen):
             expr= 1.0/2.0 * sum(
                 sum(
                     self.lsmhe.Q_mhe[i, k] * self.lsmhe.wk_mhe[i, k]**2 for k in self.lsmhe.xkNk_mhe)
-                for i in range(0, self.nfe_mhe+1))) if self.diag_Q_R else Expression(
+                for i in range(0, self.nfe_mhe))) if self.diag_Q_R else Expression(
             expr=sum(sum(self.lsmhe.wk_mhe[i, j] *
                          sum(self.lsmhe.Q_mhe[i, j, k] * self.lsmhe.wk_mhe[i, k] for k in self.lsmhe.xkNk_mhe)
-                         for j in self.lsmhe.xkNk_mhe) for i in range(0, self.nfe_mhe+1)))
+                         for j in self.lsmhe.xkNk_mhe) for i in range(0, self.nfe_mhe)))
                 
         self.lsmhe.R_e_mhe = Expression(
             expr= 1.0/2.0 * sum(
@@ -278,7 +250,7 @@ class MheGen(NmpcGen):
                     k += 1
     
             self.lsmhe.pkNk_mhe = Set(initialize=[i for i in range(0, len(self.pkN_l))])  #: Create set of noisy_states
-            self.lsmhe.dk_mhe = Var(self.lsmhe.fe_t, self.lsmhe.pkNk_mhe, initialize=0.0, bounds=(-0.99,1.0))
+            self.lsmhe.dk_mhe = Var(self.lsmhe.fe_t, self.lsmhe.pkNk_mhe, initialize=0.0, bounds=(-0.5,0.5))
             self.lsmhe.P_mhe = Param(self.lsmhe.pkNk_mhe, initialize=1.0, mutable=True)
             self.lsmhe.noisy_pars = ConstraintList()
             
@@ -317,7 +289,7 @@ class MheGen(NmpcGen):
                     k += 1
     
             self.lsmhe.pkNk_mhe = Set(initialize=[i for i in range(0, len(self.pkN_l))])  #: Create set of noisy_states
-            self.lsmhe.dk_mhe = Var(self.lsmhe.fe_t, self.lsmhe.pkNk_mhe, initialize=0.0, bounds=(-0.99,1.0))
+            self.lsmhe.dk_mhe = Var(self.lsmhe.fe_t, self.lsmhe.pkNk_mhe, initialize=0.0, bounds=(-0.5,0.5))
             self.lsmhe.P_mhe = Param(self.lsmhe.pkNk_mhe, initialize=1.0, mutable=True)
             self.lsmhe.noisy_pars = ConstraintList()
             
@@ -509,7 +481,7 @@ class MheGen(NmpcGen):
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
-        ip.options["max_iter"] = 3000
+        ip.options["max_iter"] = 1000
         with open("ipopt.opt", "w") as f:
             f.write("print_info_string yes")
             f.close()
@@ -545,14 +517,7 @@ class MheGen(NmpcGen):
         # saves the predicted initial_values for the states
         for x in self.states:
             for j in self.x_vars[x]:
-                #self.initial_values[(x,j)] = output[(x,(self.nfe_mhe,3)+j)]
-                if j == ():
-                    key = None
-                elif len(j) == 1:
-                    key = j[0]
-                else:
-                    key = j
-                self.initial_values[(x,j)] = output[(x+"_e",key)]
+                self.initial_values[(x,j)] = output[(x,(self.nfe_mhe,self.ncp_t)+j)]
         
         return output   
 
@@ -651,54 +616,7 @@ class MheGen(NmpcGen):
                 for p in self.p_noisy:
                     for key in self.p_noisy[p]:
                         self.alpha[(p,key)] = dev[(p,key)]
-            
 
-#  ALTERNATIVE: USE THE CONFIDENCE ELLIPSOID DIRECTLY TO COMPUTE WEIGHTING MATRIX
-#  YIELDS WEIGHTING MATRIX WITH OFF-DIAGONAL ELEMENTS --> PRINCIPLE COMPONENTS NOT 
-#  ALIGNED WITH COORDINATE AXIS
-                        
-# tailored to hyperrectangles and linear approximation of LLP
-# enscribe confidence_ellipsoid in hyperrectangle
-        # started with hyperrectangle ||diag(alpha_i)^(-1)*x||_inf <= 1
-        # replace weighting by approximate covariance matrix
-        #           --> dual norm ||V_p^1/2 * x||_1 <= 1
-        #           --> compute parameter covariance matrix normalized to nominal values
-# check if all half axis endpoints lie inside hyperrectangle
-#                self._scaled_shape_matrix = {}
-#                flag = False
-#                for p in self.p_noisy:
-#                    p_mhe = getattr(self.lsmhe,p)
-#                    dev = -1e8# initialize
-#                    for key in self.p_noisy[p]:
-#                        key = None if key == () else key
-#                        index = self.PI_indices[p_mhe.name,key]
-#                        for m in range(dimension):
-#                            dev = max(dev,(abs(radii[m]*U[index][m]) + p_mhe[pkey].value)/p_mhe[pkey].value)
-#                            if dev > 1 + self.confidence_threshold:
-#                                flag = True
-#                                break
-#                            elif dev < 1 + self.robustness_threshold:
-#                                # if confidence high enough, use minimum robustness_threshold
-#                                self._scaled_shape_matrix = np.diag([self.robustness_threshold,self.robustness_threshold])
-#                                flag = True
-#                        if flag:
-#                            break
-#                    if flag:
-#                        break
-                # if all halfaxis endpoints lie inside hyperrectangle --> continue
-#                if not(flag):
-#                    # create new weighting matrix:
-#                    #  --> generally normalize principle components to their size
-#                    scaling = np.zeros((dimension,dimension))
-#                    for p in self.p_noisy:
-#                        p_mhe = getattr(self.lsmhe,p)
-#                        for key in self.p_noisy[p]:
-#                            m = self.PI_indices[p,key]
-#                            pkey = None if key == () else key
-#                            scaling[m][m] = p_mhe[pkey].value
-#                    self.scaled_shape_matrix = np.linalg.inv(np.dot(scaling.transpose(),np.dot(A,scaling)))
-#                    self.scaled_shape_matrix = sqrtm(self._scaled_shape_matrix) # weighting matrix to find rectangle that has ellipsoid inscribed
-                               
     def compute_offset_measurements(self):
         mhe_y = getattr(self.lsmhe, "yk0_mhe")
         for y in self.y:
@@ -862,10 +780,10 @@ class MheGen(NmpcGen):
                 v_j = self.yk_key[aux_key[1]]
                 for t in range(1,self.nfe_mhe+1):
                     if self.diag_Q_R:                
-                        rtarget[t, v_i] = 1.0 / (max(abs(cov_dict[vni, vnj]*self.measurement[t][vni_m]),1e-6))**2
+                        rtarget[t, v_i] = 1.0 / (max(abs(cov_dict[vni, vnj]*self.measurement[t][vni_m]),1e-4))**2
                     else:
                         # only allow for diagonal measurement covariance matrices 
-                        rtarget[t, v_i, v_j] = 1.0 / (max(abs(cov_dict[vni, vnj]*self.measurement[t][vni_m]),1e-6))**2 ## fixx
+                        rtarget[t, v_i, v_j] = 1.0 / (max(abs(cov_dict[vni, vnj]*self.measurement[t][vni_m]),1e-4))**2 ## fixx
             else:
                 continue
 
@@ -895,9 +813,9 @@ class MheGen(NmpcGen):
                 # noise in initial guess
                 if self.diag_Q_R:
                     if xic_key == ():
-                        qtarget[0, v_i] = 1 / (max(abs(cov_dict[0][vni, vnj]*xic.value),1e-6))**2 # .00001
+                        qtarget[0, v_i] = 1 / (max(abs(cov_dict[0][vni, vnj]*xic.value),1e-4))**2 # .00001
                     else:
-                        qtarget[0, v_i] = 1 / (max(abs(cov_dict[0][vni, vnj]*xic[xic_key].value),1e-6))**2 # .0001
+                        qtarget[0, v_i] = 1 / (max(abs(cov_dict[0][vni, vnj]*xic[xic_key].value),1e-4))**2 # .0001
                 else:
                     qtarget[0, v_i, v_j] = cov_dict[0][vni, vnj]
 
@@ -914,27 +832,24 @@ class MheGen(NmpcGen):
                     else:
                         w[0,v_i].fix(0.0) 
                              
-                for t in range(1,self.nfe_mhe+1):
+                for t in range(1,self.nfe_mhe):
                     if self.diag_Q_R:
-                        if t != self.nfe_mhe:
-                            qtarget[t, v_i] = 1 / (max(abs(cov_dict[0][vni, vnj]*self.nmpc_trajectory[t,vni_traj]),1e-6))**2 
-                            if set_bounds:                        
-                                if cov_dict[0][vni, vnj] != 0.0:
-                                    confidence = 10*abs(cov_dict[0][vni,vnj]*self.nmpc_trajectory[t,vni_traj])
-                                else:
-                                    confidence = 0.0 # fix controls if 0.0
-                                w[t,v_i].setlb(-confidence)
-                                w[t,v_i].setub(confidence)
-                                if abs(w[t,v_i].lb - w[t,v_i].ub) < 1e-3:
-                                    w[t,v_i].fix()
-                        else:
-                            w[t,v_i].fix(0.0)
+                        qtarget[t, v_i] = 1 / (max(abs(cov_dict[0][vni, vnj]*self.nmpc_trajectory[t,vni_traj]),1e-4))**2 
+                        if set_bounds:                        
+                            if cov_dict[0][vni, vnj] != 0.0:
+                                confidence = 10*abs(cov_dict[0][vni,vnj]*self.nmpc_trajectory[t,vni_traj])
+                            else:
+                                confidence = 0.0 
+                            w[t,v_i].setlb(-confidence)
+                            w[t,v_i].setub(confidence)
+                            if abs(w[t,v_i].lb - w[t,v_i].ub) < 1e-3:
+                                w[t,v_i].fix()
                     else:
                         if (vni,vnj) in cov_dict[t]:
                             qtarget[t, v_i, v_j] = cov_dict[t][vni, vnj]
                         else:
-                            qtarget[t, v_i, v_j] = 1e8
-                    # bound disturbances to help solution
+                            print('no weight for element : \n',vni,'\n',vnj,'\n specified')
+                            qtarget[t, v_i, v_j] = 1e8 
                     
             else:
                 print(key[0], ' is not a state variable')
@@ -950,7 +865,7 @@ class MheGen(NmpcGen):
         for key in cov_dict:
             u = key[0]
             for t in range(1,self.nfe_mhe+1):
-                utarget[t, u] = 1 / (max(abs(cov_dict[key]*self.nmpc_trajectory[t,u]),1e-6))**2
+                utarget[t, u] = 1 / (max(abs(cov_dict[key]*self.nmpc_trajectory[t,u]),1e-4))**2
 
     def set_covariance_pnoise(self, cov_dict, set_bounds=True):
         ptarget = getattr(self.lsmhe, "P_mhe")

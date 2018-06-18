@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import numpy.linalg as linalg
 
 
-path = 'results/final/' 
+path = 'results/125grid/presentation/openloop/nominal/' 
 kA = np.array([-0.2,-0.1,0.0,0.1,0.2])#np.linspace(-0.2,0.2,num=4)
 Ap = np.array([-0.2,-0.1,0.0,0.1,0.2])#np.linspace(-0.2,0.2,num=4)
 Ai = np.array([-0.2,-0.1,0.0,0.1,0.2])#np.linspace(-0.2,0.2,num=4)
@@ -42,7 +42,7 @@ u = ["u1", "u2"]
 u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)} 
 
 nfe = 24
-tf_bounds = (10.0*24.0/nfe, 30.0*24.0/nfe)
+tf_bounds = (10.0*24.0/nfe, 20.0*24.0/nfe)
 
 pc = ['Tad','T']
 e = MheGen(d_mod=SemiBatchPolymerization,
@@ -70,7 +70,6 @@ e.recipe_optimization()
 e.set_reference_state_trajectory(e.get_state_trajectory(e.recipe_optimization_model))
 e.set_reference_control_trajectory(e.get_control_trajectory(e.recipe_optimization_model))
 e.generate_state_index_dictionary()
-
 endpoint_constraints, path_constraints = e.open_loop_simulation(sample_size=sample_size, parameter_scenario=scenarios)
 
 
@@ -119,41 +118,66 @@ for w in wedges[0]:
     w.set_edgecolor('black')
 plt.figure(3).savefig(path + 'feas.pdf')
 
-heat_removal = {}
+T = {}
 t = {}
 Tad = {}
+T_l = {}
+Tad_l = {}
+t_l = {}
+lagrange_poly = {}
+tau_i_t = {0: 0.0, 1: 0.15505102572168217, 2: 0.6449489742783178, 3: 1.0}
 for i in path_constraints: # loop over all runs
     if path_constraints[i] =='error':
         continue
-    heat_removal[i] = []
+    T[i] = []
     t[i] = []
     Tad[i] = []
     for fe in range(1,25):
         for cp in range(1,4):        
-            heat_removal[i].append(path_constraints[i]['T',(fe,(cp,))])
-            Tad[i].append(path_constraints[i]['Tad',(fe,(cp,))])
+            T[i].append(path_constraints[i]['T',(fe,(cp,))]*1e2)
+            Tad[i].append(path_constraints[i]['Tad',(fe,(cp,))]*1e2)
             if fe > 1:
                 t[i].append(t[i][-cp]+path_constraints[i]['tf',(fe,cp)])
             else:
                 t[i].append(path_constraints[i]['tf',(fe,cp)])
+    t_l[i] = [] 
+    T_l[i] = []
+    Tad_l[i] = []
+    for fe in range(1,25):
+        t_offset = t_l[i][-1] if fe > 1 else 0
+        for cp in np.linspace(0,1,1000/20):
+            lagrange_poly[0] = (cp-tau_i_t[1])*(cp-tau_i_t[2])*(cp-tau_i_t[3])/(tau_i_t[0]-tau_i_t[1])/(tau_i_t[0]-tau_i_t[2])/(tau_i_t[0]-tau_i_t[3])
+            lagrange_poly[1] = (cp-tau_i_t[0])*(cp-tau_i_t[2])*(cp-tau_i_t[3])/(tau_i_t[1]-tau_i_t[0])/(tau_i_t[1]-tau_i_t[2])/(tau_i_t[1]-tau_i_t[3])
+            lagrange_poly[2] = (cp-tau_i_t[0])*(cp-tau_i_t[1])*(cp-tau_i_t[3])/(tau_i_t[2]-tau_i_t[0])/(tau_i_t[2]-tau_i_t[1])/(tau_i_t[2]-tau_i_t[3])
+            lagrange_poly[3] = (cp-tau_i_t[0])*(cp-tau_i_t[1])*(cp-tau_i_t[2])/(tau_i_t[3]-tau_i_t[0])/(tau_i_t[3]-tau_i_t[1])/(tau_i_t[3]-tau_i_t[2])
+            T_l[i].append((lagrange_poly[0]*path_constraints[i]['T',(fe,(0,))]+lagrange_poly[1]*path_constraints[i]['T',(fe,(1,))]+lagrange_poly[2]*path_constraints[i]['T',(fe,(2,))]+lagrange_poly[3]*path_constraints[i]['T',(fe,(3,))])*100)
+            if fe > 1:
+                Tad_l[i].append((lagrange_poly[0]*path_constraints[i]['Tad',(fe-1,(3,))]+lagrange_poly[1]*path_constraints[i]['Tad',(fe,(1,))]+lagrange_poly[2]*path_constraints[i]['Tad',(fe,(2,))]+lagrange_poly[3]*path_constraints[i]['Tad',(fe,(3,))])*100)
+            else:
+                Tad_l[i].append((lagrange_poly[0]*path_constraints[i]['T',(1,(0,))]+lagrange_poly[1]*path_constraints[i]['Tad',(fe,(1,))]+lagrange_poly[2]*path_constraints[i]['Tad',(fe,(2,))]+lagrange_poly[3]*path_constraints[i]['Tad',(fe,(3,))])*100)
+            t_l[i].append(t_offset+cp*path_constraints[i]['tf',(fe,3)])
+fig,ax = plt.subplots()
+for i in Tad:
+#    if i != 62:
+        ax.plot(t_l[i],Tad_l[i], color='grey')       
+#ax.plot(t_l[62],Tad_l[62], color='red')
+ax.plot([0,t[1][-1]],[4.4315e2,4.4315e2], color='red', linestyle='dashed')
+ax.set_xlabel(r'$t$ [min]')
+ax.set_ylabel(r'$T_{ad}$ [K]')
+ax.tick_params(axis='both',direction='in')
+fig.savefig(path + 'Tad_l.pdf')
 
-plt.figure(5)
+fig,ax = plt.subplots()
 for i in Tad:
-    plt.plot(t[i],Tad[i], color='grey')
-plt.plot([0,t[1][-1]],[4.4315,4.4315], color='red', linestyle='dashed')
-plt.plot()
-plt.figure(5).savefig(path + 'Tad.pdf')
-plt.xlabel('t [min]')
-plt.ylabel('Tad')
-    
-plt.figure(6)
-for i in Tad:
-    plt.plot(t[i],heat_removal[i], color='grey')
-plt.plot([0,t[1][-1]],[4.2315,4.2315], color='red', linestyle='dashed')
-plt.plot([0,t[1][-1]],[3.7315,3.7315], color='red', linestyle='dashed')
-plt.xlabel('t [min]')
-plt.ylabel('T')
-plt.figure(6).savefig(path + 'T.pdf')
+#    if i != 62:
+        ax.plot(t_l[i],T_l[i], color='grey')
+#ax.plot(t_l[62],T_l[62], color='red')    
+ax.plot([0,t[1][-1]],[4.2315e2,4.2315e2], color='red', linestyle='dashed')
+ax.plot([0,t[1][-1]],[3.7315e2,3.7315e2], color='red', linestyle='dashed')
+ax.set_xlabel(r'$t$ [min]')
+ax.set_ylabel(r'$T$ [K]')
+ax.tick_params(axis='both',direction='in')
+fig.savefig(path + 'T_l.pdf')
 
 
 f = open(path + 'epc.pckl','wb')

@@ -281,224 +281,224 @@ class mod(ConcreteModel):
                    format=ProblemFormat.nl,
                    io_options={"symbolic_solver_labels": True})
         
-ip = SolverFactory('ipopt')
-ip.options["linear_solver"] = "ma57"
-m = mod(30,3)
-ip.solve(m, tee = True)
-
-R_aux = [(m.R[i].value,m.R[i].value) for i in m.fe_t]
-R = []
-t = []
-for i in range(m.nfe):
-    t.append(i*m.delta_t.value)
-    t.append(t[2*i]+m.delta_t.value)
-    R.append(R_aux[i][0])
-    R.append(R_aux[i][1])
-plt.figure(1)
-plt.plot(t,R)
-
-xD = [m.xD[i].value for i in m.xD.index_set()]
-t_coll = [m.delta_t*(i+m.tau_i_t[cp]) for i in m.fe_t for cp in m.cp]
-
-plt.figure(2)
-plt.plot(t_coll,xD)
-
-# Robust approx.
-iters = 0
-iterlim = 10
-converged = False
-eps = 1e-5
-alpha = 0.278
-p_noisy = {'alpha':[()]}
-cons = ['purity']
-
-k_aug = SolverFactory("k_aug",executable="/home/flemmingholtorf/KKT_matrix/k_aug/src/kmatrix/k_aug")
-k_aug.options["compute_dsdp"] = ""
-
-n_p = 0
-for key1 in p_noisy:
-    for key2 in p_noisy[key1]:
-        n_p += 1
-
-backoff = {}
-for i in cons:
-    backoff_var = getattr(m,'xi_'+i)
-    for index in backoff_var.index_set():
-        try:
-            backoff[('s_'+i,index)] = 0.0
-            backoff_var[index].value = 0.0
-        except KeyError:
-            continue
-
-while (iters < iterlim and not(converged)):
-    # solve optimization problem
-    for i in cons:
-        slack = getattr(m, 's_'+i)
-        for index in slack.index_set():
-            slack[index].setlb(0)
-    m.R.unfix()
-    ip.solve(m, tee=True)
-    m.ipopt_zL_in.update(m.ipopt_zL_out)
-    m.ipopt_zU_in.update(m.ipopt_zU_out)
-    if iters == 0:
-        m.var_order = Suffix(direction=Suffix.EXPORT)
-        m.dcdp = Suffix(direction=Suffix.EXPORT)
-        i = 1
-        reverse_dict_pars = {}
-        for p in p_noisy:
-            for key in p_noisy[p]:
-                if key != ():
-                    dummy = 'dummy_constraint_p_' + p + '_' + key
-                else:
-                    dummy = 'dummy_constraint_p_' + p
-                dummy_con = getattr(m, dummy)
-                for index in dummy_con.index_set():
-                    m.dcdp.set_value(dummy_con[index], i)
-                    reverse_dict_pars[i] = (p,key)
-                    i += 1
-    
-        i = 1
-        reverse_dict_cons = {}
-        for k in cons:
-            s = getattr(m, 's_'+k)
-            for index in s.index_set():
-                if not(s[index].stale):
-                    m.var_order.set_value(s[index], i)
-                    reverse_dict_cons[i] = ('s_'+ k,index)
-                    i += 1
-    
-    # get sensitivities
-    m.R.fix()   
-    m.s_purity.setlb(None)
-    k_aug.solve(m, tee=True)
-    sys.exit()
-
-    sens = {}
-    with open('dxdp_.dat') as f:
-        reader = csv.reader(f, delimiter="\t")
-        i = 1
-        for row in reader:
-            k = 1
-            s = reverse_dict_cons[i]
-            for col in row[1:]:
-                p = reverse_dict_pars[k]
-                sens[(s,p)] = float(col)
-                k += 1
-            i += 1
-            
-    
-    # convergence check and update    
-    converged = True
-    for i in cons:
-        backoff_var = getattr(m,'xi_'+i)
-        for index in backoff_var.index_set():
-            try:
-                new_backoff = sum(abs(alpha*sens[(('s_'+i,index),reverse_dict_pars[k])]) for k in range(1,n_p+1))
-                old_backoff = backoff[('s_'+i,index)]
-                if backoff[('s_'+i,index)] - new_backoff < 0:
-                    backoff[('s_'+i,index)] = new_backoff
-                    backoff_var[index].value = new_backoff
-                    if old_backoff - new_backoff < -eps:
-                        converged = False
-                else:
-                    continue
-            except KeyError:
-                continue
-    iters += 1
-
-for i in cons:
-    slack = getattr(m, 's_'+i)
-    for index in slack.index_set():
-        slack[index].setlb(0)
-m.R.unfix()
-ip.solve(m, tee=True)
-
-R_aux = [(m.R[i].value,m.R[i].value) for i in m.fe_t]
-R = []
-t = []
-for i in range(m.nfe):
-    t.append(i*m.delta_t.value)
-    t.append(t[2*i]+m.delta_t.value)
-    R.append(R_aux[i][0])
-    R.append(R_aux[i][1])
-plt.figure(1)
-plt.plot(t,R,label='approx')
-plt.legend()
-
-xD = [m.xD[i].value for i in m.xD.index_set()]
-t_coll = [m.delta_t*(i+m.tau_i_t[cp]) for i in m.fe_t for cp in m.cp]
-
-plt.figure(2)
-plt.plot(t_coll,xD,label='approx')
-plt.legend()
-
-# solve real problem
-m.xi_purity = 0.0
-m.p_alpha_par = 1.0 + alpha
-m.p_V_par = 1.0
-m.R.fix()
-m.epc_purity.deactivate()
-ip.solve(m,tee=False)
-R_aux = [(m.R[i].value,m.R[i].value) for i in m.fe_t]
-R = []
-t = []
-for i in range(m.nfe):
-    t.append(i*m.delta_t.value)
-    t.append(t[2*i]+m.delta_t.value)
-    R.append(R_aux[i][0])
-    R.append(R_aux[i][1])
-plt.figure(1)
-plt.plot(t,R,label='ub')
-plt.legend()
-
-xD = [m.xD[i].value for i in m.xD.index_set()]
-t_coll = [m.delta_t*(i+m.tau_i_t[cp]) for i in m.fe_t for cp in m.cp]
-
-plt.figure(2)
-plt.plot(t_coll,xD,label='ub')
-plt.legend()
-
-m.p_alpha_par = 1.0 - alpha
-m.p_V_par = 1.0
-ip.solve(m,tee=False)
-R_aux = [(m.R[i].value,m.R[i].value) for i in m.fe_t]
-R = []
-t = []
-for i in range(m.nfe):
-    t.append(i*m.delta_t.value)
-    t.append(t[2*i]+m.delta_t.value)
-    R.append(R_aux[i][0])
-    R.append(R_aux[i][1])
-plt.figure(1)
-plt.plot(t,R,label='lb')
-plt.legend()
-
-xD = [m.xD[i].value for i in m.xD.index_set()]
-t_coll = [m.delta_t*(i+m.tau_i_t[cp]) for i in m.fe_t for cp in m.cp]
-
-plt.figure(2)
-plt.plot(t_coll,xD,label='lb')
-plt.legend()
-
-m.epc_purity.activate()
-m.R.unfix()
-ip.solve(m,tee=True)
-
-R_aux = [(m.R[i].value,m.R[i].value) for i in m.fe_t]
-R = []
-t = []
-for i in range(m.nfe):
-    t.append(i*m.delta_t.value)
-    t.append(t[2*i]+m.delta_t.value)
-    R.append(R_aux[i][0])
-    R.append(R_aux[i][1])
-plt.figure(1)
-plt.plot(t,R,label='nonlin')
-plt.legend()
-
-xD = [m.xD[i].value for i in m.xD.index_set()]
-t_coll = [m.delta_t*(i+m.tau_i_t[cp]) for i in m.fe_t for cp in m.cp]
-
-plt.figure(2)
-plt.plot(t_coll,xD,label='nonlin')
-plt.legend()
+#ip = SolverFactory('ipopt')
+#ip.options["linear_solver"] = "ma57"
+#m = mod(30,3)
+#ip.solve(m, tee = True)
+#
+#R_aux = [(m.R[i].value,m.R[i].value) for i in m.fe_t]
+#R = []
+#t = []
+#for i in range(m.nfe):
+#    t.append(i*m.delta_t.value)
+#    t.append(t[2*i]+m.delta_t.value)
+#    R.append(R_aux[i][0])
+#    R.append(R_aux[i][1])
+#plt.figure(1)
+#plt.plot(t,R)
+#
+#xD = [m.xD[i].value for i in m.xD.index_set()]
+#t_coll = [m.delta_t*(i+m.tau_i_t[cp]) for i in m.fe_t for cp in m.cp]
+#
+#plt.figure(2)
+#plt.plot(t_coll,xD)
+#
+## Robust approx.
+#iters = 0
+#iterlim = 10
+#converged = False
+#eps = 1e-5
+#alpha = 0.278
+#p_noisy = {'alpha':[()]}
+#cons = ['purity']
+#
+#k_aug = SolverFactory("k_aug",executable="/home/flemmingholtorf/KKT_matrix/k_aug/src/kmatrix/k_aug")
+#k_aug.options["compute_dsdp"] = ""
+#
+#n_p = 0
+#for key1 in p_noisy:
+#    for key2 in p_noisy[key1]:
+#        n_p += 1
+#
+#backoff = {}
+#for i in cons:
+#    backoff_var = getattr(m,'xi_'+i)
+#    for index in backoff_var.index_set():
+#        try:
+#            backoff[('s_'+i,index)] = 0.0
+#            backoff_var[index].value = 0.0
+#        except KeyError:
+#            continue
+#
+#while (iters < iterlim and not(converged)):
+#    # solve optimization problem
+#    for i in cons:
+#        slack = getattr(m, 's_'+i)
+#        for index in slack.index_set():
+#            slack[index].setlb(0)
+#    m.R.unfix()
+#    ip.solve(m, tee=True)
+#    m.ipopt_zL_in.update(m.ipopt_zL_out)
+#    m.ipopt_zU_in.update(m.ipopt_zU_out)
+#    if iters == 0:
+#        m.var_order = Suffix(direction=Suffix.EXPORT)
+#        m.dcdp = Suffix(direction=Suffix.EXPORT)
+#        i = 1
+#        reverse_dict_pars = {}
+#        for p in p_noisy:
+#            for key in p_noisy[p]:
+#                if key != ():
+#                    dummy = 'dummy_constraint_p_' + p + '_' + key
+#                else:
+#                    dummy = 'dummy_constraint_p_' + p
+#                dummy_con = getattr(m, dummy)
+#                for index in dummy_con.index_set():
+#                    m.dcdp.set_value(dummy_con[index], i)
+#                    reverse_dict_pars[i] = (p,key)
+#                    i += 1
+#    
+#        i = 1
+#        reverse_dict_cons = {}
+#        for k in cons:
+#            s = getattr(m, 's_'+k)
+#            for index in s.index_set():
+#                if not(s[index].stale):
+#                    m.var_order.set_value(s[index], i)
+#                    reverse_dict_cons[i] = ('s_'+ k,index)
+#                    i += 1
+#    
+#    # get sensitivities
+#    m.R.fix()   
+#    m.s_purity.setlb(None)
+#    k_aug.solve(m, tee=True)
+#    sys.exit()
+#
+#    sens = {}
+#    with open('dxdp_.dat') as f:
+#        reader = csv.reader(f, delimiter="\t")
+#        i = 1
+#        for row in reader:
+#            k = 1
+#            s = reverse_dict_cons[i]
+#            for col in row[1:]:
+#                p = reverse_dict_pars[k]
+#                sens[(s,p)] = float(col)
+#                k += 1
+#            i += 1
+#            
+#    
+#    # convergence check and update    
+#    converged = True
+#    for i in cons:
+#        backoff_var = getattr(m,'xi_'+i)
+#        for index in backoff_var.index_set():
+#            try:
+#                new_backoff = sum(abs(alpha*sens[(('s_'+i,index),reverse_dict_pars[k])]) for k in range(1,n_p+1))
+#                old_backoff = backoff[('s_'+i,index)]
+#                if backoff[('s_'+i,index)] - new_backoff < 0:
+#                    backoff[('s_'+i,index)] = new_backoff
+#                    backoff_var[index].value = new_backoff
+#                    if old_backoff - new_backoff < -eps:
+#                        converged = False
+#                else:
+#                    continue
+#            except KeyError:
+#                continue
+#    iters += 1
+#
+#for i in cons:
+#    slack = getattr(m, 's_'+i)
+#    for index in slack.index_set():
+#        slack[index].setlb(0)
+#m.R.unfix()
+#ip.solve(m, tee=True)
+#
+#R_aux = [(m.R[i].value,m.R[i].value) for i in m.fe_t]
+#R = []
+#t = []
+#for i in range(m.nfe):
+#    t.append(i*m.delta_t.value)
+#    t.append(t[2*i]+m.delta_t.value)
+#    R.append(R_aux[i][0])
+#    R.append(R_aux[i][1])
+#plt.figure(1)
+#plt.plot(t,R,label='approx')
+#plt.legend()
+#
+#xD = [m.xD[i].value for i in m.xD.index_set()]
+#t_coll = [m.delta_t*(i+m.tau_i_t[cp]) for i in m.fe_t for cp in m.cp]
+#
+#plt.figure(2)
+#plt.plot(t_coll,xD,label='approx')
+#plt.legend()
+#
+## solve real problem
+#m.xi_purity = 0.0
+#m.p_alpha_par = 1.0 + alpha
+#m.p_V_par = 1.0
+#m.R.fix()
+#m.epc_purity.deactivate()
+#ip.solve(m,tee=False)
+#R_aux = [(m.R[i].value,m.R[i].value) for i in m.fe_t]
+#R = []
+#t = []
+#for i in range(m.nfe):
+#    t.append(i*m.delta_t.value)
+#    t.append(t[2*i]+m.delta_t.value)
+#    R.append(R_aux[i][0])
+#    R.append(R_aux[i][1])
+#plt.figure(1)
+#plt.plot(t,R,label='ub')
+#plt.legend()
+#
+#xD = [m.xD[i].value for i in m.xD.index_set()]
+#t_coll = [m.delta_t*(i+m.tau_i_t[cp]) for i in m.fe_t for cp in m.cp]
+#
+#plt.figure(2)
+#plt.plot(t_coll,xD,label='ub')
+#plt.legend()
+#
+#m.p_alpha_par = 1.0 - alpha
+#m.p_V_par = 1.0
+#ip.solve(m,tee=False)
+#R_aux = [(m.R[i].value,m.R[i].value) for i in m.fe_t]
+#R = []
+#t = []
+#for i in range(m.nfe):
+#    t.append(i*m.delta_t.value)
+#    t.append(t[2*i]+m.delta_t.value)
+#    R.append(R_aux[i][0])
+#    R.append(R_aux[i][1])
+#plt.figure(1)
+#plt.plot(t,R,label='lb')
+#plt.legend()
+#
+#xD = [m.xD[i].value for i in m.xD.index_set()]
+#t_coll = [m.delta_t*(i+m.tau_i_t[cp]) for i in m.fe_t for cp in m.cp]
+#
+#plt.figure(2)
+#plt.plot(t_coll,xD,label='lb')
+#plt.legend()
+#
+#m.epc_purity.activate()
+#m.R.unfix()
+#ip.solve(m,tee=True)
+#
+#R_aux = [(m.R[i].value,m.R[i].value) for i in m.fe_t]
+#R = []
+#t = []
+#for i in range(m.nfe):
+#    t.append(i*m.delta_t.value)
+#    t.append(t[2*i]+m.delta_t.value)
+#    R.append(R_aux[i][0])
+#    R.append(R_aux[i][1])
+#plt.figure(1)
+#plt.plot(t,R,label='nonlin')
+#plt.legend()
+#
+#xD = [m.xD[i].value for i in m.xD.index_set()]
+#t_coll = [m.delta_t*(i+m.tau_i_t[cp]) for i in m.fe_t for cp in m.cp]
+#
+#plt.figure(2)
+#plt.plot(t_coll,xD,label='nonlin')
+#plt.legend()

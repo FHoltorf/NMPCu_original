@@ -19,6 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import numpy.linalg as linalg
 import time
+import resource
 
 def run(**kwargs):
     #monitor CPU time
@@ -51,9 +52,9 @@ def run(**kwargs):
                p_noisy=p_noisy,
                u=u,
                noisy_inputs = False,
-               noisy_params = True,
-               adapt_params = True,
-               process_noise_model = None,#'params_bias',
+               noisy_params = False,
+               adapt_params = False,
+               process_noise_model = 'params_bias',
                u_bounds=u_bounds,
                tf_bounds = tf_bounds,
                diag_QR=True,
@@ -78,15 +79,15 @@ def run(**kwargs):
         print('#'*21 + '\n' + ' ' * 10 + str(i) + '\n' + '#'*21)
         e.create_mhe()
         if i == 1:
-            e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
-            #e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True, disturbance_src="parameter_scenario",scenario=scenario)
+            #e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True,disturbance_src = "parameter_noise",parameter_disturbance = v_param)
+            e.plant_simulation(e.store_results(e.recipe_optimization_model),first_call = True, disturbance_src="parameter_scenario",scenario=scenario)
             e.set_measurement_prediction(e.store_results(e.recipe_optimization_model))
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
             e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,p_cov=pcov) #adjusts the mhe problem according to new available measurements
             e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
         else:
-            e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
-            #e.plant_simulation(e.store_results(e.olnmpc), disturbance_src="parameter_scenario",scenario=scenario)
+            #e.plant_simulation(e.store_results(e.olnmpc),disturbance_src="parameter_noise",parameter_disturbance=v_param)
+            e.plant_simulation(e.store_results(e.olnmpc), disturbance_src="parameter_scenario",scenario=scenario)
             e.set_measurement_prediction(e.store_results(e.forward_simulation_model))
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
             e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) 
@@ -94,8 +95,11 @@ def run(**kwargs):
     
         # here measurement becomes available
         t0 = time.time()
+        t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
+        tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         CPU_t[i,'mhe'] = time.time() - t0
+        CPU_t[i,'mhe','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
         
         # solve the advanced step problems
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
@@ -103,8 +107,11 @@ def run(**kwargs):
         e.load_reference_trajectories() # loads the reference trajectory in olnmpc problem (for regularization)
         e.set_regularization_weights(R_w=0.0,Q_w=0.0,K_w=1.0) # R_w controls, Q_w states, K_w = control steps
         t0 = time.time()
+        t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         e.solve_olnmpc() # solves the olnmpc problem
+        tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         CPU_t[i,'ocp'] = time.time() - t0
+        CPU_t[i,'ocp','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
          
         e.cycle_iterations()
         k += 1

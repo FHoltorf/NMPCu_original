@@ -15,9 +15,9 @@ import numpy as np
 import sys, os, time, csv
 from six import iterkeys
 from copy import deepcopy
-__author__ = "David M Thierry @dthierry"
 
-"""Not quite."""
+
+__author__ = "@FHoltorf"
 
 
 class NmpcGen(DynGen):
@@ -50,7 +50,7 @@ class NmpcGen(DynGen):
         self.path_constraints = kwargs.pop('path_constraints',[])
         
         # regularization
-        self.delta_u = False
+        self.delta_u = kwargs.pop('penalize_control_displacement', False)
         
         #timestep bounds
         self.tf_bounds = kwargs.pop('tf_bounds',(10.0,30.0))
@@ -77,6 +77,7 @@ class NmpcGen(DynGen):
         self.storage_model = object()
         self.initial_values = {}
         self.nominal_parameter_values = {}
+        self.uncertainty_set = kwargs.pop('uncertainty_set',{})
         
         # for advanced step: 
         self.forward_simulation_model = self.d_mod(1,self.ncp_t, _t=self._t) # only need 1 element for forward simulation
@@ -221,7 +222,7 @@ class NmpcGen(DynGen):
             ip.options["print_user_options"] = "yes"
             ip.options["linear_solver"] = "ma57"
             ip.options["tol"] = 1e-8
-            ip.options["max_iter"] = 3000
+            ip.options["max_iter"] = 1000
                 
             out = ip.solve(self.simulation_model, tee=True, symbolic_solver_labels=True)
             if  [str(out.solver.status), str(out.solver.termination_condition)] == ['ok','optimal']:
@@ -238,8 +239,7 @@ class NmpcGen(DynGen):
                             pc_trajectory[k][(pc_name,(fe,(cp,)))] = pc_var[fe,cp,1].value
                             pc_trajectory[k][('tf',(fe,cp))] = self.simulation_model.tau_i_t[cp]*self.recipe_optimization_model.tf[1,1].value
             else:
-                self.simulation_model.troubleshooting()
-                sys.exit()
+                sys.exit('Error: Simulation not converged!')
                 endpoint_constraints[k] = 'error'
         
         return endpoint_constraints, pc_trajectory
@@ -381,25 +381,11 @@ class NmpcGen(DynGen):
         # 1 element model for forward simulation
         self.plant_simulation_model.tf[1,1].fix(result['tf', (1,1)])
 
-        # FIX(!!) the controls, path constraints are deactivated
         for u in self.u:
             control = getattr(self.plant_simulation_model,u)
             control[1,1].fix(result[u,(1,1)]*(1.0+input_noise[u]))
         
         self.plant_simulation_model.equalize_u(direction="u_to_r") 
-                 
-#        self.plant_simulation_model.A['p'] = (1-0.0613376498993) * 13504.2
-#        self.plant_simulation_model.A['i'] = (1+0.0984632133588) * 396400.0
-#        self.plant_simulation_model.kA = (1-0.0437808119933) * 0.0717017208413
-        
-#        self.plant_simulation_model.A['p'].value = 11928.339882298764
-#        self.plant_simulation_model.A['i'].value = 448058.08664717613
-#        self.plant_simulation_model.kA.value =  0.06848021034849187
-
-
-#        self.plant_simulation_model.A['p'] = (1-0.0) * 13504.2
-#        self.plant_simulation_model.A['i'] = (1-0.0) * 396400.0
-#        self.plant_simulation_model.kA = (1-0.0) * 0.0717017208413
 
         # probably redundant
         self.plant_simulation_model.clear_all_bounds()      
@@ -409,7 +395,7 @@ class NmpcGen(DynGen):
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
-        ip.options["max_iter"] = 3000
+        ip.options["max_iter"] = 1000
         
         out = ip.solve(self.plant_simulation_model, tee=True)
 
@@ -521,16 +507,14 @@ class NmpcGen(DynGen):
             control[1,1].fix(current_control_info[u])
             self.forward_simulation_model.equalize_u(direction="u_to_r") # xxx
         
-        #self.forward_simulation_model.clear_aux_bounds()
         self.forward_simulation_model.clear_all_bounds()
         
         # solve statement
         ip = SolverFactory("asl:ipopt")
-        #ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
         ip.options["tol"] = 1e-8
-        ip.options["max_iter"] = 3000
+        ip.options["max_iter"] = 1000
 
         out = ip.solve(self.forward_simulation_model, tee=True)
         self.simulation_trajectory[self.iterations,'obj_fun'] = 0.0
@@ -719,34 +703,10 @@ class NmpcGen(DynGen):
             uvar = getattr(self.olnmpc,u)
             for key in uvar.index_set():
                 self.umpc_l[key[0]].append(uvar[key])
-                if key[0] == 1: # only relevant for the first run, afterwards repeating
+                if key[0] == 1: # only relevant for the first run, afterwards repeating progressio
                     self.umpc_key[(u,key[1])] = k
                     k += 1
         
-        #k = 0
-        #for t in range(1, self.nfe_t + 1):
-        #    self.xmpc_l[t] = []
-        #    for x in self.states:
-        #        x_var = getattr(self.olnmpc, x)  #: State
-                
-                #for j in self.state_vars[x]:
-                #    self.xmpc_l[t].append(x_var[(t, self.ncp_t) + j])
-                #    if t == 1: # only relevant for the first run, afterwards repeating
-                #        self.xmpc_key[(x, j)] = k
-                #        k += 1
-    
-        # same for inputs
-        #self.umpc_l = {}
-        #self.umpc_key = {}
-        #k = 0
-        #for t in range(1, self.nfe_t + 1):
-        #    self.umpc_l[t] = []
-        #    for u in self.u:
-        #        u_var = getattr(self.olnmpc, u)
-        #        self.umpc_l[t].append(u_var[t])
-        #        if t == 1: # only relevant for the first run, afterwards repeating
-        #            self.umpc_key[u] = k
-        #            k += 1
         
         # Parameter Sets that help to index the different states/controls for 
         # tracking terms according to xmpc_l/umpc_l + regularization for control steps delta_u
@@ -811,31 +771,19 @@ class NmpcGen(DynGen):
                     j = (key[2:],)
                 fe = key[0] 
                 self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(fe + self.iterations,self.ncp_t)+j]
-                self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(fe + self.iterations,self.ncp_t)+j] + 0.01)**2
-#                try:
-#                    self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j]
-#                    self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(fe+self.iterations,self.ncp_t)+j] + 0.01)**2
-#                    #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
-#                except KeyError:
-#                    self.olnmpc.xmpc_ref_nmpc[fe,self.xmpc_key[(x,j)]] = self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j]
-#                    self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(self.reference_state_trajectory[x,(self.nfe_t_0,self.ncp_t)+j] + 0.01)**2
-#                    #self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0
-#                        
-        
+                self.olnmpc.Q_nmpc[self.xmpc_key[(x,j)]] = 1.0/(max(abs(self.reference_state_trajectory[x,(fe + self.iterations,self.ncp_t)+j]),1e-3))**2
+
         for u in self.u:    
             uvar = getattr(self.olnmpc, u)
             for j in uvar.index_set():
                 fe = j[0]
                 try:
                     self.olnmpc.umpc_ref_nmpc[fe,self.umpc_key[u,j[-1]]] = self.reference_control_trajectory[u,(fe+self.iterations,j[-1])]
-                    #self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(self.reference_control_trajectory[u,fe+self.iterations] + 0.01)**2
-                    #self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(control[1].ub-control[1].lb)**2
-                    self.olnmpc.R_nmpc[self.umpc_key[u,j[-1]]] = 1.0
+                    self.olnmpc.R_nmpc[self.umpc_key[u,j[-1]]] = 1.0/(max(abs(self.reference_control_trajectory[u,(fe+self.iterations,j[-1])]),1e-3))**2
                 except KeyError:
                     self.olnmpc.umpc_ref_nmpc[fe,self.umpc_key[u,j[-1]]] = self.reference_control_trajectory[u,(self.nfe_t_0,j[-1])]
-                    #self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(self.reference_control_trajectory[u,self.nfe_t_0] + 0.01)**2
-                    #self.olnmpc.R_nmpc[self.umpc_key[u]] = 1.0/(control[1].ub-control[1].lb)**2
-                    self.olnmpc.R_nmpc[self.umpc_key[u,j[-1]]] = 1.0
+                    self.olnmpc.R_nmpc[self.umpc_key[u,j[-1]]] = 1.0/(max(abs(self.reference_control_trajectory[u,(self.nfe_t_0,j[-1])]),1e-3))**2
+
                     
     def set_regularization_weights(self, K_w = 1.0, Q_w = 1.0, R_w = 1.0):
         if self.obj_type == 'economic':
@@ -900,7 +848,7 @@ class NmpcGen(DynGen):
                 else:
                     aux_key = (_var.name,_key)
                 try:
-                    _var[_key] = initialguess[aux_key]
+                    _var[_key] = initialguess[aux_key] #if initialguess[aux_key] != None else 1.0
                 except KeyError:
                     if self.multimodel or self.linapprox:
                         try:
@@ -1093,8 +1041,8 @@ class NmpcGen(DynGen):
         ip.options["halt_on_ampl_error"] = "yes"
         ip.options["print_user_options"] = "yes"
         ip.options["linear_solver"] = "ma57"
-        ip.options["tol"] = 1e-8
-        ip.options["max_iter"] = 3000
+        ip.options["tol"] = 1e-5
+        ip.options["max_iter"] = 1000
         with open("ipopt.opt", "w") as f:
             f.write("print_info_string yes")
         f.close()
@@ -1503,6 +1451,7 @@ class NmpcGen(DynGen):
         bounds = kwargs.pop('par_bounds',{}) # uncertainty bounds
         crit = kwargs.pop('crit','overall')
         noisy_ics = kwargs.pop('noisy_ics',{})
+        uncertain_params = kwargs.pop('uncertain_params',self.p_noisy)
         m = self.olnmpc if self.iterations > 1 else self.recipe_optimization_model
         m = kwargs.pop('m',m)        
         
@@ -1529,6 +1478,18 @@ class NmpcGen(DynGen):
         m.fix_element_size.deactivate()
         # deavtivate non_anticipativity for tf
         m.non_anticipativity_tf.deactivate()
+        try:
+            m.con1.deactivate()
+            m.con2.deactivate()
+            m.con3.deactivate()
+            m.con4.deactivate()
+        except:
+            pass
+        #
+        try:
+            m.epi.deactivate()
+        except:
+            pass
             
         # set suffixes
         m.var_order = Suffix(direction=Suffix.EXPORT)
@@ -1537,12 +1498,12 @@ class NmpcGen(DynGen):
         # cols = variables for which senstivities shall be computed
         i = 0
         cols ={}
-        for p in self.p_noisy:
-            for key in self.p_noisy[p]:
+        for p in uncertain_params:
+            for key in uncertain_params[p]:
                 dummy = 'dummy_constraint_p_' + p + '_' + str(key[0]) if key != () else 'dummy_constraint_p_' + p
                 dummy_con = getattr(m, dummy)
                 for index in dummy_con.index_set():
-                    #index[0] = time_step \in {2, ... ,nfe+1}
+                    #index[0] = time_step \in {2, ... ,nr+1}
                     #index[-1] = scenario \in {1, ... , s_per_branch}
                     #only for nominal scenario otw. very intricat to implement
                     if index[0] > 1 and \
@@ -1557,7 +1518,7 @@ class NmpcGen(DynGen):
                 dummy = 'dummy_constraint_p_' + p + '_' + str(key[0]) if key != () else 'dummy_constraint_p_' + p
                 dummy_con = getattr(m, dummy)
                 for index in dummy_con.index_set():
-                    if index[-1] == 1 and index[0] == 2:
+                    if index[-1] == 1 and ((index[0] == 2) or index[0] == self.nfe_t):
                         #index[0] = time_step --> 2
                         #index[-1] = scenrio (only nominal scenario)
                         m.dcdp.set_value(dummy_con[index], i+1)
@@ -1575,12 +1536,12 @@ class NmpcGen(DynGen):
             s = getattr(m, 's_'+c)
             for index in s.index_set():
                 if not(s[index].stale): # only take
-                    #index[0] = time_step \in {2, ... ,nfe+1}
+                    #index[0] = time_step \in {2, ... ,nr+1}
                     #index[1] = collocation point: all of them here  (alternatively ncp_t: consider only endpoint of interval)
                     #index[-1] = scenario: only nominal scenario as base for linearization
                     #index[2:-1] = additional indices: all there are
                     if index[0] > 1 and \
-                       index[0] < self.nr + 2 and \
+                       index[0] < self.nr + 1 and \
                        index[-1] == 1: #
                         m.var_order.set_value(s[index], i+1)
                         rows[i] = ('s_'+ c,index)
@@ -1631,7 +1592,7 @@ class NmpcGen(DynGen):
         m.fix_element_size.activate()    
         
         # read sensitivity matrix from file "dxdp_.dat"
-        # rows correspond to variables
+        # rows correspond to variables/constraints
         # cols correspond to parameters
         sens = np.zeros((tot_rows,tot_cols))
         with open('dxdp_.dat') as f:
@@ -1669,7 +1630,7 @@ class NmpcGen(DynGen):
                 # distinguish between endpoint and path constraints
                 # endpoint constraints are only considered on last stage
                 if  ([p_stage,p_scen] == [c_stage,c_scen] and c_name in pc) \
-                    or ([p_stage,p_scen] == [min(self.nr+1,self.nfe_t),c_scen] and c_name in epc):
+                    or (([p_stage,p_scen] == [self.nr+1,c_scen] or [p_stage,p_scen] == [self.nfe_t,c_scen]) and c_name in epc):
                     p_var = getattr(m, 'p_' + p)
                     # just a preparation for linearizing around different scenarios
                     # will be zero here
@@ -1726,6 +1687,7 @@ class NmpcGen(DynGen):
             
             for s in range(2,s_branch_max): # scenario 1 is reserved for the nomnal sscenario
                 wc_scenario = max(con_vio_copy,key=con_vio_copy.get)
+                print(wc_scenario )
                 scenarios[i-1,s] = delta_p_wc[wc_scenario]
                 # remove scenario from scenarios:
                 con_vio_copy = {key: value for key, value in con_vio_copy.items() if (delta_p_wc[key] != delta_p_wc[wc_scenario])}
@@ -1738,17 +1700,17 @@ class NmpcGen(DynGen):
         self.nmpc_trajectory[self.iterations, 's_max'] = self.s_used
     
         print(scenarios)
-
+        print(s_branch)
         # update scenario tree
         self.st = {}
-        for i in range(1,self.nfe_t-1+1):
+        for i in range(1,self.nfe_t-1+1):#+1
             if i < self.nr + 1:
                 for s in range(1,s_stage[i]+1):
                     if s%s_branch[i]==1:
                         self.st[(i,s)] = (i-1,int(np.ceil(s/float(s_branch[i]))),True,{(p,key) : 1.0 for p in self.p_noisy for key in self.p_noisy[p]})
                     else:
                         scenario_key = s%s_branch[i] if s%s_branch[i] != 0 else s_branch[i]
-                        if i == 1:
+                        if i == 1:# or i == min(self.nr,self.nfe_t):
                             self.st[(i,s)] = (i-1,int(np.ceil(s/float(s_branch[i]))),False,{index: 1.0 + bounds[index][0] if scenarios[i,scenario_key][index]=='L' else 1 + bounds[index][1] \
                                                for index in bounds})    
                         else:
@@ -1757,9 +1719,22 @@ class NmpcGen(DynGen):
             else:
                 for s in range(1,self.s_used+1):
                     self.st[(i,s)] = (i-1,s,True,self.st[(i-1,s)][3])
+        # last stage of new tree includes worst case errors in last decision
+#        i = self.nfe_t - 1
+#        step = min(self.nfe_t-1,self.nr)
+#        for s in range(1,self.s_used+1):
+#            if s%s_branch[step]==1:
+#                parent_node = s if self.nfe_t - 1 > self.nr else int(np.ceil(s/float(s_branch[step])))
+#                self.st[(i,s)] = (i-1,parent_node,True,{(p,key) : 1.0 for p in self.p_noisy for key in self.p_noisy[p]})
+#            else:            
+#                anchor = True if self.nfe_t - 1 > self.nr else False
+#                parent_node = s if self.nfe_t - 1 > self.nr else int(np.ceil(s/float(s_branch[step])))
+#                scenario_key = s%s_branch[step] if s%s_branch[step] != 0 else s_branch[step]
+#                self.st[(i,s)] = (i-1,parent_node,anchor,{index: 1.0 + bounds[index][0] if scenarios[step,scenario_key][index]=='L' else 1 + bounds[index][1] \
+#                                           for index in bounds})
         # save scenario_tree that is used at timestep k = self.iterations + 1 (since st is generated one step in advance)
         self.nmpc_trajectory[self.iterations+1,'st'] = deepcopy(self.st)
-        
+       
     def st_adaption(self, set_type=None, cons = [], **kwargs):
         epsilon = kwargs.pop('epsilon',0.2)
         shape_matrix = kwargs.pop('shape_matrix',self._scaled_shape_matrix)

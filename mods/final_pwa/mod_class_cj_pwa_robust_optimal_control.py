@@ -222,34 +222,34 @@ class SemiBatchPolymerization(ConcreteModel):
         
         # differential variables
         self.T_cw = Var(self.fe_t, self.cp, self.s, initialize=self.T_cw_ic[1], bounds=(0.0,None))
-        #
+
         self.T = Var(self.fe_t, self.cp, self.s, initialize=385.0/self.T_scale) # temperature
         self.dT_dt = Var(self.fe_t, self.cp, self.s, initialize=0.0)
-        #
+
         self.W = Var(self.fe_t, self.cp, self.s, initialize=self.W_ic[1], bounds=(0.0,None)) # Water
         self.dW_dt = Var(self.fe_t, self.cp, self.s)
-        #        W(k,q), W0(k), Wdot(k,q)
+
         self.PO = Var(self.fe_t, self.cp, self.s, initialize=self.PO_ic[1], bounds=(0.0,None)) # propylene oxide
         self.dPO_dt = Var(self.fe_t,self.cp, self.s)
-        #        PO(k,q), PO0(k), POdot(k,q)
+
         self.m_tot = Var(self.fe_t, self.cp, self.s, initialize=self.m_tot_ic[1], bounds=(0,None)) # total mass
         self.dm_tot_dt = Var(self.fe_t, self.cp, self.s)
-        #        m(k,q), m0(k), mdot(k,q)
+
         self.X = Var(self.fe_t, self.cp, self.s, initialize=self.X_ic[1], bounds=(0.0,None)) # whats that?
         self.dX_dt = Var(self.fe_t, self.cp, self.s)
-        #        X(k,q), X0(k), Xdot(k,q)
+
         self.MX = Var(self.fe_t,self.cp,self.o, self.s, bounds=(0.0,None)) # moments of X i assume
         self.dMX_dt = Var(self.fe_t,self.cp,self.o, self.s)
-        #        MX(o,k,q), MX0(o,k), MXdot(o,k,q)
+
         self.Y = Var(self.fe_t,self.cp, self.s, initialize=self.Y_ic[1], bounds=(0.0,None)) # whats that?
         self.dY_dt = Var(self.fe_t,self.cp, self.s)
-        #        Y(k,q), Y0(k), Ydot(k,q)
+
         self.MY = Var(self.fe_t,self.cp, self.s, initialize=self.MY_ic[1], bounds=(0.0,None)) # moments of Y i assume
         self.dMY_dt = Var(self.fe_t,self.cp, self.s)
-        #        MY(o,k,q), MY0(o,k), MYdot(o,k,q)
+
         self.PO_fed = Var(self.fe_t,self.cp,self.s,initialize=self.PO_fed_ic[1], bounds=(0.0,None)) # fed mass of PO (determine the overall amount of PO_fed)
         self.dPO_fed_dt = Var(self.fe_t,self.cp,self.s)
-        #        PO_fed(k,q), PO_fed0(k), PO_feddot(k,q)
+
         
         # reactions
         self.k_l = Var(self.fe_t, self.cp, self.r, self.s, bounds=(-50,50)) # rate coefficients (?)
@@ -344,10 +344,7 @@ class SemiBatchPolymerization(ConcreteModel):
         
         self.W_ice = Expression(self.s, rule=_init_W)
         self.W_icc = Constraint(self.s, rule=lambda self,s: self.W_ice[s] == 0.0)
-        
-        #dynamics_W(k,q)$(ak(k))..
-        #       Wdot(k,q) =e= -kr('a',k,q)*W(k,q)*PO(k,q)*Vi(k,q);
-        
+
         def _ode_PO(self,i,j,s):
             if j > 0:
                 return self.dPO_dt[i,j,s] == (self.F[i]*self.tf*self.fe_dist[i] - (((self.kr[i,j,'i',s]-self.kr[i,j,'p',s])*(self.G[i,j,s]*self.G_scale + self.U[i,j,s]*self.U_scale) + (self.kr[i,j,'p',s] + self.kr[i,j,'t',s])*self.n_KOH + self.kr[i,j,'a',s]*self.W[i,j,s]*self.W_scale)*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale))/self.PO_scale
@@ -379,12 +376,7 @@ class SemiBatchPolymerization(ConcreteModel):
         
         self.PO_ice = Expression(self.s, rule=_init_PO)
         self.PO_icc = Constraint(self.s, rule=lambda self,s: self.PO_ice[s] == 0.0)
-        #dynamics_PO(k,q)$(ak(k))..
-        #        POdot(k,q) =e= F(k,q)*time_horizon - ((kr('i',k,q) - kr('p',k,q))*(G(k,q) + U(k,q)) + (kr('p',k,q)+ kr('t',k,q))*n_KOH + kr('a',k,q)*W(k,q))*PO(k,q)*Vi(k,q);
-        #  !!!!!!!!!!!!!!!!!!!!!!!!!! why * time_horizon?! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        #                technically it does not matter because it is a control variable but why normalize feed to time horizon 
-        #                               or does it really change orders of magnitude ?! I can't believe that
-        
+
         def _ode_PO_fed(self,i,j,s):
             if j > 0:
                 return self.dPO_fed_dt[i,j,s] == self.F[i]*self.tf*self.fe_dist[i]/self.PO_fed_scale
@@ -416,79 +408,7 @@ class SemiBatchPolymerization(ConcreteModel):
 
         self.PO_fed_ice = Expression(self.s, rule=_init_PO_fed)        
         self.PO_fed_icc = Constraint(self.s, rule=lambda self,s: self.PO_fed_ice[s] == 0.0)
-        #dynamics_PO_fed(k,q)$(ak(k))..
-        #        PO_feddot(k,q) =e= F(k,q)*time_horizon;
-        #  !!!!!!!!!!!!!!!!!!!!!!!!!! why * time_horizon?! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#        def _ode_m_tot(self,i,j):
-#            if j > 0:
-#                return self.dm_tot_dt[i,j,s] == self.mw_PO*self.F[i]*self.tf*self.fe_dist[i]/self.m_tot_scale
-#            else:
-#                return Constraint.Skip
-#        
-#        self.de_m_tot = Constraint(self.fe_t, self.cp, rule=_ode_m_tot)
-#          
-#        def _collocation_m_tot(self,i,j):  
-#            if j > 0:
-#                return self.dm_tot_dt[i,j,s] == \
-#                       sum(self.ldot_t[j, k] * self.m_tot[i,k,s] for k in self.cp)
-#            else:
-#                return Constraint.Skip
-#                
-#        self.dvar_t_m_tot= Constraint(self.fe_t, self.cp, rule=_collocation_m_tot)
-#            
-#        def _continuity_m_tot(self, i):#cont_W
-#            if i < nfe and nfe > 1:
-#                return self.m_tot[i + 1, 0] - sum(self.l1_t[j] * self.m_tot[i,j,s] for j in self.cp)
-#            else:
-#                return Expression.Skip
-#        
-#        self.noisy_m_tot = Expression(self.fe_t, rule=_continuity_m_tot)
-#        self.cp_m_tot = Constraint(self.fe_t, rule=lambda self,i:self.noisy_m_tot[i] == 0.0 if i < nfe and nfe > 1 else Constraint.Skip)
-#        
-#        def _init_m_tot(self):#acW(self, t):
-#            return self.m_tot[1, 0] - self.m_tot_ic
-#        
-#        self.m_tot_ice = Expression(rule=_init_m_tot)
-#        self.m_tot_icc = Constraint(rule=lambda self: self.m_tot_ice == 0.0)
-#        
-        #dynamics_m(k,q)$(ak(k))..
-        #        mdot(k,q) =e= time_horizon*mw_PO*F(k,q);
-        #  !!!!!!!!!!!!!!!!!!!!!!!!!! why * time_horizon?! !!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#        def _ode_X(self,i,j):
-#            if j > 0:
-#                return self.dX_dt[i,j,s] == (2*self.kr[i,j,'a']*self.W[i,j,s] - self.kr[i,j,'i']*self.G[i,j,s]*self.G_scale)*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale
-#            else:
-#                return Constraint.Skip
-#        self.de_X = Constraint(self.fe_t, self.cp, rule=_ode_X)
-#        
-#        
-#        def _collocation_X(self, i, j):#X_COLL
-#            if j > 0:
-#                return self.dX_dt[i,j,s] == \
-#                       sum(self.ldot_t[j, k] * self.X[i,k,s] for k in self.cp)
-#            else:
-#                return Constraint.Skip
-#        
-#        self.dvar_t_X = Constraint(self.fe_t, self.cp, rule=_collocation_X)
-#        
-#        
-#        def _continuity_X(self, i):#cont_X
-#            if i < nfe and nfe > 1:
-#                return self.X[i + 1, 0] - sum(self.l1_t[j] * self.X[i,j,s] for j in self.cp)
-#            else:
-#                return Expression.Skip
-#        
-#        self.noisy_X = Expression(self.fe_t, rule=_continuity_X)
-#        self.cp_X = Constraint(self.fe_t, rule=lambda self,i:self.noisy_X[i] == 0.0 if i < nfe and nfe > 1 else Constraint.Skip)
-#        
-#        def _init_X(self):#acW(self, t):
-#            return self.X[1, 0] - self.X_ic
-#        
-#        self.X_ice = Expression(rule=_init_X)
-#        self.X_icc = Constraint(rule= lambda self: self.X_ice == 0.0)
-#        
-        #dynamics_X(k,q)$(ak(k))..
-        #        Xdot(k,q) =e= (2*kr('a',k,q)*W(k,q) - kr('i',k,q)*G(k,q))*PO(k,q)*Vi(k,q);
+
         def _ode_MX(self,i,j,o,s):
             if j > 0:   
                 if o == 0:
@@ -523,15 +443,7 @@ class SemiBatchPolymerization(ConcreteModel):
         
         self.MX_ice = Expression(self.o, self.s, rule=_init_MX)
         self.MX_icc = Constraint(self.o, self.s, rule=lambda self,o,s: self.MX_ice[o,s] == 0.0)
-        #dynamics_MX_a(o,k,q)$(ak(k) and ord(o) = 1)..
-        #        MXdot(o,k,q) =e= kr('i',k,q)*G(k,q)*PO(k,q)*Vi(k,q);
-        
-        #dynamics_MX_b(o,k,q)$(ak(k) and ord(o) = 2)..
-        #        MXdot(o,k,q) =e= (kr('i',k,q)*G(k,q) + kr('p',k,q)*MG(o-1,k,q))*PO(k,q)*Vi(k,q);
-        
-        #dynamics_MX_c(o,k,q)$(ak(k) and ord(o) = 3)..
-        #        MXdot(o,k,q) =e= (kr('i',k,q)*G(k,q) + kr('p',k,q)*(2*MG(o-1,k,q) + MG(o-2,k,q)))*PO(k,q)*Vi(k,q);
-        
+
         def _ode_Y(self,i,j,s):
             if j > 0:
                 return self.dY_dt[i,j,s] == (self.kr[i,j,'t',s]*self.n_KOH*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale - self.kr[i,j,'i',s]*self.U[i,j,s]*self.U_scale*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale)/self.Y_scale
@@ -564,9 +476,6 @@ class SemiBatchPolymerization(ConcreteModel):
         
         self.Y_ice = Expression(self.s, rule=_init_Y)
         self.Y_icc = Constraint(self.s, rule=lambda self,s: self.Y_ice[s] == 0.0)
-              
-        #dynamics_Y(k,q)$(ak(k))..
-        #        Ydot(k,q) =e= kr('t',k,q)*n_KOH*PO(k,q)*Vi(k,q) - kr('i',k,q)*U(k,q)*PO(k,q)*Vi(k,q);
         
         def _ode_MY(self,i,j,s):
             if j > 0:   
@@ -599,15 +508,6 @@ class SemiBatchPolymerization(ConcreteModel):
         
         self.MY_ice = Expression(self.s, rule=_init_MY)
         self.MY_icc = Constraint(self.s, rule=lambda self,s: self.MY_ice[s] == 0.0)
-        
-        #dynamics_MY_a(o,k,q)$(ak(k) and ord(o) = 1)..
-        #        MYdot(o,k,q) =e= kr('i',k,q)*U(k,q)*PO(k,q)*Vi(k,q);
-        
-        #dynamics_MY_b(o,k,q)$(ak(k) and ord(o) = 2)..
-        #        MYdot(o,k,q) =e= (kr('i',k,q)*U(k,q) + kr('p',k,q)*MU(o-1,k,q))*PO(k,q)*Vi(k,q);
-        
-        #dynamics_MY_c(o,k,q)$(ak(k) and ord(o) = 3)..
-        #        MYdot(o,k,q) =e= (kr('i',k,q)*U(k,q) + kr('p',k,q)*(2*MU(o-1,k,q) + MU(o-2,k,q)))*PO(k,q)*Vi(k,q);
         
         # energy balance
         def _collocation_T_cw(self,i,j,s):
@@ -682,8 +582,6 @@ class SemiBatchPolymerization(ConcreteModel):
                 return Constraint.Skip
             
         self.rxn_rate_r_a = Constraint(self.fe_t, self.cp, self.r, self.s, rule=_rxn_rate_r_a)
-        #rxn_rate_r_a(r,k,q)$(ak(k))..
-        #        T(k,q)*k_l(r,k,q) =e= T(k,q)*log(A(r)) - Ea(r)/Rg;
         
         def _rxn_rate_r_b(self,i,j,r,s):
             if j > 0:
@@ -692,9 +590,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 return Constraint.Skip
             
         self.rxn_rate_r_b = Constraint(self.fe_t, self.cp, self.r, self.s, rule=_rxn_rate_r_b)
-        #rxn_rate_r_b(r,k,q)$(ak(k)).. 
-        #        kr(r,k,q) =e= time_horizon*exp(k_l(r,k,q))
-        
+
         # algebraic equations
         def _ae_V(self,i,j,s):
             if j == 0:
@@ -703,8 +599,6 @@ class SemiBatchPolymerization(ConcreteModel):
                 return 0.0 == (1e3 - self.Vi[i,j,s]*self.Vi_scale * self.m_tot[i,j,s]*self.m_tot_scale*(1+0.0007576*(self.T[i,j,s]*self.T_scale - 298.15)))
         
         self.ae_V = Constraint(self.fe_t, self.cp, self.s, rule=_ae_V)
-        #algebraic_V(k,q)$(ak(k))..
-        #        1e3 =e= Vi(k,q)*m(k,q)*(1 + 0.0007576*(T(k,q) - 298.15));
         
         def _ae_equilibrium_a(self,i,j,s):
             if j == 0:
@@ -713,9 +607,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 return 0.0 == self.G[i,j,s]*self.G_scale*(self.MX[i,j,0,s]*self.MX0_scale + self.MY[i,j,s]*self.MY0_scale + self.X[i,j,s]*self.X_scale + self.Y[i,j,s]*self.Y_scale) - self.X[i,j,s]*self.X_scale*self.n_KOH
         
         self.ae_equilibrium_a = Constraint(self.fe_t, self.cp, self.s, rule =_ae_equilibrium_a)
-        #algebraic_equilibrium_a(k,q)$(ak(k))..
-        #        G(k,q)*(selfX('1',k,q) + MY('1',k,q) + X(k,q) + Y(k,q)) =e= X(k,q)*n_KOH;
-        
+
         def _ae_equilibrium_b(self,i,j,s):
             if j == 0:
                 return Constraint.Skip
@@ -723,9 +615,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 return 0.0 == self.U[i,j,s]*self.U_scale*(self.MX[i,j,0,s]*self.MX0_scale + self.MY[i,j,s]*self.MY0_scale + self.X[i,j,s]*self.X_scale + self.Y[i,j,s]*self.Y_scale) - self.Y[i,j,s]*self.Y_scale*self.n_KOH
         
         self.ae_equilibrium_b = Constraint(self.fe_t, self.cp, self.s, rule =_ae_equilibrium_b)
-        #algebraic_equilibrium_b(k,q)$(ak(k))..
-        #        U(k,q)*(selfX('1',k,q) + MY('1',k,q) + X(k,q) + Y(k,q)) =e= Y(k,q)*n_KOH;
-        
+
         def _ae_equilibrium_c(self,i,j,s):
             if j > 0:
                 return 0.0 == self.MG[i,j,s]*(self.MX[i,j,0,s]*self.MX0_scale + self.MY[i,j,s]*self.MY0_scale + self.X[i,j,s]*self.X_scale + self.Y[i,j,s]*self.Y_scale) - self.MX[i,j,0,s]*self.MX0_scale*self.n_KOH
@@ -733,9 +623,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 return Constraint.Skip
                 
         self.ae_equilibrium_c = Constraint(self.fe_t, self.cp, self.s, rule =_ae_equilibrium_c)
-        #algebraic_equilibrium_c(o,k,q)$(ak(k) and ord(o) < 3)..
-        #        MG(o,k,q)*(selfX('1',k,q) + MY('1',k,q) + X(k,q) + Y(k,q)) =e= MX(o,k,q)*n_KOH;
-        
+
         # constraints
         def _pc_heat_a(self,i,j,s):
             if j == 0:
@@ -744,9 +632,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 return 0.0 == self.bulk_cp_1*(self.T[i,j,s]*self.T_scale) + self.bulk_cp_2*(self.T[i,j,s]*self.T_scale)**2/2.0 - self.int_T[i,j,s]*self.int_T_scale
         
         self.pc_heat_a = Constraint(self.fe_t, self.cp, self.s, rule=_pc_heat_a)
-        #process_constraint_heat_a(k,q)$(ak(k))..
-        #        int_T(k,q) =e= bulk_cp_1*T(k,q) + bulk_cp_2*T(k,q)*T(k,q)/2;
-        
+      
         def _pc_heat_b(self,i,j,s):
             if j == 0:
                 return Constraint.Skip
@@ -754,9 +640,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 return 0.0 == self.bulk_cp_1*self.Tad[i,j,s]*self.Tad_scale + self.bulk_cp_2*(self.Tad[i,j,s]*self.Tad_scale)**2/2.0 - self.int_Tad[i,j,s]*self.int_Tad_scale
         
         self.pc_heat_b = Constraint(self.fe_t, self.cp, self.s, rule=_pc_heat_b)
-        #process_constraint_heat_b(k,q)$(ak(k))..
-        #        int_Tad(k,q) =e= bulk_cp_1*Tad(k,q) + bulk_cp_2*Tad(k,q)*Tad(k,q)/2;
-        
+
         def _Q_in(self,i,j,s):
             if j > 0: # normalized with delta_H_r
                 return self.Qr[i,j,s] == ((self.kr[i,j,'i',s]-self.kr[i,j,'p',s])*(self.G[i,j,s]*self.G_scale + self.U[i,j,s]*self.U_scale) + (self.kr[i,j,'p',s] + self.kr[i,j,'t',s])*self.n_KOH + self.kr[i,j,'a',s]*self.W[i,j,s]*self.W_scale)*self.PO[i,j,s]*self.PO_scale*self.Vi[i,j,s]*self.Vi_scale*self.Hrxn_aux['p']*self.r_Hrxn_aux['p',s]*self.p_Hrxn_aux[i,'p',s] + self.dW_dt[i,j,s]*self.W_scale * self.Hrxn_aux['p']*self.r_Hrxn_aux['p',s]*self.p_Hrxn_aux[i,'p',s]
@@ -780,9 +664,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 return 0.0 == self.m_tot[i,j,s]*self.m_tot_scale*(self.int_Tad[i,j,s]*self.int_Tad_scale - self.int_T[i,j,s]*self.int_T_scale) - self.PO[i,j,s]*self.PO_scale*self.Hrxn['p']*self.Hrxn_aux['p']*self.r_Hrxn_aux['p',s]*self.p_Hrxn_aux[i,'p',s]
         
         self.pc_temp_a = Constraint(self.fe_t, self.cp, self.s, rule=_pc_temp_a)
-        #process_constraint_temp_a(k,q)$(ak(k))..
-        #        m(k,q)*(int_Tad(k,q) - int_T(k,q)) =e= Hrxn('p')*PO(k,q);
-        
+    
         def _pc_temp_b(self,i,j,s):
             if j == 0:
                 return Constraint.Skip
@@ -790,9 +672,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 return 0.0 == (self.T_safety + self.Tb) - self.Tad[i,j,s]*self.Tad_scale - self.s_temp_b[i,j,s] - self.xi_temp_b[i,j,s] + self.eps_pc[i,j,1,s] 
             
         self.pc_temp_b = Constraint(self.fe_t, self.cp, self.s, rule = _pc_temp_b)   
-        #process_constraint_temp_b(k,q)$(ak(k))..
-        #        Tad(k,q) =l= T_safety + Tb;
-        
+      
         def _pc_T_max(self,i,j,s):
             if j > 0:
                 return 0.0 == (self.T_max + self.Tb) - self.T[i,j,s]*self.T_scale - self.s_T_max[i,j,s] + self.eps_pc[i,j,2,s] - self.xi_T_max[i,j,s]
@@ -816,10 +696,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 return 0.0 == (self.mono_cp_1*(self.T[i,j,s]*self.T_scale - self.feed_temp) + self.mono_cp_2/2.0 *((self.T[i,j,s]*self.T_scale)**2.0 -self.feed_temp**2.0) + self.mono_cp_3/3.0*((self.T[i,j,s]*self.T_scale)**3.0 -self.feed_temp**3.0)+ self.mono_cp_4/4.0*((self.T[i,j,s]*self.T_scale)**4.0-self.feed_temp**4.0)) - self.monomer_cooling[i,j,s]*self.monomer_cooling_scale*self.Hrxn['p']  
         
         self.pc_heat_removal_c = Constraint(self.fe_t, self.cp, self.s, rule=_pc_heat_removal_c)
-        #process_constraint_heat_removal_c(k,q)$(ak(k))..
-        #        Hrxn('p')*monomer_cooling(k,q) =e= mono_cp_1*(T(k,q) - feed_temp) + mono_cp_2/2*power((T(k,q) - feed_temp), 2) + mono_cp_3/3*power((T(k,q) - feed_temp), 3)
-        #                                                                                 +  mono_cp_4/4*power((T(k,q) - feed_temp), 4);
-        
+       
         def _epc_PO_ptg(self,i,j,s):
             if i == nfe and j == ncp:
                 #return  0.0 <= self.unreacted_PO*1e-6*self.m_tot[i,j,s]*self.m_tot_scale - self.PO[i,j,s]*self.PO_scale*self.mw_PO + self.eps
@@ -828,8 +705,6 @@ class SemiBatchPolymerization(ConcreteModel):
                 return Constraint.Skip
         
         self.epc_PO_ptg = Constraint(self.fe_t, self.cp, self.s, rule=_epc_PO_ptg)    
-        #process_constraint_PO_ptg(k,q)$(ord(k) = card(k) and ord(q) = card(q))..
-        #        PO(k,q)*mw_PO =l= 120*1e-6*m(k,q);
         
         def _epc_unsat(self,i,j,s):
             if i == nfe and j == ncp:
@@ -839,9 +714,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 return Constraint.Skip
         
         self.epc_unsat = Constraint(self.fe_t, self.cp, self.s, rule=_epc_unsat)
-        #process_constraint_unsat(k,q)$(ord(k) = card(k) and ord(q) = card(q))..
-        #        1000*(selfY('1',k,q) + Y(k,q)) =l= unsat_value*m(k,q);
-        
+
         def _epc_PO_fed(self,i,j,s):
             if i == nfe and j == ncp:
                 #return 0.0 <= self.PO_fed[i,j,s] - self.n_PO 
@@ -850,9 +723,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 return Constraint.Skip
         
         self.epc_PO_fed = Constraint(self.fe_t, self.cp, self.s, rule=_epc_PO_fed)
-        #process_constraint_PO_fed(k,q)$(ord(k) = card(k) and ord(q) = card(q))..
-        #        PO_fed(k,q) =e= n_PO;
-        
+
         def _epc_mw(self,i,j,s):
             if i == nfe and j == ncp:
                 #return 0.0 <= self.MX[i,j,1,s]*self.MX1_scale/1e-2 - (self.molecular_weight - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[i,j,0,s] + self.eps
@@ -861,9 +732,7 @@ class SemiBatchPolymerization(ConcreteModel):
                 return Constraint.Skip
         
         self.epc_mw = Constraint(self.fe_t, self.cp, self.s, rule=_epc_mw)
-        #process_constraint_mw(k,q)$(ord(k) = card(k) and ord(q) = card(q))..
-        #        (selfolecular_weight - mw_PG)/mw_PO/num_OH*MX('1',k,q) =l= MX('2',k,q);
-        
+
         def _epc_mw_ub(self,s):
             return 0.0 == - (self.MX[nfe,ncp,1,s]*self.MX1_scale - (self.molecular_weight_max - self.mw_PG)/self.mw_PO/self.num_OH*self.MX[nfe,ncp,0,s]*self.MX0_scale) + self.eps[4,s] - self.s_mw_ub[s] - self.xi_mw_ub[s]
         

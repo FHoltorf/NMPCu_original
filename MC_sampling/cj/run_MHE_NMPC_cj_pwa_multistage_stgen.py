@@ -18,6 +18,7 @@ import numpy.linalg as linalg
 from scipy.stats import chi2
 from main.noise_characteristics_cj import *
 import time
+import resource
 
 # redirect system output to a file:
 #sys.stdout = open('consol_output','w')
@@ -35,6 +36,7 @@ def run(**kwargs):
     u = ["u1", "u2"]
     u_bounds = {"u1": (-5.0, 5.0), "u2": (0, 3.0)} # 14.5645661157
     
+    #cons = ['PO_ptg','unsat','mw','mw_ub','temp_b','T_max']#,'T_min']
     cons = ['PO_ptg','unsat','mw','temp_b','T_max','T_min']
     #cons = ['temp_b','T_min','T_max']
     #y = {"Y","PO", "W", "MY", "MX", "MW","m_tot",'T'}
@@ -45,7 +47,7 @@ def run(**kwargs):
     noisy_ics = {'PO_ic':[()],'T_ic':[()],'MY_ic':[()],'MX_ic':[(1,)]}
     p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2),('kA',()):(-0.2,0.2),
                 ('PO_ic',()):(-0.02,0.02),('T_ic',()):(-0.005,0.005),
-                ('MY_ic',()):(-0.01,0.01),('MX_ic',(1,)):(-0.005,0.005)}
+                ('MY_ic',()):(-0.01,0.01),('MX_ic',(1,)):(-0.003,0.003)}
     
     nfe = 24
     tf_bounds = [10.0*24.0/nfe, 30.0*24.0/nfe]
@@ -54,13 +56,15 @@ def run(**kwargs):
     
     # scenario_tree
     st = {} # scenario tree : {parent_node, scenario_number on current stage, base node (True/False), scenario values {'name',(index):value}}
-    s_max = 3
+    s_max = 4
     nr = 2
     alpha = 0.2
-    dummy ={(1, 2): {('A', ('p',)): 1-alpha, ('kA', ()): 1+alpha, ('T_ic', ()): 1+alpha, ('A', ('i',)): 1-alpha, ('MY_ic', ()): 1+alpha, ('PO_ic', ()): 1+alpha}, 
-             (1, 3): {('A', ('p',)): 1-alpha, ('kA', ()): 1+alpha, ('T_ic', ()): 1-alpha, ('A', ('i',)): 1+alpha, ('MY_ic', ()): 1-alpha, ('PO_ic', ()): 1+alpha}, 
+    dummy ={(1, 2): {('A', ('p',)): 1-alpha, ('kA', ()): 1-alpha, ('A', ('i',)): 1-alpha, ('T_ic', ()): 1+0.005, ('MY_ic', ()): 1+0.01, ('PO_ic', ()): 1+0.02, ('MX_ic',(1,)): 1 - 0.005}, 
+             (1, 3): {('A', ('p',)): 1-alpha, ('kA', ()): 1+alpha, ('A', ('i',)): 1-alpha, ('T_ic', ()): 1-0.005, ('MY_ic', ()): 1-0.01, ('PO_ic', ()): 1+0.02, ('MX_ic',(1,)): 1 - 0.005}, 
+             (1, 4): {('A', ('p',)): 1-alpha, ('kA', ()): 1-alpha, ('A', ('i',)): 1+alpha, ('T_ic', ()): 1-0.005, ('MY_ic', ()): 1-0.01, ('PO_ic', ()): 1+0.02, ('MX_ic',(1,)): 1 - 0.005}, 
              (2, 3): {('A', ('p',)): 1-alpha, ('A', ('i',)): 1-alpha, ('kA', ()): 1-alpha},
-             (2, 2): {('A', ('p',)): 1-alpha, ('A', ('i',)): 1-alpha, ('kA', ()): 1+alpha}}
+             (2, 2): {('A', ('p',)): 1-alpha, ('A', ('i',)): 1-alpha, ('kA', ()): 1+alpha},
+             (2, 4): {('A', ('p',)): 1-alpha, ('A', ('i',)): 1+alpha, ('kA', ()): 1-alpha}}
     
     for i in range(1,nfe+1):
         if i < nr + 1:
@@ -94,11 +98,12 @@ def run(**kwargs):
                noisy_params = False,
                adapt_params = False,
                update_scenario_tree = False,
+               uncertainty_set = p_bounds,
                process_noise_model = 'params_bias',
                confidence_threshold = alpha,
                robustness_threshold = 0.05,
                estimate_exceptance = 10000,
-               obj_type='economic',
+               obj_type='tracking',
                nfe_t=nfe,
                sens=None,
                diag_QR=True,
@@ -128,8 +133,11 @@ def run(**kwargs):
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)  
             e.cycle_mhe(e.store_results(e.recipe_optimization_model),mcov,qcov,ucov,p_cov=pcov, first_call=True) #adjusts the mhe problem according to new available measurements
             t0 = time.time()
+            t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
             e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
+            tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
             CPU_t[i,'stgen'] = time.time() - t0
+            CPU_t[i,'stgen','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
             e.cycle_nmpc(e.store_results(e.recipe_optimization_model))
         else:
             #e.plant_simulation(e.store_results(e.olnmpc),disturbance_src = "parameter_noise",parameter_disturbance = v_param)
@@ -138,26 +146,36 @@ def run(**kwargs):
             e.create_measurement(e.store_results(e.plant_simulation_model),x_measurement)          
             e.cycle_mhe(previous_mhe,mcov,qcov,ucov,p_cov=pcov) # only required for asMHE  
             t0 = time.time()
+            t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
             e.SBWCS_hyrec(epc=cons[:3], pc=cons[3:],par_bounds=p_bounds,crit='con',noisy_ics=noisy_ics)
+            tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
             CPU_t[i,'stgen'] = time.time() - t0
+            CPU_t[i,'stgen','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
             e.cycle_nmpc(e.store_results(e.olnmpc))   
     
         # solve mhe problem
         t0 = time.time()
+        t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
+        tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         CPU_t[i,'mhe'] = time.time() - t0
+        CPU_t[i,'mhe','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
         if e.update_scenario_tree:  
             t0 = time.time()
             e.compute_confidence_ellipsoid()
             CPU_t[i,'cr'] = time.time() - t0
+            CPU_t[i,'cr','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
         
         # e.load_reference_trajectories()
         
         e.set_regularization_weights(K_w = 1.0, Q_w = 0.0, R_w = 0.0)
         t0 = time.time()
+        t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         e.solve_olnmpc() # solves the olnmpc problem
+        tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         CPU_t[i,'ocp'] = time.time() - t0
+        CPU_t[i,'ocp','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
         
         #sIpopt
         e.cycle_iterations()
@@ -192,6 +210,7 @@ def run(**kwargs):
             print('delta_p ',p,key,': ',(pvar_r[pkey].value-pvar_m[pkey].value)/pvar_m[pkey].value)
             uncertainty_realization[(p,key)] = pvar_r[pkey].value   
     tf = e.nmpc_trajectory[k,'tf']
+    print('FINAL TIME ', tf)
     if k == 24 and e.plant_trajectory[24,'solstat'] == ['ok','optimal']:
         return tf, e.plant_simulation_model.check_feasibility(display=True), e.pc_trajectory, uncertainty_realization, CPU_t
     else:

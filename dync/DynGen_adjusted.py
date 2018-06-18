@@ -11,7 +11,8 @@ from pyomo.core.base import value
 import numpy as np
 import sys, time
 
-__author__ = "David M Thierry @dthierry"
+
+__author__ = "@FHoltorf"
 
 
 class DynGen(object):
@@ -78,10 +79,7 @@ class DynGen(object):
         self._window_keep = self.nfe_t + 2
 
         self._u_plant = {}  #: key: (ui, time)
-#       for i in self.u:
-#            u = getattr(self.d1, i)
-#            for t in range(0, self._window_keep):
-#                self._u_plant[(i, t)] = value(u[1])
+
         self.curr_u = dict.fromkeys(self.u, 0.0)
 
         self.state_vars = {}
@@ -106,9 +104,7 @@ class DynGen(object):
         self.robustness_threshold = kwargs.pop('robustness_threshold',0.05)
         self.confidence_threshold = kwargs.pop('confidence_threshold',0.2)
         self.estimate_acceptance = kwargs.pop('estimate_acceptance',1.0e8)
-        self.n_r = kwargs.pop('n_r', 1)
-        self.n_s = kwargs.pop('n_s', 1)
-        self.st = kwargs.pop('st', {})
+        self.st = kwargs.pop('st', {}) # container for scenario_tree
         self.curr_epars = {}
         
         # need to know them also in NMPCGen

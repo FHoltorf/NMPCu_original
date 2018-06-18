@@ -52,27 +52,6 @@ class SemiBatchPolymerization(ConcreteModel):
         self.monomer_cooling_scale = 1.0e-2
         self.scale = 1.0
         
-        #these work perfectly fine too
-#        self.W_scale = 1#1
-#        self.Y_scale = 1#1e-2
-#        self.PO_scale = 1#1e1
-#        self.MY0_scale = 1#1e-1
-#        self.MX0_scale = 1#1e1
-#        self.MX1_scale = 1#1e2
-#        self.MW_scale = 1#1e2
-#        self.X_scale = 1
-#        self.m_tot_scale = 1#1e4
-#        self.T_scale = 1#1e2
-#        self.Tad_scale = 1#1e2
-#        self.Vi_scale = 1#1e-2
-#        self.PO_fed_scale = 1#1e2
-#        self.int_T_scale = 1#1e2
-#        self.int_Tad_scale = 1#1e2
-#        self.G_scale = 1
-#        self.U_scale = 1#1e-2
-#        self.monomer_cooling_scale = 1#1e-2
-#        self.scale = 1
-
         # collocation pts
         self.nfe = nfe
         self.ncp = ncp

@@ -18,6 +18,7 @@ import numpy.linalg as linalg
 from scipy.stats import chi2
 from main.noise_characteristics_cj import *
 import time
+import resource
 
 # redirect system output to a file:
 #sys.stdout = open('consol_output','w')
@@ -32,6 +33,7 @@ def run(**kwargs):
     x_noisy = ["PO","MX","MY","Y","W","T"] # all the states are noisy  
     x_vars = {"PO":[()], "Y":[()], "W":[()], "PO_fed":[()], "MY":[()], "MX":[(0,),(1,)],"T":[()],"T_cw":[()]}
     p_noisy = {"A":[('p',),('i',)],'kA':[()]}
+    p_bounds = {('A', ('i',)):(-0.2,0.2),('A', ('p',)):(-0.2,0.2),('kA',()):(-0.2,0.2)}
     u = ["u1", "u2"]
     u_bounds = {"u1": (-5.0, 5.0), "u2": (0.0, 3.0)} 
   
@@ -84,6 +86,7 @@ def run(**kwargs):
                x_vars=x_vars,
                p_noisy=p_noisy,
                states=states,
+               uncertainty_set = p_bounds,
                u=u,
                u_bounds = u_bounds,
                tf_bounds = tf_bounds,
@@ -91,10 +94,10 @@ def run(**kwargs):
                robust_horizon = nr,
                s_max = sr,
                noisy_inputs = False,
-               noisy_params = False,
-               adapt_params = False,
-               update_scenario_tree = False,
-               process_noise_model = 'params_bias',
+               noisy_params = True,
+               adapt_params = True,
+               update_scenario_tree = True,
+               process_noise_model = None,#'params_bias',
                confidence_threshold = alpha,
                robustness_threshold = 0.05,
                estimate_exceptance = 10000,
@@ -135,22 +138,29 @@ def run(**kwargs):
         
         # here measurement becomes available
         t0 = time.time()
+        t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         previous_mhe = e.solve_mhe(fix_noise=True) # solves the mhe problem
+        tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         CPU_t[i,'mhe'] = time.time() - t0
+        CPU_t[i,'mhe','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
         if e.update_scenario_tree:  
             t0 = time.time()
+            t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
             e.compute_confidence_ellipsoid()
+            tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
             CPU_t[i,'cr'] = time.time() - t0
-        
+            CPU_t[i,'cr','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
         # solve the advanced step problems
         e.cycle_ics_mhe(nmpc_as=False,mhe_as=False) # writes the obtained initial conditions from mhe into olnmpc
         
         e.load_reference_trajectories()
         e.set_regularization_weights(K_w = 1.0, Q_w = 0.0, R_w = 0.0)
         t0 = time.time()
+        t0_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         e.solve_olnmpc() # solves the olnmpc problem
+        tf_cpu = resource.getrusage(resource.RUSAGE_CHILDREN)
         CPU_t[i,'ocp'] = time.time() - t0
-        
+        CPU_t[i,'ocp','cpu'] = tf_cpu.ru_utime - t0_cpu.ru_utime
         e.cycle_iterations()
         k += 1
        

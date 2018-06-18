@@ -7,7 +7,7 @@ Created on Mon Jan 29 13:08:39 2018
 """
 
 from __future__ import print_function
-from mods.cj.mod_class_cj_pwa import *
+from mods.final_pwa.mod_class_cj_pwa import *
 #from mods.no_cj.mod_class_robust_optimal_control import *
 from copy import deepcopy
 from pyomo.core import *

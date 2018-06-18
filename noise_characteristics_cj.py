@@ -7,12 +7,12 @@ Created on Wed Nov  1 13:49:10 2017
 """
 import pickle
 # relative standard deviation that is associated with disturbances
-disturbance_error = 0.05
 measurement_error = 0.05
-disturbance_error_1 = 0.0
-disturbance_error_2 = 0.0
+
 
 f = open('main/qcov_cj.pckl', 'rb')
+# computed by script qcov_MC
+# utilizes Monte Carlo sampling in order to weigh qcov accordingly to parametric uncertainty
 qcov = pickle.load(f)
 f.close()
 #qcov_a = {}
@@ -41,16 +41,16 @@ mcov[("MW",()), ("MW",())] = measurement_error
 mcov[("m_tot",()), ("m_tot",())] = 0.005
 mcov[("PO_fed",()), ("PO_fed",())] = 0.0 # measurement_error
 mcov[("heat_removal",()),("heat_removal",())] =  measurement_error
-mcov[("T",()),("T",())] = 0.005
-mcov[("T_cw",()),("T_cw",())] = 0.005
+mcov[("T",()),("T",())] = 0.001
+mcov[("T_cw",()),("T_cw",())] = 0.001
 mcov[("ByProd",()),("ByProd",())] = measurement_error
 
 # relative variance that is associated with the controls
 ucov = {}
-ucov[("u1",())] = disturbance_error_1
-ucov[("u2",())] = disturbance_error_2
+ucov[("u1",())] = 0.0
+ucov[("u2",())] = 0.0
 
-# relative variance that is associated with the parameters (only diagonal)
+# relative variance that is associated with the parameters (only diagonal supported)
 pcov = {}
 pcov[('A',('i',)),('A',('i',))] = 0.01
 pcov[('A',('p',)),('A',('p',))] = 0.01
@@ -58,19 +58,19 @@ pcov[('kA',()),('kA',())] = 0.01
 
 # process disturbances
 v_disturbances = {}
-v_disturbances[("PO",())] = disturbance_error
-v_disturbances[("MX",(0,))] = disturbance_error
-v_disturbances[("MX",(1,))] = disturbance_error
-v_disturbances[("X",())] = disturbance_error
-v_disturbances[("MY",())] = disturbance_error
-v_disturbances[("Y",())] = disturbance_error
-v_disturbances[("W",())] = disturbance_error
+v_disturbances[("PO",())] = 0.0
+v_disturbances[("MX",(0,))] = 0.0
+v_disturbances[("MX",(1,))] = 0.0
+v_disturbances[("X",())] = 0.0
+v_disturbances[("MY",())] = 0.0
+v_disturbances[("Y",())] = 0.0
+v_disturbances[("W",())] = 0.0
 v_disturbances[("m_tot",())] = 0.0
 v_disturbances[("PO_fed",())] = 0.0
 v_disturbances[("T",())] = 0.0
 v_disturbances[("T_cw",())] = 0.0
-v_disturbances["u1"] = disturbance_error_1
-v_disturbances["u2"] = disturbance_error_2
+v_disturbances["u1"] = 0.0
+v_disturbances["u2"] = 0.0
 
 # actual measurement noise from which measurement noise is generated
 x_measurement = {}
@@ -85,9 +85,9 @@ x_measurement[("MW",())] = measurement_error
 x_measurement[("m_tot",())] = 0.005
 x_measurement[("PO_fed",())] = 0.0
 x_measurement[("heat_removal",())] = measurement_error
-x_measurement[("T",())] = 0.005
-x_measurement[("T_cw",())] = 0.005
-#x_measurement[("ByProd",())] = measurement_error
+x_measurement[("T",())] = 0.001
+x_measurement[("T_cw",())] = 0.001
+
 
 # uncertainty in initial point
 v_init = {}
@@ -103,14 +103,14 @@ v_init[("PO_fed",())] = 0.0
 v_init[("T",())] = 0.0
 
 # uncertainty in parameters
-v_param = {} #[relative standard deviation, frequency for changes (measured in intervalls)]
+v_param = {} #[relative standard deviation, frequency for changes (measured in intervals)]
 v_param[('A',('a',))] = [0.0,100]
 v_param[('A',('i',))] = [0.1,100]
 v_param[('A',('p',))] = [0.1,100]
 v_param[('A',('t',))] = [0.0,100]
 v_param[('Ea',('a',))] = [0.0,100] 
-v_param[('Ea',('i',))] = [0.0,100]  # have such strong impact that there is no way of makeing these uncertain
-v_param[('Ea',('p',))] = [0.0,100]  # have such strong impact that there is no way of making these uncertain
+v_param[('Ea',('i',))] = [0.0,100]  
+v_param[('Ea',('p',))] = [0.0,100] 
 v_param[('Ea',('t',))] = [0.0,100]
 v_param[('Hrxn',('a',))] = [0.0,100] 
 v_param[('Hrxn',('i',))] = [0.0,100]
@@ -121,4 +121,5 @@ v_param[('Hrxn_aux',('i',))] = [0.0,100]
 v_param[('Hrxn_aux',('p',))] = [0.0,100]
 v_param[('Hrxn_aux',('t',))] = [0.0,100]
 v_param[('kA',())] = [0.1,100]
+
 #v_param[('n_KOH',())] = [0.0,100]
