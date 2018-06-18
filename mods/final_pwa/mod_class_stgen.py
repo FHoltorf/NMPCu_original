@@ -1074,6 +1074,7 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
 #                else:
 #                    return Constraint.Skip
 #            else:
+<<<<<<< HEAD
 #                return Constraint.Skip
 ##        
 #        self.con2 = Constraint(self.fe_t, self.s, rule=_u2_robustness)
@@ -1082,6 +1083,20 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
 #            if (i,s) in self.scenario_tree:
 #                if i > self.nr and i < self.nr + 25 and s != 1:
 #                    return 0.0 == self.tf[i,s] - self.tf[i,1]
+=======
+#                return Constraint.Skip     
+            return Constraint.Skip
+        self.non_anticipativity_tf = Constraint(self.fe_t, self.s, rule=_non_anticipativity_tf)
+        
+        # fix size of finite elements after robust horizon is reached 
+        def _fix_element_size(self,i,s):
+            if (i,s) in self.scenario_tree:
+#                parent_node = self.scenario_tree[(i,s)][0:2]
+#                if i > self.nr+1:
+#                    return 0 == self.tf[i,s] - self.tf[parent_node]
+#                elif s == 1 and i != 1: #nominal scenario
+#                    return 0 == self.tf[i,s] - self.tf[parent_node]
+>>>>>>> 00cc01fbd3fa5e37d8bc8ac02dd0bf3e9e312e9e
 #                else:
 #                    return Constraint.Skip
 #            else:

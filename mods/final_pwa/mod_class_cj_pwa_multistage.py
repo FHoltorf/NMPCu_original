@@ -954,9 +954,15 @@ class SemiBatchPolymerization_multistage(ConcreteModel):
         # fix size of finite elements after robust horizon is reached 
         def _fix_element_size(self,i,s):
             if (i,s) in self.scenario_tree:
+<<<<<<< HEAD
                 parent_node = self.scenario_tree[(i,s)][0:2]
                 if i > self.nr+1:
                     return 0 == self.tf[i,s] - self.tf[parent_node]
+=======
+#                parent_node = self.scenario_tree[(i,s)][0:2]
+#                if i > self.nr+1:
+#                    return 0 == self.tf[i,s] - self.tf[parent_node]
+>>>>>>> 00cc01fbd3fa5e37d8bc8ac02dd0bf3e9e312e9e
 #                elif s == 1 and i != 1: #nominal scenario
 #                    return 0 == self.tf[i,s] - self.tf[parent_node]
                 else:
